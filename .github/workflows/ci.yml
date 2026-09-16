@@ -1,0 +1,22 @@
+# Same file works for backoffice. For mobile: run-build: false.
+ 
+name: CI
+ 
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+ 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+ 
+jobs:
+  ci:
+    uses: Discordia-Grupo-16/discordia-ci/.github/workflows/node-app.yml@v1
+    with:
+      node-version: "22"
+      # Turn on once the repo has a test runner and a `test` script.
+      run-tests: false
+ 
