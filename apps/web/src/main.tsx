@@ -9,6 +9,8 @@ import { Home } from './pages/home.tsx';
 import { AdminHome } from './pages/adminHome.tsx';
 import { ProtectedRoute } from './components/protectedRoute.tsx';
 import './index.css';
+import { webAuthStorage } from './services/webStorage.ts';
+import { AuthProvider } from '@discordia/context';
 
 const router = createBrowserRouter([
   {
@@ -48,6 +50,8 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider storage={webAuthStorage}>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </React.StrictMode>
 );

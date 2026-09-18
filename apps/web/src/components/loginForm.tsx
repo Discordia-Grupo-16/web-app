@@ -2,19 +2,35 @@ import { useState } from "react";
 import { DiscordiaMark } from "@discordia/ui";
 import { EyeIcon, EyeOffIcon } from "./ui/eyeIcons";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@discordia/context";
+import { authService } from "../services/authService.ts";
 
 export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const { signIn } = useAuth()
     const navigate = useNavigate()
 
-    function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
         setLoading(true)
-        setTimeout(() => setLoading(false), 1800)
-        navigate(false ? '/' : '/admin')
+        setError(null)
+
+        try {
+            const { token, user } = await authService.login({ email, password })
+            await signIn(token, user)
+            navigate(user.role === 'admin' ? '/admin' : '/')
+        } catch (err: any) {
+            // Manejo de errores (credenciales inválidas, fallo de red, etc.)
+            const message = err.response?.data?.message || 'Error al iniciar sesión';
+            setError(message);
+        } finally {
+            setLoading(false);
+        }
     }
 
     return (

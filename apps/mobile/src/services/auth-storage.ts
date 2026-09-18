@@ -1,9 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
+import type { AuthStorageStrategy } from '@discordia/context';
 
 const TOKEN_KEY = 'discordia_auth_token';
 const USER_KEY = 'discordia_auth_user';
 
-export const authStorage = {
+export const mobileAuthStorage: AuthStorageStrategy = {
   async getToken(): Promise<string | null> {
     try {
       return await SecureStore.getItemAsync(TOKEN_KEY);

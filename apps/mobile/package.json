@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@discordia/context": "*",
+    "@discordia/services": "*",
     "@discordia/ui": "*",
     "axios": "^1.20.0",
     "expo": "~57.0.23",
