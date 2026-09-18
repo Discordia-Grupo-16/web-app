@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DiscordiaMark } from "./ui/DiscordiaMark";
+import { DiscordiaMark } from "@discordia/ui";
 import { EyeIcon, EyeOffIcon } from "./ui/eyeIcons";
 import { useNavigate } from "react-router-dom";
 

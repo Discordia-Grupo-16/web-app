@@ -7,10 +7,14 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +26,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Expo / Mobile
+.expo/
+web-build/
+*.tsbuildinfo
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+.metro-health-check*
+apps/mobile/android/
+apps/mobile/ios/
