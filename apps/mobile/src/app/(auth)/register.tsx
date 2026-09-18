@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Link, useRouter } from 'expo-router';
-import { useAuth } from '@/context/auth-context';
+import { useAuth } from '@discordia/context';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 
 export default function RegisterScreen() {
