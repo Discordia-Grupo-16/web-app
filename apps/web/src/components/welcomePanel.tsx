@@ -1,4 +1,4 @@
-import { DiscordiaMark } from "./ui/DiscordiaMark";
+import { DiscordiaMark } from "@discordia/ui";
 import { ChatBubble } from "./ui/chatBubble";
 import { Stat } from "./ui/stat"
 

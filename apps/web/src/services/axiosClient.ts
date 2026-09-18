@@ -1,0 +1,12 @@
+import axios from 'axios';
+
+const host = import.meta.env.VITE_API_HOST;
+const port = import.meta.env.VITE_API_PORT;
+const urlFromHostPort = host && port ? `http://${host}:${port}` : undefined;
+
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || urlFromHostPort,
+  timeout: import.meta.env.VITE_API_TIMEOUT_MS
+    ? Number(import.meta.env.VITE_API_TIMEOUT_MS)
+    : undefined,
+});
