@@ -11,7 +11,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Link, useRouter } from 'expo-router';
-import { useAuth } from '@/context/auth-context';
+import { useAuth } from '@discordia/context';
+import { authService } from '@/services/auth-service';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 
 export default function LoginScreen() {
@@ -25,11 +26,13 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      await signIn('demo-jwt-token', {
-        email: email || 'usuario@discordia.com',
-        name: 'Usuario Demo',
-      });
+      const { token, user } = await authService.login({ email, password });
+
+      await signIn(token, user);
       router.replace('/(app)');
+
+    } catch (error: any) {
+      //error
     } finally {
       setLoading(false);
     }

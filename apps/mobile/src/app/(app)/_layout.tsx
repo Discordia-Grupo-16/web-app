@@ -1,6 +1,6 @@
 import { Redirect, Stack } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { useAuth } from '@/context/auth-context';
+import { useAuth } from '@discordia/context';
 
 export default function AppLayout() {
   const { token, isLoading } = useAuth();
