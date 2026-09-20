@@ -13,7 +13,3 @@ export const api = createApiClient({
     storage: webAuthStorage,
 });
 
-// Temporal: inyecta X-User-Id hasta que Identity esté disponible
-if (import.meta.env.VITE_DEV_USER_ID) {
-    api.defaults.headers.common['X-User-Id'] = import.meta.env.VITE_DEV_USER_ID;
-}
