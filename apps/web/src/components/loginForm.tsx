@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isAxiosError } from "axios";
 import { DiscordiaMark } from "@discordia/ui";
 import { EyeIcon, EyeOffIcon } from "./ui/eyeIcons";
 import { useNavigate } from "react-router-dom";
@@ -15,7 +16,7 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
     const { signIn } = useAuth()
     const navigate = useNavigate()
 
-    async function handleSubmit(e: React.FormEvent) {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         setError(null)
@@ -24,9 +25,12 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
             const { token, user } = await authService.login({ email, password })
             await signIn(token, user)
             navigate(user.role === 'admin' ? '/admin' : '/')
-        } catch (err: any) {
+        } catch (err: unknown) {
             // Manejo de errores (credenciales inválidas, fallo de red, etc.)
-            const message = err.response?.data?.message || 'Error al iniciar sesión';
+            let message = 'Error al iniciar sesión';
+            if (isAxiosError(err)) {
+                message = err.response?.data?.message || err.response?.data?.detail || err.response?.data?.title || message;
+            }
             setError(message);
         } finally {
             setLoading(false);

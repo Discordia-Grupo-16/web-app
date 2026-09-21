@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { isAxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
 import { DiscordiaMark } from "@discordia/ui";
 import { useAuth } from "@discordia/context";
@@ -25,11 +26,14 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
             })
             await signIn(token, user)
             navigate('/')
-        } catch (err: any) {
-            const message =
-                err.response?.data?.detail ||
-                err.response?.data?.title ||
-                'Ocurrió un error al crear la cuenta. Intente nuevamente.';
+        } catch (err: unknown) {
+            let message = 'Ocurrió un error al crear la cuenta. Intente nuevamente.';
+            if (isAxiosError(err)) {
+                message =
+                    err.response?.data?.detail ||
+                    err.response?.data?.title ||
+                    message;
+            }
             setError(message);
         } finally {
             setLoading(false)
