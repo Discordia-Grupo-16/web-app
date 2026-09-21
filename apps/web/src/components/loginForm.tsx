@@ -61,6 +61,12 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
                     </p>
                 </div>
 
+                {error && (
+                    <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
+                        {error}
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
                         <label
