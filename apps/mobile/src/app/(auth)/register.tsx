@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { isAxiosError } from 'axios';
 import {
   View,
   Text,
@@ -13,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '@discordia/context';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
+import { validateRegisterInput, getApiErrorMessage } from '@discordia/services';
 import { authService } from '@/services/auth-service';
 
 export default function RegisterScreen() {
@@ -26,16 +26,9 @@ export default function RegisterScreen() {
   const router = useRouter();
 
   const handleRegister = async () => {
-    if (!name.trim()) {
-      setError('Por favor ingresa tu nombre');
-      return;
-    }
-    if (!email.trim()) {
-      setError('Por favor ingresa tu correo electrónico');
-      return;
-    }
-    if (!password) {
-      setError('Por favor ingresa una contraseña');
+    const validation = validateRegisterInput({ name, email, password });
+    if (!validation.isValid) {
+      setError(validation.error);
       return;
     }
 
@@ -50,14 +43,9 @@ export default function RegisterScreen() {
       await signIn(token, user);
       router.replace('/(app)');
     } catch (err: unknown) {
-      let message = 'Ocurrió un error al crear la cuenta. Intente nuevamente.';
-      if (isAxiosError(err)) {
-        message =
-          err.response?.data?.detail ||
-          err.response?.data?.title ||
-          message;
-      }
-      setError(message);
+      setError(
+        getApiErrorMessage(err, 'Ocurrió un error al crear la cuenta. Intente nuevamente.')
+      );
     } finally {
       setLoading(false);
     }

@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { isAxiosError } from "axios";
 import { useNavigate } from "react-router-dom";
 import { DiscordiaMark } from "@discordia/ui";
 import { useAuth } from "@discordia/context";
+import { validateRegisterInput, getApiErrorMessage } from "@discordia/services";
 import { authService } from "../services/authService.ts";
 
 export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
@@ -15,8 +15,15 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
-        setLoading(true)
         setError(null)
+
+        const validation = validateRegisterInput(form)
+        if (!validation.isValid) {
+            setError(validation.error)
+            return
+        }
+
+        setLoading(true)
 
         try {
             const { token, user } = await authService.register({
@@ -27,14 +34,7 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
             await signIn(token, user)
             navigate('/')
         } catch (err: unknown) {
-            let message = 'Ocurrió un error al crear la cuenta. Intente nuevamente.';
-            if (isAxiosError(err)) {
-                message =
-                    err.response?.data?.detail ||
-                    err.response?.data?.title ||
-                    message;
-            }
-            setError(message);
+            setError(getApiErrorMessage(err, 'Ocurrió un error al crear la cuenta. Intente nuevamente.'))
         } finally {
             setLoading(false)
         }
