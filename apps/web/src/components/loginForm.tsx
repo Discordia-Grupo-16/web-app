@@ -71,7 +71,7 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} noValidate className="space-y-5">
                     <div>
                         <label
                             className="block text-xs font-semibold uppercase tracking-wider mb-2"

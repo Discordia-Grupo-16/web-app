@@ -87,7 +87,7 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} noValidate className="space-y-5">
                     {[
                         { key: 'email', label: 'Correo electrónico', type: 'email', placeholder: 'tu@correo.com' },
                         { key: 'name', label: 'Nombre completo o apodo', type: 'text', placeholder: 'ej. Jane Doe' },
