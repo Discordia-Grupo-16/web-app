@@ -6,10 +6,10 @@ import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom'
 import App from './App.tsx';
 import { LoginRegister } from './pages/loginRegister.tsx';
 import { Home } from './pages/home.tsx';
-import { AdminHome } from './pages/adminHome.tsx';
 import { ProtectedRoute } from './components/protectedRoute.tsx';
 import './index.css';
 import { webAuthStorage } from './services/webStorage.ts';
+import { authService } from './services/authService.ts';
 import { AuthProvider } from '@discordia/context';
 
 const router = createBrowserRouter([
@@ -31,11 +31,6 @@ const router = createBrowserRouter([
             path: '',
             element: <Home />,
           },
-
-          {
-            path: 'admin',
-            element: <AdminHome />,
-          },
         ]
       },
 
@@ -50,7 +45,7 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider storage={webAuthStorage}>
+    <AuthProvider storage={webAuthStorage} onSignOut={authService.logout}>
       <RouterProvider router={router} />
     </AuthProvider>
   </React.StrictMode>
