@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 
 import App from './App.tsx';
 import { AppLayout } from './components/layout/AppLayout.tsx';
+import { ChannelView } from './components/channels/ChannelView.tsx';
 import { ProtectedRoute } from './components/protectedRoute.tsx';
 import { AdminHome } from './pages/adminHome.tsx';
 import { InvitePage } from './pages/invitePage.tsx';
@@ -40,7 +41,7 @@ const router = createBrowserRouter([
                         children: [
                             { index: true, element: <NoServerSelected /> },
                             { path: 'servers/:serverId', element: <NoChannelSelected /> },
-                            { path: 'servers/:serverId/channels/:channelId', element: <NoChannelSelected /> },
+                            { path: 'servers/:serverId/channels/:channelId', element: <ChannelView /> },
                         ],
                     },
                     { path: 'admin', element: <AdminHome /> },
