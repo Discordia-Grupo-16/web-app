@@ -7,6 +7,9 @@ interface MessageItemProps {
     failed?: boolean;
     errorText?: string;
     errorTitle?: string;
+    onRetry?: () => void;
+    retryDisabled?: boolean;
+    onDiscard?: () => void;
 }
 
 const AVATAR_COLORS = ['#7289da', '#43b581', '#faa61a', '#f47fff', '#f04747', '#00b0f4', '#747f8d', '#e67e22'];
@@ -29,6 +32,9 @@ export const MessageItem = ({
     failed = false,
     errorText,
     errorTitle,
+    onRetry,
+    retryDisabled = false,
+    onDiscard,
 }: MessageItemProps) => (
     <div
         className="flex gap-4 px-4 py-1 hover:bg-black/5"
@@ -53,8 +59,25 @@ export const MessageItem = ({
             </div>
             {/* Content comes from other users: always rendered as text, never as HTML. */}
             <p className="text-sm whitespace-pre-wrap break-words" style={{ color: '#dcddde' }}>{content}</p>
-            {failed && errorText && (
-                <p className="text-xs mt-1" style={{ color: '#ed4245' }}>{errorText}</p>
+            {failed && (
+                <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: '#ed4245' }}>
+                    {errorText && <span>{errorText}</span>}
+                    {onRetry && (
+                        <button
+                            type="button"
+                            onClick={onRetry}
+                            disabled={retryDisabled}
+                            className="font-semibold underline disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            Reintentar
+                        </button>
+                    )}
+                    {onDiscard && (
+                        <button type="button" onClick={onDiscard} className="font-semibold underline">
+                            Descartar
+                        </button>
+                    )}
+                </div>
             )}
         </div>
     </div>

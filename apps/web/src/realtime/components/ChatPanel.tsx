@@ -12,7 +12,8 @@ interface ChatPanelProps {
 
 export const ChatPanel = ({ channelId, channelName, topic }: ChatPanelProps) => {
     const { user } = useAuth();
-    const { messages, pending, status, maxLength, send } = useChannelMessages(channelId);
+    const { messages, pending, status, maxLength, send, retry, discard, rejected, clearRejected } =
+        useChannelMessages(channelId);
 
     // key={channelId} resets scroll position and the unsent draft when switching channels.
     return (
@@ -25,8 +26,19 @@ export const ChatPanel = ({ channelId, channelName, topic }: ChatPanelProps) => 
                 messages={messages}
                 pending={pending}
                 currentUser={user}
+                canRetry={status === 'open'}
+                onRetry={retry}
+                onDiscard={discard}
             />
-            <MessageComposer key={channelId} channelName={channelName} status={status} maxLength={maxLength} onSend={send} />
+            <MessageComposer
+                key={channelId}
+                channelName={channelName}
+                status={status}
+                maxLength={maxLength}
+                onSend={send}
+                rejected={rejected}
+                onRejectedHandled={clearRejected}
+            />
         </div>
     );
 };

@@ -5,7 +5,14 @@ import { TOKEN_KEY, webAuthStorage } from '../services/webStorage';
 import { WS_URL } from './config';
 import { chatReducer, initialChatState } from './chatStore';
 import { newClientMessageId } from './clientMessageId';
-import { DEFAULT_MAX_LENGTH, RealtimeContext, type RealtimeContextValue, type RealtimeStatus } from './realtimeContext';
+import { rejectionMessage } from './errorMessages';
+import {
+    DEFAULT_MAX_LENGTH,
+    RealtimeContext,
+    type RealtimeContextValue,
+    type RealtimeStatus,
+    type RejectedMessage,
+} from './realtimeContext';
 
 const SEND_TIMEOUT_MS = 10_000;
 
@@ -20,14 +27,17 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     });
     const [status, setStatus] = useState<RealtimeStatus>(() => (client ? client.getState() : 'disabled'));
     const [state, dispatch] = useReducer(chatReducer, initialChatState);
-    const [maxLength] = useState(DEFAULT_MAX_LENGTH);
+    const [maxLength, setMaxLength] = useState(DEFAULT_MAX_LENGTH);
+    const [lastRejected, setLastRejected] = useState<RejectedMessage | null>(null);
 
     const stateRef = useRef(state);
+    const maxLengthRef = useRef(maxLength);
     const timers = useRef(new Map<string, number>());
 
     useEffect(() => {
         stateRef.current = state;
-    }, [state]);
+        maxLengthRef.current = maxLength;
+    }, [state, maxLength]);
 
     const clearTimer = useCallback((clientMessageId: string | undefined) => {
         if (clientMessageId === undefined) return;
@@ -64,7 +74,24 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
             dispatch({ type: 'created', frame });
         });
         const offError = client.on('errorFrame', (frame) => {
-            clearTimer(stateRef.current.awaitingResponse[0]);
+            const head = stateRef.current.awaitingResponse[0];
+            clearTimer(head);
+            const { code, details } = frame.error;
+            const rejected = head === undefined ? undefined : stateRef.current.pending[head];
+
+            if (rejected && (code === 'EMPTY_MESSAGE' || code === 'MESSAGE_TOO_LONG')) {
+                // Nothing the user can retry: drop the pending and hand the text back to the composer.
+                const limit = (code === 'MESSAGE_TOO_LONG' && details?.maxLength) || maxLengthRef.current;
+                if (limit !== maxLengthRef.current) setMaxLength(limit);
+                setLastRejected({
+                    channelId: rejected.channelId,
+                    content: rejected.content,
+                    code,
+                    message: rejectionMessage(code, limit),
+                });
+                dispatch({ type: 'discard', clientMessageId: rejected.clientMessageId });
+                return;
+            }
             dispatch({ type: 'error', frame });
         });
 
@@ -152,9 +179,11 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         [clearTimer],
     );
 
+    const clearRejected = useCallback(() => setLastRejected(null), []);
+
     const value = useMemo<RealtimeContextValue>(
-        () => ({ status, state, maxLength, send, retry, discard }),
-        [status, state, maxLength, send, retry, discard],
+        () => ({ status, state, maxLength, send, retry, discard, lastRejected, clearRejected }),
+        [status, state, maxLength, send, retry, discard, lastRejected, clearRejected],
     );
 
     return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;

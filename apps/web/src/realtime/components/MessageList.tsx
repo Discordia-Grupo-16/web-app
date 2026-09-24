@@ -3,6 +3,7 @@ import { Hash } from 'lucide-react';
 import type { User } from '@discordia/context';
 import type { ChatMessage, PendingMessage } from '../chatStore';
 import { displayName } from '../authorName';
+import { ERROR_TEXTS, isRetryable } from '../errorMessages';
 import { MessageItem } from './MessageItem';
 
 interface MessageListProps {
@@ -11,11 +12,23 @@ interface MessageListProps {
     messages: ChatMessage[];
     pending: PendingMessage[];
     currentUser: User | null;
+    canRetry: boolean;
+    onRetry: (clientMessageId: string) => void;
+    onDiscard: (clientMessageId: string) => void;
 }
 
 const STICK_TO_BOTTOM_PX = 100;
 
-export const MessageList = ({ channelName, topic, messages, pending, currentUser }: MessageListProps) => {
+export const MessageList = ({
+    channelName,
+    topic,
+    messages,
+    pending,
+    currentUser,
+    canRetry,
+    onRetry,
+    onDiscard,
+}: MessageListProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const nearBottomRef = useRef(true);
     const pendingCountRef = useRef(pending.length);
@@ -69,6 +82,11 @@ export const MessageList = ({ channelName, topic, messages, pending, currentUser
                             content={message.content}
                             sending={message.status === 'sending'}
                             failed={message.status === 'failed'}
+                            errorText={message.errorCode && ERROR_TEXTS[message.errorCode]}
+                            errorTitle={message.correlationId && `correlationId: ${message.correlationId}`}
+                            onRetry={isRetryable(message.errorCode) ? () => onRetry(message.clientMessageId) : undefined}
+                            retryDisabled={!canRetry}
+                            onDiscard={() => onDiscard(message.clientMessageId)}
                         />
                     ))}
                 </>
