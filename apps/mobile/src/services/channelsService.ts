@@ -14,5 +14,19 @@ export const createChannel = (
     }).then(r => r.data);
 };
 
+export const updateChannel = (
+    serverId: string,
+    channelId: string,
+    name?: string,
+    topic?: string,
+): Promise<Channel> => {
+    const form = new FormData();
+    if (name !== undefined) form.append('name', name);
+    if (topic !== undefined) form.append('topic', topic);
+    return api.patch<Channel>(`/servers/${serverId}/channels/${channelId}`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    }).then(r => r.data);
+};
+
 export const deleteChannel = (serverId: string, channelId: string): Promise<void> =>
     api.delete(`/servers/${serverId}/channels/${channelId}`).then(() => undefined);
