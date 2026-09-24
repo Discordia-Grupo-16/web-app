@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { isAxiosError } from "axios";
 import { DiscordiaMark } from "@discordia/ui";
 import { EyeIcon, EyeOffIcon } from "./ui/eyeIcons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@discordia/context";
+import { validateLoginInput, getApiErrorMessage } from "@discordia/services";
 import { authService } from "../services/authService.ts";
 
 export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
@@ -18,20 +18,25 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
         setError(null)
 
+        const validation = validateLoginInput({ email, password })
+        if (!validation.isValid) {
+            setError(validation.error)
+            return
+        }
+
+        setLoading(true)
+
         try {
-            const { token, user } = await authService.login({ email, password })
-            await signIn(token, user)
-            navigate(user.role === 'admin' ? '/admin' : '/')
+            const { token, user, refreshToken } = await authService.login({
+                email: email.trim(),
+                password,
+            })
+            await signIn(token, user, refreshToken)
+            navigate('/')
         } catch (err: unknown) {
-            // Manejo de errores (credenciales inválidas, fallo de red, etc.)
-            let message = 'Error al iniciar sesión';
-            if (isAxiosError(err)) {
-                message = err.response?.data?.message || err.response?.data?.detail || err.response?.data?.title || message;
-            }
-            setError(message);
+            setError(getApiErrorMessage(err, 'Credenciales inválidas o error al iniciar sesión.'))
         } finally {
             setLoading(false);
         }

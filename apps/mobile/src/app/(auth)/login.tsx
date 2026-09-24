@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,25 +13,39 @@ import { Link, useRouter } from 'expo-router';
 import { useAuth } from '@discordia/context';
 import { authService } from '@/services/auth-service';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
+import { validateLoginInput, getApiErrorMessage } from '@discordia/services';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { signIn } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {
-    setLoading(true);
-    try {
-      const { token, user } = await authService.login({ email, password });
+    const validation = validateLoginInput({ email, password });
+    if (!validation.isValid) {
+      setError(validation.error);
+      return;
+    }
 
-      await signIn(token, user);
+    setLoading(true);
+    setError(null);
+    try {
+      const { token, user, refreshToken } = await authService.login({
+        email: email.trim(),
+        password,
+      });
+
+      await signIn(token, user, refreshToken);
       router.replace('/(app)');
 
-    } catch (error: any) {
-      //error
+    } catch (err: unknown) {
+      setError(
+        getApiErrorMessage(err, 'Credenciales inválidas o error de conexión.')
+      );
     } finally {
       setLoading(false);
     }
@@ -42,7 +55,7 @@ export default function LoginScreen() {
     <SafeAreaView className="flex-1 bg-[#23272a]">
       <StatusBar style="light" />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={process.env.EXPO_OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
         <ScrollView
@@ -69,6 +82,12 @@ export default function LoginScreen() {
               </Text>
             </View>
 
+            {error && (
+              <View className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/40">
+                <Text className="text-red-400 text-xs font-medium">{error}</Text>
+              </View>
+            )}
+
             {/* Campo Email */}
             <View className="mb-4">
               <Text className="text-xs font-semibold uppercase tracking-wider text-[#99aab5] mb-2">
@@ -81,7 +100,9 @@ export default function LoginScreen() {
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
+                autoCorrect={false}
                 keyboardType="email-address"
+                textContentType="emailAddress"
               />
             </View>
 
