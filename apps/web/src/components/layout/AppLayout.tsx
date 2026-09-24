@@ -4,7 +4,6 @@ import { ServerSidebar } from '../servers/ServerSidebar';
 import { ChannelSidebar } from '../channels/ChannelSidebar';
 import { UserProfileSection } from '../user/userProfileSection';
 
-// 1. Cambiamos el ( por una {
 export const AppLayout = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 

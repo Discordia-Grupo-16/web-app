@@ -8,6 +8,10 @@ export const UserProfileSection = () => {
     const [showEditModal, setShowEditModal] = useState(false)
     const { user } = useAuth();
 
+    if (!user) {
+        return <div>Cargando...</div>;
+    }
+
     return <div className="relative" style={{ background: '#292b2f' }}>
         {showProfile &&
             <ProfilePopup

@@ -1,8 +1,14 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@discordia/context';
 import { userService } from '../../services/userService';
+import axios from 'axios';
 
-export const UserProfileEditModal = ({ isOpen, onClose }) => {
+interface UserProfileEditModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+}
+
+export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalProps) => {
     const { user, updateUser } = useAuth();
 
     const [newName, setName] = useState('');
@@ -25,7 +31,7 @@ export const UserProfileEditModal = ({ isOpen, onClose }) => {
 
     const hasChanges = newName.trim() !== (user.name || '') || newBio.trim() !== (user.bio || '');
 
-    const handleSave = async (e) => {
+    const handleSave = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!hasChanges) return;
 
@@ -36,7 +42,13 @@ export const UserProfileEditModal = ({ isOpen, onClose }) => {
             await updateUser(response.data);
             onClose();
         } catch (error) {
-            const apiError = error.response?.data;
+            let apiError = null;
+
+            if (axios.isAxiosError(error)) {
+                apiError = error.response?.data;
+            } else {
+                apiError = (error as any)?.response?.data;
+            }
 
             const errorMsg = apiError?.detail
                 || apiError?.title
