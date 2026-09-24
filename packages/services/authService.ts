@@ -24,4 +24,19 @@ export const createAuthService = (apiClient: AxiosInstance) => ({
             refreshToken: data.data.refreshToken,
         };
     },
+
+    async refreshSession(refreshToken: string): Promise<AuthResponse> {
+        const { data } = await apiClient.post<AuthApiResponse>('/api/v1/sessions/refresh', {
+            refreshToken,
+        });
+        return {
+            token: data.data.accessToken,
+            user: data.data.user,
+            refreshToken: data.data.refreshToken,
+        };
+    },
+
+    async logout(): Promise<void> {
+        await apiClient.delete('/api/v1/sessions');
+    },
 });

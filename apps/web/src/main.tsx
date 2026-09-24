@@ -11,52 +11,53 @@ import { InvitePage } from './pages/invitePage.tsx';
 import { LoginRegister } from './pages/loginRegister.tsx';
 import './index.css';
 import { webAuthStorage } from './services/webStorage.ts';
+import { authService } from './services/authService.ts';
 import { AuthProvider } from '@discordia/context';
 
 const NoServerSelected = () => (
-    <div className="text-center select-none" style={{ color: '#99aab5' }}>
-        <p className="text-lg font-semibold">Seleccioná un servidor</p>
-        <p className="text-sm mt-1">O creá uno nuevo con el botón +</p>
-    </div>
+  <div className="text-center select-none" style={{ color: '#99aab5' }}>
+    <p className="text-lg font-semibold">Seleccioná un servidor</p>
+    <p className="text-sm mt-1">O creá uno nuevo con el botón +</p>
+  </div>
 );
 
 const NoChannelSelected = () => (
-    <div className="text-center select-none" style={{ color: '#99aab5' }}>
-        <p className="text-lg font-semibold">Seleccioná un canal</p>
-        <p className="text-sm mt-1">Elegí un canal de la lista para empezar a chatear</p>
-    </div>
+  <div className="text-center select-none" style={{ color: '#99aab5' }}>
+    <p className="text-lg font-semibold">Seleccioná un canal</p>
+    <p className="text-sm mt-1">Elegí un canal de la lista para empezar a chatear</p>
+  </div>
 );
 
 const router = createBrowserRouter([
-    {
-        path: '/',
-        element: <App />,
+  {
+    path: '/',
+    element: <App />,
+    children: [
+      { path: 'home', element: <LoginRegister /> },
+      {
+        element: <ProtectedRoute />,
         children: [
-            { path: 'home', element: <LoginRegister /> },
-            {
-                element: <ProtectedRoute />,
-                children: [
-                    {
-                        element: <AppLayout />,
-                        children: [
-                            { index: true, element: <NoServerSelected /> },
-                            { path: 'servers/:serverId', element: <NoChannelSelected /> },
-                            { path: 'servers/:serverId/channels/:channelId', element: <ChannelView /> },
-                        ],
-                    },
-                    { path: 'admin', element: <AdminHome /> },
-                    { path: 'invite/:code', element: <InvitePage /> },
-                ],
-            },
-            { path: '*', element: <Navigate to="/" replace /> },
+          {
+            element: <AppLayout />,
+            children: [
+              { index: true, element: <NoServerSelected /> },
+              { path: 'servers/:serverId', element: <NoChannelSelected /> },
+              { path: 'servers/:serverId/channels/:channelId', element: <ChannelView /> },
+            ],
+          },
+          { path: 'admin', element: <AdminHome /> },
+          { path: 'invite/:code', element: <InvitePage /> },
         ],
-    },
+      },
+      { path: '*', element: <Navigate to="/" replace /> },
+    ],
+  },
 ]);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-        <AuthProvider storage={webAuthStorage}>
-            <RouterProvider router={router} />
-        </AuthProvider>
-    </React.StrictMode>
+  <React.StrictMode>
+    <AuthProvider storage={webAuthStorage} onSignOut={authService.logout}>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  </React.StrictMode>
 );
