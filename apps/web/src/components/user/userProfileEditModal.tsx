@@ -22,6 +22,7 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
 
     useEffect(() => {
         if (user) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setName(user.name || '');
             setBio(user.bio || '');
         }
@@ -42,22 +43,15 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
             await updateUser(response.data);
             onClose();
         } catch (error) {
-            let apiError = null;
-
-            if (axios.isAxiosError(error)) {
-                apiError = error.response?.data;
-            } else {
-                apiError = (error as any)?.response?.data;
-            }
+            const apiError = axios.isAxiosError(error) ? error.response?.data : null;
 
             const errorMsg = apiError?.detail
                 || apiError?.title
                 || "Hubo un error al actualizar tu perfil. Intenta de nuevo más tarde.";
 
-            setErrorMessage(errorMsg)
+            setErrorMessage(errorMsg);
         } finally {
             setIsSaving(false);
-
         }
     };
 
