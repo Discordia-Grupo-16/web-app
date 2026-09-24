@@ -7,13 +7,12 @@ export default function AppLayout() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50">
-        <ActivityIndicator size="large" color="#4f46e5" />
+      <View className="flex-1 items-center justify-center bg-[#23272a]">
+        <ActivityIndicator size="large" color="#7289da" />
       </View>
     );
   }
 
-  // Session guard: si no está autenticado, redirige a login
   if (!token) {
     return <Redirect href="/(auth)/login" />;
   }
@@ -21,21 +20,15 @@ export default function AppLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: {
-          backgroundColor: '#4f46e5',
-        },
+        headerStyle: { backgroundColor: '#2f3136' },
         headerTintColor: '#ffffff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        headerTitleStyle: { fontWeight: 'bold' },
+        contentStyle: { backgroundColor: '#23272a' },
       }}
     >
-      <Stack.Screen
-        name="index"
-        options={{
-          title: 'Discordia',
-        }}
-      />
+      <Stack.Screen name="index" options={{ title: 'Discordia' }} />
+      <Stack.Screen name="join" options={{ title: 'Unirse a servidor' }} />
+      <Stack.Screen name="server/[serverId]/index" options={{ title: '' }} />
     </Stack>
   );
 }

@@ -11,9 +11,6 @@ export function createApiClient({ baseURL, timeout, storage }: ApiConfig): Axios
     const api = axios.create({
         baseURL,
         timeout,
-        headers: {
-            'Content-Type': 'application/json',
-        },
     });
 
     // Interceptor para inyectar el token en cada petición
