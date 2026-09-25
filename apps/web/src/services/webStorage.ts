@@ -1,6 +1,6 @@
 import type { AuthStorageStrategy } from "@discordia/context";
 
-const TOKEN_KEY = "discordia_token";
+export const TOKEN_KEY = "discordia_token";
 const REFRESH_TOKEN_KEY = "discordia_refresh_token";
 const USER_KEY = "discordia_user";
 
