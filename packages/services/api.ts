@@ -15,9 +15,6 @@ export function createApiClient({ baseURL, timeout, storage }: ApiConfig): Axios
     const api = axios.create({
         baseURL,
         timeout,
-        headers: {
-            'Content-Type': 'application/json',
-        },
     });
 
     let isRefreshing = false;

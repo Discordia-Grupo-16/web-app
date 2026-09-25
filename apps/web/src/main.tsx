@@ -1,12 +1,13 @@
-// src/main.tsx
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 
 import App from './App.tsx';
-import { LoginRegister } from './pages/loginRegister.tsx';
-import { Home } from './pages/home.tsx';
+import { AppLayout } from './components/layout/AppLayout.tsx';
+import { ChannelView } from './components/channels/ChannelView.tsx';
 import { ProtectedRoute } from './components/protectedRoute.tsx';
+import { InvitePage } from './pages/invitePage.tsx';
+import { LoginRegister } from './pages/loginRegister.tsx';
 import './index.css';
 import { webAuthStorage } from './services/webStorage.ts';
 import { authService } from './services/authService.ts';
@@ -17,28 +18,36 @@ const router = createBrowserRouter([
     path: '/',
     element: <App />,
     children: [
-      // /home con login y registro
-      {
-        path: 'home',
-        element: <LoginRegister />,
-      },
-
-      // rutas privadas
+      { path: 'home', element: <LoginRegister /> },
       {
         element: <ProtectedRoute />,
         children: [
           {
-            path: '',
-            element: <Home />,
+            element: <AppLayout />,
+            children: [
+              {
+                index: true, element: (
+                  <div className="text-center select-none" style={{ color: '#99aab5' }}>
+                    <p className="text-lg font-semibold">Seleccioná un servidor</p>
+                    <p className="text-sm mt-1">O creá uno nuevo con el botón +</p>
+                  </div>
+                )
+              },
+              {
+                path: 'servers/:serverId', element: (
+                  <div className="text-center select-none" style={{ color: '#99aab5' }}>
+                    <p className="text-lg font-semibold">Seleccioná un canal</p>
+                    <p className="text-sm mt-1">Elegí un canal de la lista para empezar a chatear</p>
+                  </div>
+                )
+              },
+              { path: 'servers/:serverId/channels/:channelId', element: <ChannelView /> },
+            ],
           },
-        ]
+          { path: 'invite/:code', element: <InvitePage /> },
+        ],
       },
-
-      // Cualquier URL que no exista te manda directo a "/home"
-      {
-        path: '*',
-        element: <Navigate to="/" replace />,
-      },
+      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
 ]);
