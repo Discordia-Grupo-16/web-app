@@ -3,6 +3,7 @@ import { View, ActivityIndicator, Text } from 'react-native';
 import { useAuth } from '@discordia/context';
 import { endEvent } from 'react-native/Libraries/Performance/Systrace';
 import { ProfileButton } from '../../components/user/userProfileButton';
+import { RealtimeProvider } from '@/realtime/RealtimeProvider';
 
 export default function AppLayout() {
   const { token, isLoading, user } = useAuth();

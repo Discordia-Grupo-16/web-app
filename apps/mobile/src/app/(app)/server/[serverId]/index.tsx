@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   Modal, TextInput, Alert, ActivityIndicator,
@@ -16,6 +16,7 @@ import type { Server } from '@/types/server';
 import type { Channel } from '@/types/channel';
 import type { Role } from '@/types/role';
 import type { Invitation } from '@/types/invitation';
+import { isGoneError, useFocusedPolling } from '@/hooks/useFocusedPolling';
 
 export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -53,6 +54,30 @@ export default function ServerScreen() {
 
   useEffect(() => { load(); }, [serverId]);
 
+  // Channels created or deleted from another client show up on focus and on the next poll.
+  // If the server itself is gone (deleted, or we were removed), go back to the list.
+  const goneRef = useRef(false);
+  useFocusedPolling(() => {
+    if (!serverId || goneRef.current) return;
+    getServer(serverId)
+      .then(srv => {
+        setServer(prev => prev && prev.id === srv.id ? { ...prev, channels: srv.channels } : prev);
+      })
+      .catch(err => {
+        if (!isGoneError(err) || goneRef.current) return;
+        goneRef.current = true;
+        Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o ya no sos miembro.');
+        router.back();
+      });
+  });
+
+  const handleOpenChannel = (ch: Channel) => {
+    router.push({
+      pathname: '/server/[serverId]/channel/[channelId]',
+      params: { serverId, channelId: ch.id, name: ch.name },
+    });
+  };
+
   const handleEditChannel = (updated: Channel) => {
     setServer(prev => prev
       ? { ...prev, channels: prev.channels.map(c => c.id === updated.id ? updated : c) }
@@ -88,9 +113,11 @@ export default function ServerScreen() {
       {
         text: 'Salir', style: 'destructive', onPress: async () => {
           try {
+            goneRef.current = true;
             await leaveServer(serverId!);
             router.back();
           } catch (err: any) {
+            goneRef.current = false;
             Alert.alert('Error', err?.response?.data?.detail || 'No se pudo abandonar el servidor.');
           }
         },
@@ -104,9 +131,11 @@ export default function ServerScreen() {
       {
         text: 'Eliminar', style: 'destructive', onPress: async () => {
           try {
+            goneRef.current = true;
             await deleteServer(serverId!);
             router.back();
           } catch (err: any) {
+            goneRef.current = false;
             Alert.alert('Error', err?.response?.data?.detail || 'No se pudo eliminar el servidor.');
           }
         },
@@ -139,7 +168,14 @@ export default function ServerScreen() {
           <Text className="text-[#72767d] text-xs px-1">Sin canales de texto.</Text>
         )}
         {textChannels.map(ch => (
-          <ChannelItem key={ch.id} channel={ch} canManage={isOwner} onDelete={handleDeleteChannel} onEdit={setEditingChannel} />
+          <ChannelItem
+            key={ch.id}
+            channel={ch}
+            canManage={isOwner}
+            onDelete={handleDeleteChannel}
+            onEdit={setEditingChannel}
+            onOpen={handleOpenChannel}
+          />
         ))}
 
         {/* Canales de voz */}
@@ -260,13 +296,13 @@ function SectionHeader({ title, canManage, onAdd }: {
   );
 }
 
-function ChannelItem({ channel, canManage, onDelete, onEdit }: {
+function ChannelItem({ channel, canManage, onDelete, onEdit, onOpen }: {
   channel: Channel; canManage: boolean;
-  onDelete: (ch: Channel) => void; onEdit: (ch: Channel) => void;
+  onDelete: (ch: Channel) => void; onEdit: (ch: Channel) => void; onOpen?: (ch: Channel) => void;
 }) {
   const prefix = channel.type === 'text' ? '#' : '🔊';
-  return (
-    <View className="bg-[#2c2f33] rounded-lg px-4 py-3 flex-row items-center justify-between">
+  const content = (
+    <>
       <Text className="text-[#dcddde] text-sm flex-1">
         {prefix} {channel.name}
       </Text>
@@ -280,7 +316,16 @@ function ChannelItem({ channel, canManage, onDelete, onEdit }: {
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </>
+  );
+  const rowClass = 'bg-[#2c2f33] rounded-lg px-4 py-3 flex-row items-center justify-between';
+
+  // Only channels with an onOpen handler (text) are tappable; the delete button keeps its own onPress.
+  if (!onOpen) return <View className={rowClass}>{content}</View>;
+  return (
+    <TouchableOpacity className={rowClass} onPress={() => onOpen(channel)}>
+      {content}
+    </TouchableOpacity>
   );
 }
 

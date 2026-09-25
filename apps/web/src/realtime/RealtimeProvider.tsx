@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
-import { createRealtimeClient } from '@discordia/realtime';
+import { chatReducer, createRealtimeClient, initialChatState } from '@discordia/realtime';
 import { useAuth } from '@discordia/context';
 import { TOKEN_KEY, webAuthStorage } from '../services/webStorage';
 import { WS_URL } from './config';
-import { chatReducer, initialChatState } from './chatStore';
 import { newClientMessageId } from './clientMessageId';
 import { rejectionMessage } from './errorMessages';
 import {
