@@ -15,12 +15,12 @@ export const ChatPanel = ({ channelId, channelName, topic }: ChatPanelProps) => 
     const { messages, pending, status, maxLength, send, retry, discard, rejected, clearRejected } =
         useChannelMessages(channelId);
 
-    // key={channelId} resets scroll position and the unsent draft when switching channels.
+    // The caller keys this panel by channelId, so switching channels remounts it and resets
+    // scroll position and the unsent draft. Keys here would be duplicated between siblings.
     return (
         <div className="flex-1 min-h-0 flex flex-col">
             <ConnectionBanner status={status} />
             <MessageList
-                key={channelId}
                 channelName={channelName}
                 topic={topic}
                 messages={messages}
@@ -31,7 +31,6 @@ export const ChatPanel = ({ channelId, channelName, topic }: ChatPanelProps) => 
                 onDiscard={discard}
             />
             <MessageComposer
-                key={channelId}
                 channelName={channelName}
                 status={status}
                 maxLength={maxLength}

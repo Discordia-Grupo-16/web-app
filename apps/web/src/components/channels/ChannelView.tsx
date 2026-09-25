@@ -19,7 +19,8 @@ export const ChannelView = () => {
             .catch(console.error);
     }, [serverId, channelId]);
 
-    if (!channel) return null;
+    // Until the new channel loads, don't keep rendering the previous one.
+    if (!channel || channel.id !== channelId) return null;
 
     const isText = channel.type === 'text';
 
@@ -44,7 +45,7 @@ export const ChannelView = () => {
             </div>
 
             {isText ? (
-                <ChatPanel channelId={channel.id} channelName={channel.name} topic={channel.topic} />
+                <ChatPanel key={channel.id} channelId={channel.id} channelName={channel.name} topic={channel.topic} />
             ) : (
                 <div className="flex-1 flex items-center justify-center" style={{ color: '#99aab5' }}>
                     <div className="text-center select-none">
