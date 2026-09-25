@@ -10,6 +10,7 @@ interface AuthContextType {
     isLoading: boolean;
     signIn: (token: string, user: User, refreshToken?: string) => Promise<void>;
     signOut: () => Promise<void>;
+    updateUser: (updatedUser: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,6 +75,11 @@ export function AuthProvider({ children, storage, onSignOut }: AuthProviderProps
         }
     };
 
+    const updateUser = async (updatedUser: User) => {
+        await storage.setUser(updatedUser);
+        setUser(updatedUser);
+    };
+
     const value = useMemo(
         () => ({
             user,
@@ -82,6 +88,7 @@ export function AuthProvider({ children, storage, onSignOut }: AuthProviderProps
             isLoading,
             signIn,
             signOut,
+            updateUser,
         }),
         [user, token, refreshToken, isLoading]
     );
