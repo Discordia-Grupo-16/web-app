@@ -13,20 +13,6 @@ import { webAuthStorage } from './services/webStorage.ts';
 import { authService } from './services/authService.ts';
 import { AuthProvider } from '@discordia/context';
 
-const NoServerSelected = () => (
-  <div className="text-center select-none" style={{ color: '#99aab5' }}>
-    <p className="text-lg font-semibold">Seleccioná un servidor</p>
-    <p className="text-sm mt-1">O creá uno nuevo con el botón +</p>
-  </div>
-);
-
-const NoChannelSelected = () => (
-  <div className="text-center select-none" style={{ color: '#99aab5' }}>
-    <p className="text-lg font-semibold">Seleccioná un canal</p>
-    <p className="text-sm mt-1">Elegí un canal de la lista para empezar a chatear</p>
-  </div>
-);
-
 const router = createBrowserRouter([
   {
     path: '/',
