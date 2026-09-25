@@ -23,8 +23,10 @@ export const EditChannelModal = ({ serverId, channel, onClose, onUpdated }: Prop
         try {
             const updated = await updateChannel(serverId, channel.id, name, topic || undefined);
             onUpdated(updated);
-        } catch (err: any) {
-            setError(err?.response?.data?.detail || 'Error al editar el canal');
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+            setError(detail || 'Error al editar el canal');
         } finally {
             setLoading(false);
         }

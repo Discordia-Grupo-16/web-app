@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   Modal, TextInput, Alert, ActivityIndicator,
+  Keyboard, TouchableWithoutFeedback,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useAuth } from '@discordia/context';
 import { getServer, leaveServer, deleteServer } from '@/services/serversService';
-import { createChannel, deleteChannel } from '@/services/channelsService';
+import { createChannel, updateChannel, deleteChannel } from '@/services/channelsService';
 import { createRole, listRoles } from '@/services/rolesService';
 import { createInvitation, listInvitations, revokeInvitation } from '@/services/invitationsService';
 import type { Server } from '@/types/server';
@@ -28,6 +29,7 @@ export default function ServerScreen() {
   const [loading, setLoading] = useState(true);
 
   const [createChannelType, setCreateChannelType] = useState<'text' | 'voice' | null>(null);
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [showInvitations, setShowInvitations] = useState(false);
 
@@ -56,6 +58,13 @@ export default function ServerScreen() {
       pathname: '/server/[serverId]/channel/[channelId]',
       params: { serverId, channelId: ch.id, name: ch.name },
     });
+  };
+
+  const handleEditChannel = (updated: Channel) => {
+    setServer(prev => prev
+      ? { ...prev, channels: prev.channels.map(c => c.id === updated.id ? updated : c) }
+      : prev);
+    setEditingChannel(null);
   };
 
   const handleDeleteChannel = (ch: Channel) => {
@@ -142,6 +151,7 @@ export default function ServerScreen() {
             channel={ch}
             canManage={isOwner}
             onDelete={handleDeleteChannel}
+            onEdit={setEditingChannel}
             onOpen={handleOpenChannel}
           />
         ))}
@@ -156,7 +166,7 @@ export default function ServerScreen() {
           <Text className="text-[#72767d] text-xs px-1">Sin canales de voz.</Text>
         )}
         {voiceChannels.map(ch => (
-          <ChannelItem key={ch.id} channel={ch} canManage={isOwner} onDelete={handleDeleteChannel} />
+          <ChannelItem key={ch.id} channel={ch} canManage={isOwner} onDelete={handleDeleteChannel} onEdit={setEditingChannel} />
         ))}
 
         {/* Roles */}
@@ -207,6 +217,15 @@ export default function ServerScreen() {
       </ScrollView>
 
       {/* Modals */}
+      {editingChannel && (
+        <EditChannelModal
+          channel={editingChannel}
+          serverId={serverId!}
+          onClose={() => setEditingChannel(null)}
+          onUpdated={handleEditChannel}
+        />
+      )}
+
       {createChannelType && (
         <CreateChannelModal
           type={createChannelType}
@@ -255,8 +274,9 @@ function SectionHeader({ title, canManage, onAdd }: {
   );
 }
 
-function ChannelItem({ channel, canManage, onDelete, onOpen }: {
-  channel: Channel; canManage: boolean; onDelete: (ch: Channel) => void; onOpen?: (ch: Channel) => void;
+function ChannelItem({ channel, canManage, onDelete, onEdit, onOpen }: {
+  channel: Channel; canManage: boolean;
+  onDelete: (ch: Channel) => void; onEdit: (ch: Channel) => void; onOpen?: (ch: Channel) => void;
 }) {
   const prefix = channel.type === 'text' ? '#' : '🔊';
   const content = (
@@ -265,9 +285,14 @@ function ChannelItem({ channel, canManage, onDelete, onOpen }: {
         {prefix} {channel.name}
       </Text>
       {canManage && (
-        <TouchableOpacity onPress={() => onDelete(channel)} className="ml-3 p-1">
-          <Text className="text-[#72767d] text-base">🗑</Text>
-        </TouchableOpacity>
+        <View className="flex-row gap-2 ml-3">
+          <TouchableOpacity onPress={() => onEdit(channel)} className="p-1">
+            <Text className="text-[#72767d] text-base">✏️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onDelete(channel)} className="p-1">
+            <Text className="text-[#72767d] text-base">🗑</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </>
   );
@@ -279,6 +304,89 @@ function ChannelItem({ channel, canManage, onDelete, onOpen }: {
     <TouchableOpacity className={rowClass} onPress={() => onOpen(channel)}>
       {content}
     </TouchableOpacity>
+  );
+}
+
+function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
+  channel: Channel; serverId: string;
+  onClose: () => void; onUpdated: (ch: Channel) => void;
+}) {
+  const [name, setName] = useState(channel.name);
+  const [topic, setTopic] = useState(channel.topic ?? '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const updated = await updateChannel(
+        serverId,
+        channel.id,
+        name.toLowerCase().replace(/\s+/g, '-'),
+        channel.type === 'text' ? topic || undefined : undefined,
+      );
+      onUpdated(updated);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setError(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al editar el canal'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <View className="flex-1 justify-end bg-black/60">
+        <View className="bg-[#36393f] rounded-t-2xl p-6">
+          <Text className="text-white font-black text-xl mb-1">Editar canal</Text>
+          <Text className="text-[#99aab5] text-sm mb-5">
+            Canal de {channel.type === 'text' ? 'texto' : 'voz'}
+          </Text>
+          <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-1">
+            Nombre *
+          </Text>
+          <TextInput
+            value={name}
+            onChangeText={v => setName(v.toLowerCase().replace(/\s+/g, '-'))}
+            placeholder="nombre-del-canal"
+            placeholderTextColor="#72767d"
+            autoCapitalize="none"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
+            className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
+          />
+          {channel.type === 'text' && (
+            <>
+              <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-1">
+                Tema (opcional)
+              </Text>
+              <TextInput
+                value={topic}
+                onChangeText={setTopic}
+                placeholder="De qué se trata este canal"
+                placeholderTextColor="#72767d"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
+              />
+            </>
+          )}
+          {error ? <Text className="text-[#ed4245] text-sm mb-3">{error}</Text> : null}
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={loading || !name.trim()}
+            className="bg-[#7289da] py-3 rounded-xl items-center mb-2"
+            style={{ opacity: loading || !name.trim() ? 0.6 : 1 }}
+          >
+            <Text className="text-white font-bold">{loading ? 'Guardando…' : 'Guardar cambios'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { setError(null); onClose(); }} className="py-3 items-center">
+            <Text className="text-[#99aab5]">Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -322,6 +430,8 @@ function CreateChannelModal({ type, serverId, onClose, onCreated }: {
             placeholder={type === 'text' ? 'nuevo-canal' : 'voz-general'}
             placeholderTextColor="#72767d"
             autoCapitalize="none"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
           />
           {error ? <Text className="text-[#ed4245] text-sm mb-3">{error}</Text> : null}
@@ -381,6 +491,8 @@ function CreateRoleModal({ visible, serverId, onClose, onCreated }: {
             onChangeText={setName}
             placeholder="Moderador"
             placeholderTextColor="#72767d"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
           />
           {error ? <Text className="text-[#ed4245] text-sm mb-3">{error}</Text> : null}
@@ -401,17 +513,30 @@ function CreateRoleModal({ visible, serverId, onClose, onCreated }: {
   );
 }
 
+const EXPIRY_OPTIONS: { label: string; value: number | undefined }[] = [
+  { label: 'Sin exp.', value: undefined },
+  { label: '1 h', value: 1 },
+  { label: '6 h', value: 6 },
+  { label: '24 h', value: 24 },
+  { label: '7 d', value: 168 },
+];
+
 function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, onCreated }: {
   visible: boolean; serverId: string; invitations: Invitation[];
   onClose: () => void; onRevoked: (code: string) => void; onCreated: (inv: Invitation) => void;
 }) {
   const [creating, setCreating] = useState(false);
+  const [expiresInHours, setExpiresInHours] = useState<number | undefined>(undefined);
+  const [maxUsesInput, setMaxUsesInput] = useState('');
 
   const handleCreate = async () => {
     setCreating(true);
     try {
-      const inv = await createInvitation(serverId);
+      const maxUses = maxUsesInput ? parseInt(maxUsesInput, 10) : undefined;
+      const inv = await createInvitation(serverId, expiresInHours, maxUses);
       onCreated(inv);
+      setMaxUsesInput('');
+      setExpiresInHours(undefined);
     } catch (err: any) {
       Alert.alert('Error', err?.response?.data?.detail || 'No se pudo crear la invitación.');
     } finally {
@@ -437,6 +562,7 @@ function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View className="flex-1 justify-end bg-black/60">
         <View className="bg-[#36393f] rounded-t-2xl p-6" style={{ maxHeight: '80%' }}>
           <View className="flex-row items-center justify-between mb-4">
@@ -479,6 +605,38 @@ function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, 
             ))}
           </ScrollView>
 
+          <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-2">
+            Expiración
+          </Text>
+          <View className="flex-row gap-2 mb-4 flex-wrap">
+            {EXPIRY_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={String(opt.value)}
+                onPress={() => setExpiresInHours(opt.value)}
+                className="px-3 py-1.5 rounded-lg"
+                style={{ backgroundColor: expiresInHours === opt.value ? '#7289da' : '#2c2f33' }}
+              >
+                <Text style={{ color: expiresInHours === opt.value ? '#fff' : '#99aab5', fontSize: 12 }}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-2">
+            Límite de usos (opcional)
+          </Text>
+          <TextInput
+            value={maxUsesInput}
+            onChangeText={v => setMaxUsesInput(v.replace(/[^0-9]/g, ''))}
+            placeholder="Sin límite"
+            placeholderTextColor="#72767d"
+            keyboardType="number-pad"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
+            className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
+          />
+
           <TouchableOpacity
             onPress={handleCreate}
             disabled={creating}
@@ -491,6 +649,7 @@ function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, 
           </TouchableOpacity>
         </View>
       </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }

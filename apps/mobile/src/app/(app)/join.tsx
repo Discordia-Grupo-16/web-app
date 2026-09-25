@@ -14,10 +14,8 @@ export default function JoinScreen() {
     if (!trimmed) return;
     setLoading(true);
     try {
-      await joinServer(trimmed);
-      Alert.alert('¡Listo!', 'Te uniste al servidor.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      const member = await joinServer(trimmed);
+      router.replace(`/server/${member.server_id}`);
     } catch (err: any) {
       const detail = err?.response?.data?.detail || 'Código inválido o expirado.';
       Alert.alert('Error', detail);

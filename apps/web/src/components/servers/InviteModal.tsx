@@ -36,8 +36,10 @@ export const InviteModal = ({ serverId, onClose }: Props) => {
             const maxUsesNum = maxUses ? parseInt(maxUses) : undefined;
             const inv = await createInvitation(serverId, expiresInHours, maxUsesNum);
             setInvitation(inv);
-        } catch (err: any) {
-            setError(err?.response?.data?.detail || 'Error al generar la invitación');
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+            setError(detail || 'Error al generar la invitación');
         } finally {
             setLoading(false);
         }

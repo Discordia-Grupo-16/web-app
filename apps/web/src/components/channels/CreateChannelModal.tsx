@@ -22,8 +22,10 @@ export const CreateChannelModal = ({ serverId, type, onClose, onCreated }: Props
         try {
             const channel = await createChannel(serverId, name, type);
             onCreated(channel);
-        } catch (err: any) {
-            setError(err?.response?.data?.detail || 'Error al crear el canal');
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+            setError(detail || 'Error al crear el canal');
         } finally {
             setLoading(false);
         }
