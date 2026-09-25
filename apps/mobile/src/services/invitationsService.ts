@@ -1,5 +1,6 @@
 import { api } from '@/services/api';
 import type { Invitation } from '@/types/invitation';
+import type { Member } from '@/types/member';
 
 export const createInvitation = (
     serverId: string,
@@ -20,5 +21,5 @@ export const listInvitations = (serverId: string): Promise<Invitation[]> =>
 export const revokeInvitation = (serverId: string, code: string): Promise<void> =>
     api.delete(`/servers/${serverId}/invitations/${code}`).then(() => undefined);
 
-export const joinServer = (code: string): Promise<void> =>
-    api.post(`/invites/${code}/accept`).then(() => undefined);
+export const joinServer = (code: string): Promise<Member> =>
+    api.post<Member>(`/invites/${code}/accept`).then(r => r.data);

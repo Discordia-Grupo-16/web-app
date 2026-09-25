@@ -1,22 +1,16 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import type { User } from '../types/auth';
+import type { User, AuthStorageStrategy } from '../types/auth';
 
-export interface AuthStorageStrategy {
-    getToken: () => Promise<string | null>;
-    setToken: (token: string) => Promise<void>;
-    removeToken?: () => Promise<void>;
-    getUser: <T>() => Promise<T | null>;
-    setUser: <T>(user: T) => Promise<void>;
-    removeUser?: () => Promise<void>;
-    clearSession: () => Promise<void>;
-}
+export type { AuthStorageStrategy };
 
 interface AuthContextType {
     user: User | null;
     token: string | null;
+    refreshToken: string | null;
     isLoading: boolean;
-    signIn: (token: string, user: User) => Promise<void>;
+    signIn: (token: string, user: User, refreshToken?: string) => Promise<void>;
     signOut: () => Promise<void>;
+    updateUser: (updatedUser: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,11 +18,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 interface AuthProviderProps {
     children: React.ReactNode;
     storage: AuthStorageStrategy;
+    onSignOut?: () => Promise<void>;
 }
 
-export function AuthProvider({ children, storage }: AuthProviderProps) {
+export function AuthProvider({ children, storage, onSignOut }: AuthProviderProps) {
     const [user, setUser] = useState<User | null>(null);
     const [token, setToken] = useState<string | null>(null);
+    const [refreshToken, setRefreshToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -36,9 +32,13 @@ export function AuthProvider({ children, storage }: AuthProviderProps) {
             try {
                 const storedToken = await storage.getToken();
                 const storedUser = await storage.getUser<User>();
+                const storedRefreshToken = storage.getRefreshToken
+                    ? await storage.getRefreshToken()
+                    : null;
                 if (storedToken) {
                     setToken(storedToken);
                     setUser(storedUser || null);
+                    setRefreshToken(storedRefreshToken);
                 }
             } catch {
                 // Ignorar error al cargar sesión inicial
@@ -49,28 +49,48 @@ export function AuthProvider({ children, storage }: AuthProviderProps) {
         loadStoredSession();
     }, [storage]);
 
-    const signIn = async (newToken: string, newUser: User) => {
+    const signIn = async (newToken: string, newUser: User, newRefreshToken?: string) => {
         await storage.setToken(newToken);
         await storage.setUser(newUser);
+        if (newRefreshToken && storage.setRefreshToken) {
+            await storage.setRefreshToken(newRefreshToken);
+        }
         setToken(newToken);
         setUser(newUser);
+        setRefreshToken(newRefreshToken || null);
     };
 
     const signOut = async () => {
-        await storage.clearSession();
-        setToken(null);
-        setUser(null);
+        try {
+            if (onSignOut) {
+                await onSignOut();
+            }
+        } catch {
+            // Si la llamada al backend falla o el token ya expiró, garantizamos limpiar la sesión local
+        } finally {
+            await storage.clearSession();
+            setToken(null);
+            setRefreshToken(null);
+            setUser(null);
+        }
+    };
+
+    const updateUser = async (updatedUser: User) => {
+        await storage.setUser(updatedUser);
+        setUser(updatedUser);
     };
 
     const value = useMemo(
         () => ({
             user,
             token,
+            refreshToken,
             isLoading,
             signIn,
             signOut,
+            updateUser,
         }),
-        [user, token, isLoading]
+        [user, token, refreshToken, isLoading]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

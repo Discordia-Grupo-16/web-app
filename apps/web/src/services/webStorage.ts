@@ -1,7 +1,8 @@
 import type { AuthStorageStrategy } from "@discordia/context";
 
-export const TOKEN_KEY = "discordia_token"
-const USER_KEY = "discordia_user"
+const TOKEN_KEY = "discordia_token";
+const REFRESH_TOKEN_KEY = "discordia_refresh_token";
+const USER_KEY = "discordia_user";
 
 export const webAuthStorage: AuthStorageStrategy = {
     async getToken(): Promise<string | null> {
@@ -16,6 +17,19 @@ export const webAuthStorage: AuthStorageStrategy = {
     },
     async removeToken(): Promise<void> {
         localStorage.removeItem(TOKEN_KEY);
+    },
+    async getRefreshToken(): Promise<string | null> {
+        try {
+            return localStorage.getItem(REFRESH_TOKEN_KEY);
+        } catch {
+            return null;
+        }
+    },
+    async setRefreshToken(token: string): Promise<void> {
+        localStorage.setItem(REFRESH_TOKEN_KEY, token);
+    },
+    async removeRefreshToken(): Promise<void> {
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
     },
     async getUser<T = unknown>(): Promise<T | null> {
         try {
@@ -33,6 +47,7 @@ export const webAuthStorage: AuthStorageStrategy = {
     },
     async clearSession(): Promise<void> {
         localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
     },
-}   
+};
