@@ -1,4 +1,4 @@
-import type { PendingErrorCode } from './chatStore';
+import type { PendingErrorCode } from '@discordia/realtime';
 
 // The server's error.message is not shown as is: these are the UI texts.
 export const ERROR_TEXTS: Record<PendingErrorCode, string> = {

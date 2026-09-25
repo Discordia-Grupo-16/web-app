@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
   Modal, TextInput, Alert, ActivityIndicator,
@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@discordia/context';
 import { getServers, createServer } from '@/services/serversService';
 import type { Server } from '@/types/server';
+import { useFocusedPolling } from '@/hooks/useFocusedPolling';
 
 export default function ServersScreen() {
   const router = useRouter();
@@ -25,6 +26,16 @@ export default function ServersScreen() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Servers deleted or joined elsewhere (or left from the server screen) show up on focus and
+  // on the next poll. A response from before a local change (creating a server) is dropped.
+  const localChangeRef = useRef(0);
+  useFocusedPolling(() => {
+    const startedAt = localChangeRef.current;
+    getServers()
+      .then(list => { if (localChangeRef.current === startedAt) setServers(list); })
+      .catch(() => { /* keep the current list; the next tick retries */ });
+  });
 
   return (
     <SafeAreaView className="flex-1 bg-[#23272a]" edges={['bottom']}>
@@ -91,7 +102,7 @@ export default function ServersScreen() {
       <CreateServerModal
         visible={showCreate}
         onClose={() => setShowCreate(false)}
-        onCreated={server => { setServers(prev => [...prev, server]); setShowCreate(false); }}
+        onCreated={server => { localChangeRef.current += 1; setServers(prev => [...prev, server]); setShowCreate(false); }}
       />
     </SafeAreaView>
   );
