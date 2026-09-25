@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { FlatList, View, Text } from 'react-native';
+import { Alert, FlatList, View, Text } from 'react-native';
 import type { User } from '@discordia/context';
 import type { ChatMessage, PendingMessage } from '@discordia/realtime';
 import { displayName } from '../authorName';
-import { ERROR_TEXTS } from '../errorMessages';
+import { ERROR_TEXTS, isRetryable } from '../errorMessages';
 import { MessageItem } from './MessageItem';
 
 interface MessageListProps {
@@ -11,13 +11,28 @@ interface MessageListProps {
   messages: ChatMessage[];
   pending: PendingMessage[];
   currentUser: User | null;
+  canRetry: boolean;
+  onRetry: (clientMessageId: string) => void;
+  onDiscard: (clientMessageId: string) => void;
 }
+
+// There is no tooltip on mobile: the correlationId (for searching the logs) is shown on long-press.
+const showErrorDetails = (errorCode: string | undefined, correlationId: string | undefined) =>
+  Alert.alert('Detalle del error', `Código: ${errorCode ?? 'desconocido'}\ncorrelationId: ${correlationId ?? 'sin dato'}`);
 
 type ListItem =
   | { kind: 'pending'; message: PendingMessage }
   | { kind: 'confirmed'; message: ChatMessage };
 
-export const MessageList = ({ channelName, messages, pending, currentUser }: MessageListProps) => {
+export const MessageList = ({
+  channelName,
+  messages,
+  pending,
+  currentUser,
+  canRetry,
+  onRetry,
+  onDiscard,
+}: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
   const pendingCountRef = useRef(pending.length);
 
@@ -73,6 +88,14 @@ export const MessageList = ({ channelName, messages, pending, currentUser }: Mes
             sending={item.message.status === 'sending'}
             failed={item.message.status === 'failed'}
             errorText={item.message.errorCode && ERROR_TEXTS[item.message.errorCode]}
+            onLongPress={
+              item.message.status === 'failed'
+                ? () => showErrorDetails(item.message.errorCode, item.message.correlationId)
+                : undefined
+            }
+            onRetry={isRetryable(item.message.errorCode) ? () => onRetry(item.message.clientMessageId) : undefined}
+            retryDisabled={!canRetry}
+            onDiscard={() => onDiscard(item.message.clientMessageId)}
           />
         )
       }

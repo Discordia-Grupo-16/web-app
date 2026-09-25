@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { ChatMessage, PendingMessage } from '@discordia/realtime';
-import type { RealtimeStatus } from './realtimeContext';
+import type { RealtimeStatus, RejectedMessage } from './realtimeContext';
 import { useRealtime } from './useRealtime';
 
 export interface ChannelMessages {
@@ -9,12 +9,16 @@ export interface ChannelMessages {
   status: RealtimeStatus;
   maxLength: number;
   send: (content: string) => void;
+  retry: (clientMessageId: string) => void;
+  discard: (clientMessageId: string) => void;
+  rejected: RejectedMessage | null;
+  clearRejected: () => void;
 }
 
 const NO_MESSAGES: ChatMessage[] = [];
 
 export const useChannelMessages = (channelId: string): ChannelMessages => {
-  const { state, status, maxLength, send } = useRealtime();
+  const { state, status, maxLength, send, retry, discard, lastRejected, clearRejected } = useRealtime();
 
   const messages = state.byChannel[channelId] ?? NO_MESSAGES;
   const pending = useMemo(
@@ -27,5 +31,7 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
 
   const sendToChannel = useCallback((content: string) => send(channelId, content), [send, channelId]);
 
-  return { messages, pending, status, maxLength, send: sendToChannel };
+  const rejected = lastRejected && lastRejected.channelId === channelId ? lastRejected : null;
+
+  return { messages, pending, status, maxLength, send: sendToChannel, retry, discard, rejected, clearRejected };
 };
