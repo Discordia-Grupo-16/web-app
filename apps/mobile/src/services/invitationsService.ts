@@ -10,16 +10,16 @@ export const createInvitation = (
     const form = new FormData();
     if (expiresInHours !== undefined) form.append('expires_in_hours', String(expiresInHours));
     if (maxUses !== undefined) form.append('max_uses', String(maxUses));
-    return api.post<Invitation>(`/servers/${serverId}/invitations/`, form, {
+    return api.post<Invitation>(`/api/v1/servers/${serverId}/invitations/`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data);
 };
 
 export const listInvitations = (serverId: string): Promise<Invitation[]> =>
-    api.get<Invitation[]>(`/servers/${serverId}/invitations/`).then(r => r.data);
+    api.get<Invitation[]>(`/api/v1/servers/${serverId}/invitations/`).then(r => r.data);
 
 export const revokeInvitation = (serverId: string, code: string): Promise<void> =>
-    api.delete(`/servers/${serverId}/invitations/${code}`).then(() => undefined);
+    api.delete(`/api/v1/servers/${serverId}/invitations/${code}`).then(() => undefined);
 
 export const joinServer = (code: string): Promise<Member> =>
-    api.post<Member>(`/invites/${code}/accept`).then(r => r.data);
+    api.post<Member>(`/api/v1/invites/${code}/accept`).then(r => r.data);
