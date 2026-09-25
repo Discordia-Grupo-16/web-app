@@ -17,8 +17,8 @@ export const AppLayout = () => {
             )}
 
             <div className={`
-                fixed inset-y-0 left-0 z-40 flex-col h-full shrink-0 transition-transform duration-300 md:relative md:flex md:translate-x-0
-                ${isSidebarOpen ? 'translate-x-0 flex' : '-translate-x-full hidden md:flex'}
+                fixed inset-y-0 left-0 z-40 flex-col h-full shrink-0 md:relative md:flex
+                ${isSidebarOpen ? 'flex' : 'hidden md:flex'}
             `}>
                 <div className="flex flex-col h-full shrink-0">
                     <div className="flex flex-1 overflow-hidden">
