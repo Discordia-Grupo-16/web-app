@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { getServers } from '../../services/serversService';
 import type { Server } from '../../types/server';
 import { CreateServerModal } from './CreateServerModal';
+import { usePolling } from '../../hooks/usePolling';
 
 export const ServerSidebar = () => {
     const [servers, setServers] = useState<Server[]>([]);
@@ -11,11 +12,28 @@ export const ServerSidebar = () => {
     const { serverId } = useParams();
     const navigate = useNavigate();
 
-    useEffect(() => {
-        getServers().then(setServers).catch(console.error);
+    // A response from before a local change (e.g. creating a server) would drop it again.
+    const localChangeRef = useRef(0);
+
+    const refreshServers = useCallback(() => {
+        const startedAt = localChangeRef.current;
+        getServers()
+            .then(list => {
+                if (localChangeRef.current === startedAt) setServers(list);
+            })
+            .catch(console.error);
     }, []);
 
+    // Reload on every server change too: leaving or losing a server navigates away from it.
+    useEffect(() => {
+        refreshServers();
+    }, [refreshServers, serverId]);
+
+    // Servers deleted, or joined, from another client show up on the next poll.
+    usePolling(refreshServers);
+
     const handleCreated = (server: Server) => {
+        localChangeRef.current += 1;
         setServers(prev => [...prev, server]);
         setShowCreate(false);
         navigate(`/servers/${server.id}`);

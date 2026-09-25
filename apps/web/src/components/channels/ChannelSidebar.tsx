@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, Hash, LogOut, Pencil, Plus, Shield, Trash2, UserPlus, Volume2 } from 'lucide-react';
 import { useAuth } from '@discordia/context';
@@ -13,6 +13,7 @@ import { EditChannelModal } from './EditChannelModal';
 import { CreateRoleModal } from '../roles/CreateRoleModal';
 import { InviteModal } from '../servers/InviteModal';
 import { ConfirmModal } from '../ui/ConfirmModal';
+import { isGoneError, usePolling } from '../../hooks/usePolling';
 
 export const ChannelSidebar = () => {
     const { serverId, channelId } = useParams();
@@ -49,7 +50,8 @@ export const ChannelSidebar = () => {
                     setRoles(roleList);
                 }
             } catch (err) {
-                console.error(err);
+                if (isMounted && isGoneError(err)) navigate('/');
+                else console.error(err);
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -60,7 +62,32 @@ export const ChannelSidebar = () => {
         return () => {
             isMounted = false; // Cleanup function
         };
+    }, [serverId, navigate]);
+
+    // Channels created or deleted from another client show up on the next poll. If the server
+    // itself is gone (deleted, or we were removed), leave it.
+    const currentServerIdRef = useRef(serverId);
+    useEffect(() => {
+        currentServerIdRef.current = serverId;
     }, [serverId]);
+
+    usePolling(() => {
+        if (!serverId) return;
+        getServer(serverId)
+            .then(srv => {
+                setServer(prev => prev && prev.id === srv.id ? { ...prev, channels: srv.channels } : prev);
+            })
+            .catch(err => {
+                if (isGoneError(err) && currentServerIdRef.current === serverId) navigate('/');
+            });
+    }, !!serverId);
+
+    // The open channel was deleted from another client: fall back to the server view.
+    useEffect(() => {
+        if (server && channelId && server.id === serverId && !server.channels.some(c => c.id === channelId)) {
+            navigate(`/servers/${serverId}`);
+        }
+    }, [server, serverId, channelId, navigate]);
 
     const handleChannelCreated = (channel: Channel) => {
         setServer(prev => prev ? { ...prev, channels: [...prev.channels, channel] } : prev);
