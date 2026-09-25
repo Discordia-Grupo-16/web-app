@@ -6,7 +6,6 @@ import App from './App.tsx';
 import { AppLayout } from './components/layout/AppLayout.tsx';
 import { ChannelView } from './components/channels/ChannelView.tsx';
 import { ProtectedRoute } from './components/protectedRoute.tsx';
-import { AdminHome } from './pages/adminHome.tsx';
 import { InvitePage } from './pages/invitePage.tsx';
 import { LoginRegister } from './pages/loginRegister.tsx';
 import './index.css';
@@ -45,7 +44,6 @@ const router = createBrowserRouter([
               { path: 'servers/:serverId/channels/:channelId', element: <ChannelView /> },
             ],
           },
-          { path: 'admin', element: <AdminHome /> },
           { path: 'invite/:code', element: <InvitePage /> },
         ],
       },
