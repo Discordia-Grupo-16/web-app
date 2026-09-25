@@ -29,15 +29,37 @@ export const ChannelSidebar = () => {
     const [pendingLeave, setPendingLeave] = useState(false);
 
     useEffect(() => {
-        if (!serverId) { setServer(null); setRoles([]); return; }
-        setLoading(true);
-        Promise.all([
-            getServer(serverId),
-            listRoles(serverId),
-        ])
-            .then(([srv, roleList]) => { setServer(srv); setRoles(roleList); })
-            .catch(console.error)
-            .finally(() => setLoading(false));
+        let isMounted = true;
+
+        const loadData = async () => {
+            if (!serverId) {
+                setServer(null);
+                setRoles([]);
+                return;
+            }
+
+            setLoading(true);
+            try {
+                const [srv, roleList] = await Promise.all([
+                    getServer(serverId),
+                    listRoles(serverId),
+                ]);
+                if (isMounted) {
+                    setServer(srv);
+                    setRoles(roleList);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        loadData();
+
+        return () => {
+            isMounted = false; // Cleanup function
+        };
     }, [serverId]);
 
     const handleChannelCreated = (channel: Channel) => {
@@ -59,7 +81,7 @@ export const ChannelSidebar = () => {
 
     const confirmChannelDelete = async () => {
         if (!serverId || !pendingDelete) return;
-        const { id, name: _ } = pendingDelete;
+        const { id } = pendingDelete;
         setPendingDelete(null);
         try {
             await deleteChannel(serverId, id);
@@ -67,9 +89,11 @@ export const ChannelSidebar = () => {
                 prev ? { ...prev, channels: prev.channels.filter(c => c.id !== id) } : prev
             );
             if (id === channelId) navigate(`/servers/${serverId}`);
-        } catch (err: any) {
-            const detail = err?.response?.data?.detail;
-            window.alert(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al eliminar el canal'));
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+
+            window.alert(detail || 'Error al eliminar el canal');
         }
     };
 
@@ -88,9 +112,11 @@ export const ChannelSidebar = () => {
         try {
             await leaveServer(serverId);
             navigate('/');
-        } catch (err: any) {
-            const detail = err?.response?.data?.detail;
-            window.alert(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al abandonar el servidor'));
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+
+            window.alert(detail || 'Error al abandonar el servidor');
         }
     };
 

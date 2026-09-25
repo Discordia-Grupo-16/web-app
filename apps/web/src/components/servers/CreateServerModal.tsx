@@ -21,8 +21,10 @@ export const CreateServerModal = ({ onClose, onCreated }: Props) => {
         try {
             const server = await createServer(name, description || undefined);
             onCreated(server);
-        } catch (err: any) {
-            setError(err?.response?.data?.detail || 'Error al crear el servidor');
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+            setError(detail || 'Error al crear el servidor');
         } finally {
             setLoading(false);
         }
