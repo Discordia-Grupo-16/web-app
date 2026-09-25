@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@discordia/context';
+import { RealtimeProvider } from '../realtime/RealtimeProvider';
 
 export const ProtectedRoute = () => {
     const { user, isLoading } = useAuth();
@@ -10,5 +11,10 @@ export const ProtectedRoute = () => {
         return <Navigate to="/home" replace />;
     }
 
-    return <Outlet />;
+    // Mounted here, not in AppLayout: /invite/:code and /admin leave AppLayout and would drop the socket.
+    return (
+        <RealtimeProvider>
+            <Outlet />
+        </RealtimeProvider>
+    );
 };

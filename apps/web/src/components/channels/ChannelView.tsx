@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
 import { getServer } from '../../services/serversService';
 import type { Channel } from '../../types/channel';
+import { ChatPanel } from '../../realtime/components/ChatPanel';
 
 export const ChannelView = () => {
     const { serverId, channelId } = useParams();
@@ -42,18 +43,19 @@ export const ChannelView = () => {
                 </div>
             </div>
 
-            <div className="flex-1 flex items-center justify-center" style={{ color: '#99aab5' }}>
-                <div className="text-center select-none">
-                    {isText
-                        ? <Hash size={48} className="mx-auto mb-3 opacity-30" />
-                        : <Volume2 size={48} className="mx-auto mb-3 opacity-30" />
-                    }
-                    <p className="text-lg font-semibold">Bienvenido a #{channel.name}</p>
-                    {channel.topic && (
-                        <p className="text-sm mt-1">{channel.topic}</p>
-                    )}
+            {isText ? (
+                <ChatPanel channelId={channel.id} channelName={channel.name} topic={channel.topic} />
+            ) : (
+                <div className="flex-1 flex items-center justify-center" style={{ color: '#99aab5' }}>
+                    <div className="text-center select-none">
+                        <Volume2 size={48} className="mx-auto mb-3 opacity-30" />
+                        <p className="text-lg font-semibold">Bienvenido a #{channel.name}</p>
+                        {channel.topic && (
+                            <p className="text-sm mt-1">{channel.topic}</p>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
