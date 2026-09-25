@@ -1,0 +1,27 @@
+# web-app/.github/workflows/ci.yml
+# The pipeline itself lives in discordia-ci.
+
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: Discordia-Grupo-16/discordia-ci/.github/workflows/node-app.yml@v1
+    with:
+      node-version: "22"
+      # npm workspace: both client apps live under apps/, plus the packages
+      # that already have a test runner and a `test` script.
+      workspaces: '["web-app", "mobile-app", "@discordia/realtime"]'
+      # @discordia/realtime has vitest wired up (SCRUM-139); web-app and
+      # mobile-app still don't define a `test` script, so `--if-present`
+      # skips them harmlessly until they do.
+      run-tests: true

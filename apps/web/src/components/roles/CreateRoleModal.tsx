@@ -21,9 +21,10 @@ export const CreateRoleModal = ({ serverId, onClose, onCreated }: Props) => {
         try {
             const role = await createRole(serverId, name);
             onCreated(role);
-        } catch (err: any) {
-            const detail = err?.response?.data?.detail;
-            setError(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al crear el rol'));
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+            setError(detail || 'Error al crear el rol');
         } finally {
             setLoading(false);
         }

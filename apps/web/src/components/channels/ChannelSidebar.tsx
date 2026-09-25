@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronDown, Hash, LogOut, Plus, Shield, Trash2, UserPlus, Volume2 } from 'lucide-react';
+import { ChevronDown, Hash, LogOut, Pencil, Plus, Shield, Trash2, UserPlus, Volume2 } from 'lucide-react';
 import { useAuth } from '@discordia/context';
 import { getServer, leaveServer } from '../../services/serversService';
 import { deleteChannel } from '../../services/channelsService';
@@ -9,6 +9,7 @@ import type { Channel } from '../../types/channel';
 import type { Role } from '../../types/role';
 import type { Server } from '../../types/server';
 import { CreateChannelModal } from './CreateChannelModal';
+import { EditChannelModal } from './EditChannelModal';
 import { CreateRoleModal } from '../roles/CreateRoleModal';
 import { InviteModal } from '../servers/InviteModal';
 import { ConfirmModal } from '../ui/ConfirmModal';
@@ -24,18 +25,41 @@ export const ChannelSidebar = () => {
     const [showInvite, setShowInvite] = useState(false);
     const [showCreateRole, setShowCreateRole] = useState(false);
     const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
+    const [pendingEdit, setPendingEdit] = useState<Channel | null>(null);
     const [pendingLeave, setPendingLeave] = useState(false);
 
     useEffect(() => {
-        if (!serverId) { setServer(null); setRoles([]); return; }
-        setLoading(true);
-        Promise.all([
-            getServer(serverId),
-            listRoles(serverId),
-        ])
-            .then(([srv, roleList]) => { setServer(srv); setRoles(roleList); })
-            .catch(console.error)
-            .finally(() => setLoading(false));
+        let isMounted = true;
+
+        const loadData = async () => {
+            if (!serverId) {
+                setServer(null);
+                setRoles([]);
+                return;
+            }
+
+            setLoading(true);
+            try {
+                const [srv, roleList] = await Promise.all([
+                    getServer(serverId),
+                    listRoles(serverId),
+                ]);
+                if (isMounted) {
+                    setServer(srv);
+                    setRoles(roleList);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        loadData();
+
+        return () => {
+            isMounted = false; // Cleanup function
+        };
     }, [serverId]);
 
     const handleChannelCreated = (channel: Channel) => {
@@ -48,9 +72,16 @@ export const ChannelSidebar = () => {
         setPendingDelete({ id: targetChannelId, name: channelName });
     };
 
+    const handleChannelUpdated = (updated: Channel) => {
+        setServer(prev =>
+            prev ? { ...prev, channels: prev.channels.map(c => c.id === updated.id ? updated : c) } : prev
+        );
+        setPendingEdit(null);
+    };
+
     const confirmChannelDelete = async () => {
         if (!serverId || !pendingDelete) return;
-        const { id, name: _ } = pendingDelete;
+        const { id } = pendingDelete;
         setPendingDelete(null);
         try {
             await deleteChannel(serverId, id);
@@ -58,9 +89,11 @@ export const ChannelSidebar = () => {
                 prev ? { ...prev, channels: prev.channels.filter(c => c.id !== id) } : prev
             );
             if (id === channelId) navigate(`/servers/${serverId}`);
-        } catch (err: any) {
-            const detail = err?.response?.data?.detail;
-            window.alert(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al eliminar el canal'));
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+
+            window.alert(detail || 'Error al eliminar el canal');
         }
     };
 
@@ -79,9 +112,11 @@ export const ChannelSidebar = () => {
         try {
             await leaveServer(serverId);
             navigate('/');
-        } catch (err: any) {
-            const detail = err?.response?.data?.detail;
-            window.alert(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al abandonar el servidor'));
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            const detail = error.response?.data?.detail;
+
+            window.alert(detail || 'Error al abandonar el servidor');
         }
     };
 
@@ -135,6 +170,7 @@ export const ChannelSidebar = () => {
                                 canManage={isOwner}
                                 onAdd={() => setCreateType('text')}
                                 onDelete={handleChannelDelete}
+                                onEdit={setPendingEdit}
                             />
                             <ChannelGroup
                                 label="Canales de voz"
@@ -144,6 +180,7 @@ export const ChannelSidebar = () => {
                                 canManage={isOwner}
                                 onAdd={() => setCreateType('voice')}
                                 onDelete={handleChannelDelete}
+                                onEdit={setPendingEdit}
                             />
                             <RolesGroup
                                 roles={roles}
@@ -198,6 +235,15 @@ export const ChannelSidebar = () => {
                 />
             )}
 
+            {pendingEdit && serverId && (
+                <EditChannelModal
+                    serverId={serverId}
+                    channel={pendingEdit}
+                    onClose={() => setPendingEdit(null)}
+                    onUpdated={handleChannelUpdated}
+                />
+            )}
+
             {pendingDelete && (
                 <ConfirmModal
                     title="Eliminar canal"
@@ -231,9 +277,10 @@ interface ChannelGroupProps {
     canManage: boolean;
     onAdd: () => void;
     onDelete: (channelId: string, channelName: string) => void;
+    onEdit: (channel: Channel) => void;
 }
 
-const ChannelGroup = ({ label, channels, activeId, serverId, canManage, onAdd, onDelete }: ChannelGroupProps) => {
+const ChannelGroup = ({ label, channels, activeId, serverId, canManage, onAdd, onDelete, onEdit }: ChannelGroupProps) => {
     const navigate = useNavigate();
     const isText = label.includes('texto');
 
@@ -291,16 +338,28 @@ const ChannelGroup = ({ label, channels, activeId, serverId, canManage, onAdd, o
                         </button>
 
                         {canManage && (
-                            <button
-                                onClick={() => onDelete(ch.id, ch.name)}
-                                className="opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 mr-1 rounded shrink-0"
-                                style={{ color: '#8e9297' }}
-                                title="Eliminar canal"
-                                onMouseEnter={e => (e.currentTarget.style.color = '#ed4245')}
-                                onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
-                            >
-                                <Trash2 size={13} />
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => onEdit(ch)}
+                                    className="opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 rounded shrink-0"
+                                    style={{ color: '#8e9297' }}
+                                    title="Editar canal"
+                                    onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                >
+                                    <Pencil size={13} />
+                                </button>
+                                <button
+                                    onClick={() => onDelete(ch.id, ch.name)}
+                                    className="opacity-0 group-hover/ch:opacity-100 transition-opacity p-1 mr-1 rounded shrink-0"
+                                    style={{ color: '#8e9297' }}
+                                    title="Eliminar canal"
+                                    onMouseEnter={e => (e.currentTarget.style.color = '#ed4245')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                >
+                                    <Trash2 size={13} />
+                                </button>
+                            </>
                         )}
                     </div>
                 );
