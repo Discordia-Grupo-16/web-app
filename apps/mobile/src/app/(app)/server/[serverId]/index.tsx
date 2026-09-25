@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   Modal, TextInput, Alert, ActivityIndicator,
@@ -16,6 +16,7 @@ import type { Server } from '@/types/server';
 import type { Channel } from '@/types/channel';
 import type { Role } from '@/types/role';
 import type { Invitation } from '@/types/invitation';
+import { isGoneError, useFocusedPolling } from '@/hooks/useFocusedPolling';
 
 export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -52,6 +53,23 @@ export default function ServerScreen() {
   };
 
   useEffect(() => { load(); }, [serverId]);
+
+  // Channels created or deleted from another client show up on focus and on the next poll.
+  // If the server itself is gone (deleted, or we were removed), go back to the list.
+  const goneRef = useRef(false);
+  useFocusedPolling(() => {
+    if (!serverId || goneRef.current) return;
+    getServer(serverId)
+      .then(srv => {
+        setServer(prev => prev && prev.id === srv.id ? { ...prev, channels: srv.channels } : prev);
+      })
+      .catch(err => {
+        if (!isGoneError(err) || goneRef.current) return;
+        goneRef.current = true;
+        Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o ya no sos miembro.');
+        router.back();
+      });
+  });
 
   const handleOpenChannel = (ch: Channel) => {
     router.push({
@@ -95,9 +113,11 @@ export default function ServerScreen() {
       {
         text: 'Salir', style: 'destructive', onPress: async () => {
           try {
+            goneRef.current = true;
             await leaveServer(serverId!);
             router.back();
           } catch (err: any) {
+            goneRef.current = false;
             Alert.alert('Error', err?.response?.data?.detail || 'No se pudo abandonar el servidor.');
           }
         },
@@ -111,9 +131,11 @@ export default function ServerScreen() {
       {
         text: 'Eliminar', style: 'destructive', onPress: async () => {
           try {
+            goneRef.current = true;
             await deleteServer(serverId!);
             router.back();
           } catch (err: any) {
+            goneRef.current = false;
             Alert.alert('Error', err?.response?.data?.detail || 'No se pudo eliminar el servidor.');
           }
         },

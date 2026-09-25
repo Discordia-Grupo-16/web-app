@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { getServer } from '@/services/serversService';
 import { ChatScreen } from '@/realtime/components/ChatScreen';
+import { isGoneError, useFocusedPolling } from '@/hooks/useFocusedPolling';
 
 export default function ChannelScreen() {
   const { serverId, channelId, name } = useLocalSearchParams<{ serverId: string; channelId: string; name?: string }>();
@@ -33,6 +34,26 @@ export default function ChannelScreen() {
       cancelled = true;
     };
   }, [channelName, serverId, channelId, navigation, router]);
+
+  // The channel (or its whole server) was deleted from another client: leave the chat.
+  const goneRef = useRef(false);
+  useFocusedPolling(() => {
+    if (goneRef.current) return;
+    const leave = (message: string, toServerList: boolean) => {
+      if (goneRef.current) return;
+      goneRef.current = true;
+      Alert.alert('Canal no disponible', message);
+      if (toServerList && router.canDismiss()) router.dismissAll();
+      else router.back();
+    };
+    getServer(serverId)
+      .then((server) => {
+        if (!server.channels.some((ch) => ch.id === channelId)) leave('Este canal fue eliminado.', false);
+      })
+      .catch((err) => {
+        if (isGoneError(err)) leave('Este servidor fue eliminado o ya no sos miembro.', true);
+      });
+  });
 
   if (channelName === null) {
     return (
