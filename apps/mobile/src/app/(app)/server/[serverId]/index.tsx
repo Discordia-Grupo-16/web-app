@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   Modal, TextInput, Alert, ActivityIndicator,
+  Keyboard, TouchableWithoutFeedback,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -328,6 +329,8 @@ function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
             placeholder="nombre-del-canal"
             placeholderTextColor="#72767d"
             autoCapitalize="none"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
           />
           {channel.type === 'text' && (
@@ -340,6 +343,8 @@ function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
                 onChangeText={setTopic}
                 placeholder="De qué se trata este canal"
                 placeholderTextColor="#72767d"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
                 className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
               />
             </>
@@ -402,6 +407,8 @@ function CreateChannelModal({ type, serverId, onClose, onCreated }: {
             placeholder={type === 'text' ? 'nuevo-canal' : 'voz-general'}
             placeholderTextColor="#72767d"
             autoCapitalize="none"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
           />
           {error ? <Text className="text-[#ed4245] text-sm mb-3">{error}</Text> : null}
@@ -461,6 +468,8 @@ function CreateRoleModal({ visible, serverId, onClose, onCreated }: {
             onChangeText={setName}
             placeholder="Moderador"
             placeholderTextColor="#72767d"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
           />
           {error ? <Text className="text-[#ed4245] text-sm mb-3">{error}</Text> : null}
@@ -530,6 +539,7 @@ function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, 
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View className="flex-1 justify-end bg-black/60">
         <View className="bg-[#36393f] rounded-t-2xl p-6" style={{ maxHeight: '80%' }}>
           <View className="flex-row items-center justify-between mb-4">
@@ -599,6 +609,8 @@ function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, 
             placeholder="Sin límite"
             placeholderTextColor="#72767d"
             keyboardType="number-pad"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
           />
 
@@ -614,6 +626,7 @@ function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, 
           </TouchableOpacity>
         </View>
       </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
