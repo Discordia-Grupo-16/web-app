@@ -31,6 +31,7 @@ export default function AppLayout() {
         <Stack.Screen name="index" options={{ title: 'Discordia' }} />
         <Stack.Screen name="join" options={{ title: 'Unirse a servidor' }} />
         <Stack.Screen name="server/[serverId]/index" options={{ title: '' }} />
+        <Stack.Screen name="server/[serverId]/channel/[channelId]" options={{ title: '' }} />
       </Stack>
     </RealtimeProvider>
   );

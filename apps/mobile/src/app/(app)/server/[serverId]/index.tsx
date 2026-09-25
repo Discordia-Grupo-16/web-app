@@ -51,6 +51,13 @@ export default function ServerScreen() {
 
   useEffect(() => { load(); }, [serverId]);
 
+  const handleOpenChannel = (ch: Channel) => {
+    router.push({
+      pathname: '/server/[serverId]/channel/[channelId]',
+      params: { serverId, channelId: ch.id, name: ch.name },
+    });
+  };
+
   const handleDeleteChannel = (ch: Channel) => {
     Alert.alert(
       'Eliminar canal',
@@ -130,7 +137,13 @@ export default function ServerScreen() {
           <Text className="text-[#72767d] text-xs px-1">Sin canales de texto.</Text>
         )}
         {textChannels.map(ch => (
-          <ChannelItem key={ch.id} channel={ch} canManage={isOwner} onDelete={handleDeleteChannel} />
+          <ChannelItem
+            key={ch.id}
+            channel={ch}
+            canManage={isOwner}
+            onDelete={handleDeleteChannel}
+            onOpen={handleOpenChannel}
+          />
         ))}
 
         {/* Canales de voz */}
@@ -242,12 +255,12 @@ function SectionHeader({ title, canManage, onAdd }: {
   );
 }
 
-function ChannelItem({ channel, canManage, onDelete }: {
-  channel: Channel; canManage: boolean; onDelete: (ch: Channel) => void;
+function ChannelItem({ channel, canManage, onDelete, onOpen }: {
+  channel: Channel; canManage: boolean; onDelete: (ch: Channel) => void; onOpen?: (ch: Channel) => void;
 }) {
   const prefix = channel.type === 'text' ? '#' : '🔊';
-  return (
-    <View className="bg-[#2c2f33] rounded-lg px-4 py-3 flex-row items-center justify-between">
+  const content = (
+    <>
       <Text className="text-[#dcddde] text-sm flex-1">
         {prefix} {channel.name}
       </Text>
@@ -256,7 +269,16 @@ function ChannelItem({ channel, canManage, onDelete }: {
           <Text className="text-[#72767d] text-base">🗑</Text>
         </TouchableOpacity>
       )}
-    </View>
+    </>
+  );
+  const rowClass = 'bg-[#2c2f33] rounded-lg px-4 py-3 flex-row items-center justify-between';
+
+  // Only channels with an onOpen handler (text) are tappable; the delete button keeps its own onPress.
+  if (!onOpen) return <View className={rowClass}>{content}</View>;
+  return (
+    <TouchableOpacity className={rowClass} onPress={() => onOpen(channel)}>
+      {content}
+    </TouchableOpacity>
   );
 }
 
