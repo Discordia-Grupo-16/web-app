@@ -3,6 +3,7 @@ import { DiscordiaMark } from "@discordia/ui";
 import { EyeIcon, EyeOffIcon } from "./ui/eyeIcons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@discordia/context";
+import { validateLoginInput, getApiErrorMessage } from "@discordia/services";
 import { authService } from "../services/authService.ts";
 
 export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
@@ -15,19 +16,27 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
     const { signIn } = useAuth()
     const navigate = useNavigate()
 
-    async function handleSubmit(e: React.FormEvent) {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
         setError(null)
 
+        const validation = validateLoginInput({ email, password })
+        if (!validation.isValid) {
+            setError(validation.error)
+            return
+        }
+
+        setLoading(true)
+
         try {
-            const { token, user } = await authService.login({ email, password })
-            await signIn(token, user)
-            navigate(user.role === 'admin' ? '/admin' : '/')
-        } catch (err: any) {
-            // Manejo de errores (credenciales inválidas, fallo de red, etc.)
-            const message = err.response?.data?.message || 'Error al iniciar sesión';
-            setError(message);
+            const { token, user, refreshToken } = await authService.login({
+                email: email.trim(),
+                password,
+            })
+            await signIn(token, user, refreshToken)
+            navigate('/')
+        } catch (err: unknown) {
+            setError(getApiErrorMessage(err, 'Credenciales inválidas o error al iniciar sesión.'))
         } finally {
             setLoading(false);
         }
@@ -61,7 +70,13 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
                     </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                {error && (
+                    <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
+                        {error}
+                    </div>
+                )}
+
+                <form onSubmit={handleSubmit} noValidate className="space-y-5">
                     <div>
                         <label
                             className="block text-xs font-semibold uppercase tracking-wider mb-2"

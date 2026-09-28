@@ -7,9 +7,12 @@
   ],
   "scripts": {
     "dev:web": "npm run dev --workspace=web-app",
-    "build:web": "npm run build --workspace=web-app",
-    "lint:web": "npm run lint --workspace=web-app",
+    "build": "npm run build --workspace=web-app",
+    "lint": "npm run lint --workspace=web-app",
     "dev:mobile": "npm run start --workspace=mobile-app",
     "android": "npm run android --workspace=mobile-app"
+  },
+  "dependencies": {
+    "expo-linear-gradient": "~57.0.2"
   }
 }

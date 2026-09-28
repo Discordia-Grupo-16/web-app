@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@discordia/context": "*",
+    "@discordia/realtime": "*",
     "@discordia/services": "*",
     "@discordia/ui": "*",
     "@hookform/resolvers": "^5.9.1",
