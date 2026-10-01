@@ -57,6 +57,17 @@ O directamente en modo Android:
 npm run android
 ```
 
+Correr los tests de mobile (Jest + React Native Testing Library):
+
+```bash
+npm run test --workspace=mobile-app              # una corrida
+npm run test:watch --workspace=mobile-app        # modo watch
+npm run test --workspace=mobile-app -- --coverage
+```
+
+Igual que en web, cada test vive junto al archivo que prueba. La configuración está en
+`apps/mobile/jest.config.js`; usa el preset de Expo (`jest-expo`).
+
 ## Desarrollo local con API Gateway
 
 La web app se comunica con el backend a través del API Gateway. Creá el archivo `apps/web/.env.local` con:
