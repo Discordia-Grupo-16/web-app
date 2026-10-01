@@ -30,6 +30,12 @@
       "sourceType": "github",
       "skillPath": "plugins/expo/skills/expo-web-to-native/SKILL.md",
       "computedHash": "1535f5a384a7b2c1d23829149bc6d9852154eef3f96f2bff81f6dcc96d58e260"
+    },
+    "react-native-testing": {
+      "source": "callstack/react-native-testing-library",
+      "sourceType": "github",
+      "skillPath": "skills/react-native-testing/SKILL.md",
+      "computedHash": "bb30ad4660a42c71178c91d7a3f2e88556add9dba2213ee26f099dbe352fd649"
     }
   }
 }
