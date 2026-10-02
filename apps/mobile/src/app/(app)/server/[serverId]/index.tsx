@@ -8,15 +8,10 @@ import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useAuth } from '@discordia/core';
-import { getServer, leaveServer, deleteServer } from '@/services/serversService';
-import { createChannel, updateChannel, deleteChannel } from '@/services/channelsService';
-import { createRole, listRoles } from '@/services/rolesService';
-import { createInvitation, listInvitations, revokeInvitation } from '@/services/invitationsService';
-import type { Server } from '@/types/server';
-import type { Channel } from '@/types/channel';
-import type { Role } from '@/types/role';
-import type { Invitation } from '@/types/invitation';
-import { isGoneError, useFocusedPolling } from '@/hooks/useFocusedPolling';
+import { channelsService, invitationsService, rolesService, serversService } from '@/services/communityServices';
+import { isGoneError } from '@discordia/api';
+import type { Server, Channel, Role, Invitation } from '@discordia/api';
+import { useFocusedPolling } from '@/hooks/useFocusedPolling';
 
 export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -40,7 +35,7 @@ export default function ServerScreen() {
     if (!serverId) return;
     setLoading(true);
     try {
-      const [srv, roleList] = await Promise.all([getServer(serverId), listRoles(serverId)]);
+      const [srv, roleList] = await Promise.all([serversService.getServer(serverId), rolesService.listRoles(serverId)]);
       setServer(srv);
       setRoles(roleList);
       navigation.setOptions({ title: srv.name });
@@ -59,7 +54,7 @@ export default function ServerScreen() {
   const goneRef = useRef(false);
   useFocusedPolling(() => {
     if (!serverId || goneRef.current) return;
-    getServer(serverId)
+    serversService.getServer(serverId)
       .then(srv => {
         setServer(prev => prev && prev.id === srv.id ? { ...prev, channels: srv.channels } : prev);
       })
@@ -94,7 +89,7 @@ export default function ServerScreen() {
         {
           text: 'Eliminar', style: 'destructive', onPress: async () => {
             try {
-              await deleteChannel(serverId!, ch.id);
+              await channelsService.deleteChannel(serverId!, ch.id);
               setServer(prev => prev
                 ? { ...prev, channels: prev.channels.filter(c => c.id !== ch.id) }
                 : prev);
@@ -114,7 +109,7 @@ export default function ServerScreen() {
         text: 'Salir', style: 'destructive', onPress: async () => {
           try {
             goneRef.current = true;
-            await leaveServer(serverId!);
+            await serversService.leaveServer(serverId!);
             router.back();
           } catch (err: any) {
             goneRef.current = false;
@@ -132,7 +127,7 @@ export default function ServerScreen() {
         text: 'Eliminar', style: 'destructive', onPress: async () => {
           try {
             goneRef.current = true;
-            await deleteServer(serverId!);
+            await serversService.deleteServer(serverId!);
             router.back();
           } catch (err: any) {
             goneRef.current = false;
@@ -206,7 +201,7 @@ export default function ServerScreen() {
         {isOwner && (
           <TouchableOpacity
             onPress={async () => {
-              const list = await listInvitations(serverId!).catch(() => []);
+              const list = await invitationsService.listInvitations(serverId!).catch(() => []);
               setInvitations(list);
               setShowInvitations(true);
             }}
@@ -342,7 +337,7 @@ function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
     setLoading(true);
     setError(null);
     try {
-      const updated = await updateChannel(
+      const updated = await channelsService.updateChannel(
         serverId,
         channel.id,
         name.toLowerCase().replace(/\s+/g, '-'),
@@ -424,7 +419,7 @@ function CreateChannelModal({ type, serverId, onClose, onCreated }: {
     setLoading(true);
     setError(null);
     try {
-      const ch = await createChannel(serverId, name.toLowerCase().replace(/\s+/g, '-'), type);
+      const ch = await channelsService.createChannel(serverId, name.toLowerCase().replace(/\s+/g, '-'), type);
       setName('');
       onCreated(ch);
     } catch (err: any) {
@@ -486,7 +481,7 @@ function CreateRoleModal({ visible, serverId, onClose, onCreated }: {
     setLoading(true);
     setError(null);
     try {
-      const role = await createRole(serverId, name.trim());
+      const role = await rolesService.createRole(serverId, name.trim());
       setName('');
       onCreated(role);
     } catch (err: any) {
@@ -555,7 +550,7 @@ function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, 
     setCreating(true);
     try {
       const maxUses = maxUsesInput ? parseInt(maxUsesInput, 10) : undefined;
-      const inv = await createInvitation(serverId, expiresInHours, maxUses);
+      const inv = await invitationsService.createInvitation(serverId, expiresInHours, maxUses);
       onCreated(inv);
       setMaxUsesInput('');
       setExpiresInHours(undefined);
@@ -572,7 +567,7 @@ function InvitationsModal({ visible, serverId, invitations, onClose, onRevoked, 
       {
         text: 'Revocar', style: 'destructive', onPress: async () => {
           try {
-            await revokeInvitation(serverId, code);
+            await invitationsService.revokeInvitation(serverId, code);
             onRevoked(code);
           } catch (err: any) {
             Alert.alert('Error', err?.response?.data?.detail || 'No se pudo revocar.');

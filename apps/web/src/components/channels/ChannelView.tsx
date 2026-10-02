@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
-import { getServer } from '../../services/serversService';
-import type { Channel } from '../../types/channel';
+import { serversService } from '../../services/communityServices';
+import type { Channel } from '@discordia/api';
 import { ChatPanel } from '../../realtime/components/ChatPanel';
 
 export const ChannelView = () => {
@@ -11,7 +11,7 @@ export const ChannelView = () => {
 
     useEffect(() => {
         if (!serverId || !channelId) return;
-        getServer(serverId)
+        serversService.getServer(serverId)
             .then(srv => {
                 const ch = srv.channels.find(c => c.id === channelId) ?? null;
                 setChannel(ch);

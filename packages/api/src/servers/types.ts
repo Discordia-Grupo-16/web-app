@@ -1,4 +1,4 @@
-import type { Channel } from './channel'
+import type { Channel } from '../channels/types'
 
 export interface Server {
     id: string

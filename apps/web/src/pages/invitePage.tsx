@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { joinServer } from '../services/invitationsService';
+import { invitationsService } from '../services/communityServices';
 
 type Status = 'loading' | 'success' | 'error';
 
@@ -19,7 +19,7 @@ export const InvitePage = () => {
 
     useEffect(() => {
         if (!code) return;
-        joinServer(code)
+        invitationsService.joinServer(code)
             .then(member => {
                 setServerId(member.server_id);
                 setStatus('success');

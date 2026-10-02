@@ -8,3 +8,10 @@ export interface Invitation {
     uses: number
     created_at: string
 }
+
+export interface Member {
+    id: string
+    server_id: string
+    user_id: string
+    joined_at: string
+}

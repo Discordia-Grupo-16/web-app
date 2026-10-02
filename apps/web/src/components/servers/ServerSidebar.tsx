@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import { getServers } from '../../services/serversService';
-import type { Server } from '../../types/server';
+import { serversService } from '../../services/communityServices';
+import type { Server } from '@discordia/api';
 import { CreateServerModal } from './CreateServerModal';
 import { usePolling } from '../../hooks/usePolling';
 
@@ -17,7 +17,7 @@ export const ServerSidebar = () => {
 
     const refreshServers = useCallback(() => {
         const startedAt = localChangeRef.current;
-        getServers()
+        serversService.getServers()
             .then(list => {
                 if (localChangeRef.current === startedAt) setServers(list);
             })

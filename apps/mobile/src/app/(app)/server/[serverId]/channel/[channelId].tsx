@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { getServer } from '@/services/serversService';
+import { serversService } from '@/services/communityServices';
+import { isGoneError } from '@discordia/api';
 import { ChatScreen } from '@/realtime/components/ChatScreen';
-import { isGoneError, useFocusedPolling } from '@/hooks/useFocusedPolling';
+import { useFocusedPolling } from '@/hooks/useFocusedPolling';
 
 export default function ChannelScreen() {
   const { serverId, channelId, name } = useLocalSearchParams<{ serverId: string; channelId: string; name?: string }>();
@@ -18,7 +19,7 @@ export default function ChannelScreen() {
     }
     // No name in the params (e.g. opened from a deep link): look it up like ServerScreen does.
     let cancelled = false;
-    getServer(serverId)
+    serversService.getServer(serverId)
       .then((server) => {
         if (cancelled) return;
         const channel = server.channels.find((ch) => ch.id === channelId);
@@ -46,7 +47,7 @@ export default function ChannelScreen() {
       if (toServerList && router.canDismiss()) router.dismissAll();
       else router.back();
     };
-    getServer(serverId)
+    serversService.getServer(serverId)
       .then((server) => {
         if (!server.channels.some((ch) => ch.id === channelId)) leave('Este canal fue eliminado.', false);
       })

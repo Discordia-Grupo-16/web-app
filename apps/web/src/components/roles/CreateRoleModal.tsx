@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { createRole } from '../../services/rolesService';
-import type { Role } from '../../types/role';
+import { rolesService } from '../../services/communityServices';
+import type { Role } from '@discordia/api';
 
 interface Props {
     serverId: string;
@@ -19,7 +19,7 @@ export const CreateRoleModal = ({ serverId, onClose, onCreated }: Props) => {
         setLoading(true);
         setError(null);
         try {
-            const role = await createRole(serverId, name);
+            const role = await rolesService.createRole(serverId, name);
             onCreated(role);
         } catch (err) {
             const error = err as { response?: { data?: { detail?: string } } };

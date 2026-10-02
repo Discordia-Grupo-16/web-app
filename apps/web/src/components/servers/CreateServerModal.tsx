@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { createServer } from '../../services/serversService';
-import type { Server } from '../../types/server';
+import { serversService } from '../../services/communityServices';
+import type { Server } from '@discordia/api';
 
 interface Props {
     onClose: () => void;
@@ -19,7 +19,7 @@ export const CreateServerModal = ({ onClose, onCreated }: Props) => {
         setLoading(true);
         setError(null);
         try {
-            const server = await createServer(name, description || undefined);
+            const server = await serversService.createServer(name, description || undefined);
             onCreated(server);
         } catch (err) {
             const error = err as { response?: { data?: { detail?: string } } };

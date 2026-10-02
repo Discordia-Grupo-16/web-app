@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { joinServer } from '@/services/invitationsService';
+import { invitationsService } from '@/services/communityServices';
 
 export default function JoinScreen() {
   const router = useRouter();
@@ -14,7 +14,7 @@ export default function JoinScreen() {
     if (!trimmed) return;
     setLoading(true);
     try {
-      const member = await joinServer(trimmed);
+      const member = await invitationsService.joinServer(trimmed);
       router.replace(`/server/${member.server_id}`);
     } catch (err: any) {
       const detail = err?.response?.data?.detail || 'Código inválido o expirado.';

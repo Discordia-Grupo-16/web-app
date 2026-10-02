@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, Copy, X } from 'lucide-react';
-import { createInvitation } from '../../services/invitationsService';
-import type { Invitation } from '../../types/invitation';
+import { invitationsService } from '../../services/communityServices';
+import type { Invitation } from '@discordia/api';
 
 interface Props {
     serverId: string;
@@ -34,7 +34,7 @@ export const InviteModal = ({ serverId, onClose }: Props) => {
         try {
             const expiresInHours = EXPIRY_OPTIONS[expiresIndex].value;
             const maxUsesNum = maxUses ? parseInt(maxUses) : undefined;
-            const inv = await createInvitation(serverId, expiresInHours, maxUsesNum);
+            const inv = await invitationsService.createInvitation(serverId, expiresInHours, maxUsesNum);
             setInvitation(inv);
         } catch (err) {
             const error = err as { response?: { data?: { detail?: string } } };

@@ -6,8 +6,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@discordia/core';
-import { getServers, createServer } from '@/services/serversService';
-import type { Server } from '@/types/server';
+import { serversService } from '@/services/communityServices';
+import type { Server } from '@discordia/api';
 import { useFocusedPolling } from '@/hooks/useFocusedPolling';
 
 export default function ServersScreen() {
@@ -19,7 +19,7 @@ export default function ServersScreen() {
 
   const load = () => {
     setLoading(true);
-    getServers()
+    serversService.getServers()
       .then(setServers)
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -32,7 +32,7 @@ export default function ServersScreen() {
   const localChangeRef = useRef(0);
   useFocusedPolling(() => {
     const startedAt = localChangeRef.current;
-    getServers()
+    serversService.getServers()
       .then(list => { if (localChangeRef.current === startedAt) setServers(list); })
       .catch(() => { /* keep the current list; the next tick retries */ });
   });
@@ -122,7 +122,7 @@ function CreateServerModal({
     setLoading(true);
     setError(null);
     try {
-      const server = await createServer(name.trim(), description.trim() || undefined);
+      const server = await serversService.createServer(name.trim(), description.trim() || undefined);
       reset();
       onCreated(server);
     } catch (err: any) {

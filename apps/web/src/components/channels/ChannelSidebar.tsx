@@ -2,18 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, Hash, LogOut, Pencil, Plus, Shield, Trash2, UserPlus, Volume2 } from 'lucide-react';
 import { useAuth } from '@discordia/core';
-import { getServer, leaveServer } from '../../services/serversService';
-import { deleteChannel } from '../../services/channelsService';
-import { listRoles } from '../../services/rolesService';
-import type { Channel } from '../../types/channel';
-import type { Role } from '../../types/role';
-import type { Server } from '../../types/server';
+import { channelsService, rolesService, serversService } from '../../services/communityServices';
+import { isGoneError } from '@discordia/api';
+import type { Channel, Role, Server } from '@discordia/api';
 import { CreateChannelModal } from './CreateChannelModal';
 import { EditChannelModal } from './EditChannelModal';
 import { CreateRoleModal } from '../roles/CreateRoleModal';
 import { InviteModal } from '../servers/InviteModal';
 import { ConfirmModal } from '../ui/ConfirmModal';
-import { isGoneError, usePolling } from '../../hooks/usePolling';
+import { usePolling } from '../../hooks/usePolling';
 
 export const ChannelSidebar = () => {
     const { serverId, channelId } = useParams();
@@ -42,8 +39,8 @@ export const ChannelSidebar = () => {
             setLoading(true);
             try {
                 const [srv, roleList] = await Promise.all([
-                    getServer(serverId),
-                    listRoles(serverId),
+                    serversService.getServer(serverId),
+                    rolesService.listRoles(serverId),
                 ]);
                 if (isMounted) {
                     setServer(srv);
@@ -73,7 +70,7 @@ export const ChannelSidebar = () => {
 
     usePolling(() => {
         if (!serverId) return;
-        getServer(serverId)
+        serversService.getServer(serverId)
             .then(srv => {
                 setServer(prev => prev && prev.id === srv.id ? { ...prev, channels: srv.channels } : prev);
             })
@@ -111,7 +108,7 @@ export const ChannelSidebar = () => {
         const { id } = pendingDelete;
         setPendingDelete(null);
         try {
-            await deleteChannel(serverId, id);
+            await channelsService.deleteChannel(serverId, id);
             setServer(prev =>
                 prev ? { ...prev, channels: prev.channels.filter(c => c.id !== id) } : prev
             );
@@ -137,7 +134,7 @@ export const ChannelSidebar = () => {
         if (!serverId) return;
         setPendingLeave(false);
         try {
-            await leaveServer(serverId);
+            await serversService.leaveServer(serverId);
             navigate('/');
         } catch (err) {
             const error = err as { response?: { data?: { detail?: string } } };

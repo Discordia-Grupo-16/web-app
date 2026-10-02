@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Hash, Volume2, X } from 'lucide-react';
-import { updateChannel } from '../../services/channelsService';
-import type { Channel } from '../../types/channel';
+import { channelsService } from '../../services/communityServices';
+import type { Channel } from '@discordia/api';
 
 interface Props {
     serverId: string;
@@ -21,7 +21,7 @@ export const EditChannelModal = ({ serverId, channel, onClose, onUpdated }: Prop
         setLoading(true);
         setError(null);
         try {
-            const updated = await updateChannel(serverId, channel.id, name, topic || undefined);
+            const updated = await channelsService.updateChannel(serverId, channel.id, name, topic || undefined);
             onUpdated(updated);
         } catch (err) {
             const error = err as { response?: { data?: { detail?: string } } };
