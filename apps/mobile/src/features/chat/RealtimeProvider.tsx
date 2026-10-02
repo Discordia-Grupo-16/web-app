@@ -2,8 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import { createRealtimeClient } from '@discordia/api';
 import { RealtimeContext, useAuth, useRealtimeController } from '@discordia/core';
-import { WS_URL } from '@/constants/config';
-import { mobileAuthStorage } from '@/services/auth-storage';
+import { WS_URL } from '@/shared/config/env';
+import { mobileAuthStorage } from '@/shared/session/authStorage';
 import { newClientMessageId } from './clientMessageId';
 
 export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
