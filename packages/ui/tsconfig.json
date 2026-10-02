@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig/base.json",
+  "compilerOptions": {
+    // The web variants render <svg> in JSX, which needs the DOM types; the .native variants use
+    // react-native-svg. This package has no logic that could misuse the DOM.
+    "lib": ["ES2023", "DOM"]
+  },
+  "include": ["src"]
+}

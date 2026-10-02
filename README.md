@@ -27,10 +27,10 @@ Levantar la aplicación web en desarrollo:
 npm run dev:web
 ```
 
-Compilar la aplicación web:
+Compilar la aplicación web (corre `tsc -b` antes de Vite, así que también hace el typecheck):
 
 ```bash
-npm run build:web
+npm run build --workspace=web-app
 ```
 
 Correr los tests de la web (Vitest + React Testing Library):
@@ -41,7 +41,7 @@ npm run test:watch --workspace=web-app        # modo watch
 npm run test --workspace=web-app -- --coverage
 ```
 
-Los tests viven junto al archivo que prueban (`loginForm.tsx` → `loginForm.test.tsx`).
+Los tests viven junto al archivo que prueban (`LoginForm.tsx` → `LoginForm.test.tsx`).
 La configuración está en `apps/web/vite.config.ts` y el setup en `apps/web/src/test/setup.ts`.
 
 ### Mobile Android
@@ -112,39 +112,76 @@ uvicorn app.main:app --reload --port 8000
 npm run dev:web
 ```
 
+## Lint, typecheck y tests de todo el monorepo
+
+```bash
+npm run lint    # ESLint en web y mobile, incluida la regla de capas
+npm run test    # web, mobile y los packages
+npm run test:coverage   # lo mismo, con el reporte de cobertura de cada workspace
+npm run build   # build de web y typecheck de mobile y de los packages
+```
+
+## Arquitectura
+
+### Packages: por capa, y por funcionalidad adentro
+
+Lo que comparten web y mobile vive en `packages/`. No hay un package por servicio del backend:
+el cliente ve un único `/api/v1` a través del gateway, y hay funcionalidades que cruzan servicios.
+Los packages se parten por capa:
+
+| Package | Qué tiene | Depende de |
+| --- | --- | --- |
+| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
+| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios y el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) | `@discordia/api`, `react` |
+| `@discordia/ui` | Componentes con variante web y `.native` (marca, íconos) | `react` |
+
+Cada package expone solo lo de su `src/index.ts` y tiene su propio typecheck (`npm run build`
+dentro del package), con `strict` y **sin los tipos del DOM** en `api` y `core`: como también corren
+en React Native, usar `window`, `document` o `localStorage` no compila. Lo que sí existe en las dos
+plataformas (`FormData`, `Blob`, `setTimeout`…) está declarado en `packages/tsconfig/platform.d.ts`.
+Los tests se chequean aparte (`tsconfig.test.json`), porque los tipos de Vitest traen el DOM. La lógica que combine varios recursos va en
+una carpeta de funcionalidad dentro de `core`.
+
+### Apps: `shared` → `features` → `app`
+
+Web y mobile se organizan igual, y las dependencias van en un solo sentido:
+
+- **`src/shared/`**: lo genérico, agrupado por tipo. `api/` instancia el cliente HTTP y **todos**
+  los servicios de `@discordia/api`, así que cualquier feature puede llamar a cualquier endpoint.
+  Además están la sesión (`session/`), las variables de entorno (`config/`), los hooks y la UI
+  genéricos.
+- **`src/features/<feature>/`**: todo lo de una funcionalidad (componentes, hooks, pantallas y
+  tests). Expone su API pública en `index.ts` y **no importa de otra feature ni de `src/app`**.
+- **`src/app/`**: la única capa que combina features. En web tiene el router y los layouts; en
+  mobile, las rutas de Expo Router, que solo re-exportan o componen pantallas.
+
+ESLint hace cumplir estas reglas con `import-x/no-restricted-paths`. Las zonas se arman leyendo
+`src/features`, así que una feature nueva queda cubierta sin tocar la config.
+
 ## Estructura del Monorepo
 
 ```text
 ├── apps/
-│   ├── web/                      # Frontend Web (Vite + React 19)
-│   │   ├── src/
-│   │   ├── index.html
-│   │   ├── vite.config.ts
-│   │   └── package.json
-│   └── mobile/                   # Frontend Mobile Android (Expo + React Native)
-│       ├── assets/
-│       ├── src/
-│       │   ├── app/              # Expo Router (Rutas, layouts, session guard)
-│       │   │   ├── (auth)/       # Rutas de login y registro
-│       │   │   ├── (app)/        # Rutas protegidas con guard de sesión
-│       │   │   ├── _layout.tsx
-│       │   │   └── index.tsx
-│       │   ├── context/          # Contexto de autenticación y sesión
-│       │   ├── services/         # Cliente API (Axios) y SecureStore (JWT)
-│       │   ├── constants/        # Configuración y URLs de backend
-│       │   └── global.css        # Estilos globales NativeWind
-│       ├── app.json              # Configuración Expo orientada a Android
-│       ├── metro.config.js       # Configuración Metro con NativeWind
-│       ├── tailwind.config.js    # Configuración de Tailwind para Mobile
-│       └── package.json
+│   ├── web/                          # Web (Vite + React 19)
+│   │   └── src/
+│   │       ├── main.tsx
+│   │       ├── app/                  # router, layouts (AppLayout, ServerPanel, RealtimeOutlet)
+│   │       ├── features/             # auth, servers, channels, roles, invitations, profile, chat
+│   │       ├── shared/               # api, session, config, hooks, ui
+│   │       └── test/setup.ts
+│   └── mobile/                       # Mobile Android (Expo + React Native)
+│       ├── app.json, metro.config.js, tailwind.config.js
+│       └── src/
+│           ├── app/                  # Expo Router: solo rutas, layouts y guards
+│           │   ├── (auth)/           # login y registro
+│           │   └── (app)/            # rutas protegidas
+│           ├── features/             # auth, servers, channels, roles, invitations, profile, chat
+│           ├── shared/               # api, session, config, hooks, ui
+│           └── global.css            # estilos globales NativeWind
 ├── packages/
-│   └── ui/                       # Componentes compartidos Web & Mobile (@discordia/ui)
-│       ├── src/
-│       │   ├── DiscordiaMark.tsx        # Versión Web (DOM SVG)
-│       │   ├── DiscordiaMark.native.tsx # Versión Mobile (react-native-svg)
-│       │   ├── constants.ts             # Path, viewBox y colores compartidos
-│       │   └── index.ts
-│       └── package.json
-├── package.json                  # Workspaces y scripts globales
+│   ├── api/src/                      # @discordia/api
+│   ├── core/src/                     # @discordia/core
+│   └── ui/src/                       # @discordia/ui (brand, icons)
+├── package.json                      # workspaces y scripts globales
 └── README.md
 ```

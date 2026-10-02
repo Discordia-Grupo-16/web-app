@@ -4,7 +4,7 @@ module.exports = {
     "src/**/*.{ts,tsx}",
     "!src/**/*.test.{ts,tsx}",
     "!src/**/*.d.ts",
-    "!src/types/**",
-    "!src/constants/**",
+    "!src/**/index.ts",
+    "!src/shared/config/**",
   ],
 };

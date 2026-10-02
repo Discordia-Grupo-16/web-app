@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    // No DOM on purpose: the packages also run on React Native, so window, document or
+    // localStorage must not compile. What both platforms do provide is in platform.d.ts.
+    "lib": ["ES2023"],
+    // Nothing global by default (no @types/node, no jest): only what each file imports.
+    "types": [],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  }
+}

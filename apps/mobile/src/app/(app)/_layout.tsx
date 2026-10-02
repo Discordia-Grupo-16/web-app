@@ -1,9 +1,9 @@
 import { Redirect, Stack } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { useAuth } from '@discordia/context';
-import type { User } from '@discordia/types/auth';
-import { ProfileButton } from '../../components/user/userProfileButton';
-import { RealtimeProvider } from '@/realtime/RealtimeProvider';
+import { useAuth } from '@discordia/core';
+import type { User } from '@discordia/api';
+import { ProfileButton } from '@/features/profile';
+import { RealtimeProvider } from '@/features/chat';
 
 export default function AppLayout() {
   const { token, isLoading, user } = useAuth();
