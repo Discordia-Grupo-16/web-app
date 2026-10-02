@@ -33,6 +33,17 @@ Compilar la aplicación web:
 npm run build:web
 ```
 
+Correr los tests de la web (Vitest + React Testing Library):
+
+```bash
+npm run test --workspace=web-app              # una corrida
+npm run test:watch --workspace=web-app        # modo watch
+npm run test --workspace=web-app -- --coverage
+```
+
+Los tests viven junto al archivo que prueban (`loginForm.tsx` → `loginForm.test.tsx`).
+La configuración está en `apps/web/vite.config.ts` y el setup en `apps/web/src/test/setup.ts`.
+
 ### Mobile Android
 Iniciar el bundler de Expo para Mobile:
 
@@ -45,6 +56,17 @@ O directamente en modo Android:
 ```bash
 npm run android
 ```
+
+Correr los tests de mobile (Jest + React Native Testing Library):
+
+```bash
+npm run test --workspace=mobile-app              # una corrida
+npm run test:watch --workspace=mobile-app        # modo watch
+npm run test --workspace=mobile-app -- --coverage
+```
+
+Igual que en web, cada test vive junto al archivo que prueba. La configuración está en
+`apps/mobile/jest.config.js`; usa el preset de Expo (`jest-expo`).
 
 ## Desarrollo local con API Gateway
 

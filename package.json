@@ -14,5 +14,9 @@
   },
   "dependencies": {
     "expo-linear-gradient": "~57.0.2"
+  },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }
