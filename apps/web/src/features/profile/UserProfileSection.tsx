@@ -14,7 +14,7 @@ export const UserProfileSection = () => {
         userService.getOwnProfile().then((res) => {
             updateUser(res.data);
         });
-    }, []);
+    }, [updateUser]);
 
     if (!user) {
         return <div>Cargando...</div>;

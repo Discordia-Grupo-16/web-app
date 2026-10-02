@@ -112,7 +112,7 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
 
                             {avatarPreview || user.avatarUrl ? (
                                 <img
-                                    src={avatarPreview || user.avatarUrl}
+                                    src={avatarPreview || user.avatarUrl || undefined}
                                     alt="Avatar"
                                     className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-[#36393f]"
                                 />

@@ -13,7 +13,7 @@ export function EditProfileScreen() {
     const [newName, setName] = useState(user?.name || '');
     const [newBio, setBio] = useState(user?.bio || '');
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-    const [newAvatarFile, setNewAvatarFile] = useState<any>(null);
+    const [newAvatarFile, setNewAvatarFile] = useState<{ uri: string; name: string; type: string } | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -44,10 +44,11 @@ export function EditProfileScreen() {
             const match = /\.(\w+)$/.exec(fileName);
             const type = match ? `image/${match[1]}` : `image/jpeg`;
 
+
             setNewAvatarFile({
                 uri: asset.uri,
                 name: fileName,
-                type,
+                type
             });
         }
     };
@@ -66,7 +67,7 @@ export function EditProfileScreen() {
             }
 
             if (newAvatarFile) {
-                const response = await userService.editAvatar(newAvatarFile as any)
+                const response = await userService.editAvatar(newAvatarFile as unknown as File)
                 finalUserData = response.data;
             }
 
