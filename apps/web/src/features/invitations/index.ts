@@ -1,2 +1,2 @@
-export { InviteModal } from './InviteModal';
+export { InviteButton } from './InviteButton';
 export { InvitePage } from './InvitePage';
