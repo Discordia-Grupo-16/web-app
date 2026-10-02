@@ -3,7 +3,7 @@ import type {
     MessageAckFrame,
     MessageCreatedFrame,
     ServerFrame,
-} from '../types/realtime';
+} from './protocol';
 
 // Minimal surface the client needs from a WebSocket. Declared here instead of
 // using lib.dom.d.ts's WebSocket so this package compiles without `lib: DOM`
@@ -74,7 +74,7 @@ function resolveWebSocketImpl(injected?: WebSocketConstructor): WebSocketConstru
     const impl = injected ?? (globalThis as { WebSocket?: WebSocketConstructor }).WebSocket;
     if (!impl) {
         throw new Error(
-            '@discordia/realtime: no WebSocket implementation available. Pass webSocketImpl or run in an environment with a global WebSocket.',
+            '@discordia/api realtime: no WebSocket implementation available. Pass webSocketImpl or run in an environment with a global WebSocket.',
         );
     }
     return impl;
@@ -238,7 +238,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
 
     function sendMessage(input: SendMessageInput): void {
         if (state !== 'open' || !socket || socket.readyState !== READY_STATE_OPEN) {
-            throw new Error('@discordia/realtime: cannot send a message while the connection is not open.');
+            throw new Error('@discordia/api realtime: cannot send a message while the connection is not open.');
         }
         socket.send(
             JSON.stringify({

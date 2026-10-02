@@ -1,4 +1,4 @@
-# @discordia/realtime
+# Cliente realtime (@discordia/api)
 
 Cliente WebSocket para la mensajería en tiempo real de `chat-and-real-time`, escrito como
 módulo TypeScript plano sin dependencias de React ni del DOM. Lo pensado para ser reusado
@@ -7,7 +7,7 @@ tal cual desde `apps/web` (Vite) y, más adelante, desde `apps/mobile` (React Na
 ## Uso
 
 ```typescript
-import { createRealtimeClient } from '@discordia/realtime';
+import { createRealtimeClient } from '@discordia/api';
 
 const client = createRealtimeClient({
     url: 'ws://localhost:8080/api/v1/ws',

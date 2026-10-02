@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Alert, FlatList, View, Text } from 'react-native';
 import type { User } from '@discordia/api';
-import type { ChatMessage, PendingMessage } from '@discordia/realtime';
+import type { ChatMessage, PendingMessage } from '@discordia/core';
 import { displayName } from '../authorName';
 import { ERROR_TEXTS, isRetryable } from '../errorMessages';
 import { MessageItem } from './MessageItem';

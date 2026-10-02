@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ErrorFrame, MessageAckFrame, MessageCreatedFrame } from '../types/realtime';
+import type { ErrorFrame, MessageAckFrame, MessageCreatedFrame } from '@discordia/api';
 import {
     MAX_MESSAGES_PER_CHANNEL,
     chatReducer,

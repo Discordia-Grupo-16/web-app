@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Hash } from 'lucide-react';
 import type { User } from '@discordia/api';
-import type { ChatMessage, PendingMessage } from '@discordia/realtime';
+import type { ChatMessage, PendingMessage } from '@discordia/core';
 import { displayName } from '../authorName';
 import { ERROR_TEXTS, isRetryable } from '../errorMessages';
 import { MessageItem } from './MessageItem';

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
-import { chatReducer, createRealtimeClient, initialChatState } from '@discordia/realtime';
-import { useAuth } from '@discordia/core';
+import { chatReducer, initialChatState, useAuth } from '@discordia/core';
+import { createRealtimeClient } from '@discordia/api';
 import { WS_URL } from '@/constants/config';
 import { mobileAuthStorage } from '@/services/auth-storage';
 import { newClientMessageId } from './clientMessageId';

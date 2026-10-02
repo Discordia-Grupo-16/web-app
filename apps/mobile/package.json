@@ -4,7 +4,6 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@discordia/api": "*",
-    "@discordia/realtime": "*",
     "@discordia/core": "*",
     "@discordia/ui": "*",
     "axios": "^1.20.0",

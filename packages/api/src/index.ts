@@ -19,3 +19,6 @@ export type * from './roles/types';
 
 export * from './invitations/service';
 export type * from './invitations/types';
+
+export * from './realtime/client';
+export type * from './realtime/protocol';

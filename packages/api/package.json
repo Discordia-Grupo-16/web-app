@@ -11,7 +11,14 @@
       "default": "./src/index.ts"
     }
   },
+  "scripts": {
+    "test": "vitest run"
+  },
   "peerDependencies": {
     "axios": "*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^5.0.1",
+    "vitest": "^5.0.1"
   }
 }

@@ -1,4 +1,4 @@
-import type { MessageAckFrame, MessageCreatedFrame, ErrorFrame, RealtimeErrorCode } from '../types/realtime';
+import type { MessageAckFrame, MessageCreatedFrame, ErrorFrame, RealtimeErrorCode } from '@discordia/api';
 
 export interface ChatMessage {
     messageId: string;
