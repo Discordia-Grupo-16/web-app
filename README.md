@@ -117,6 +117,7 @@ npm run dev:web
 ```bash
 npm run lint    # ESLint en web y mobile, incluida la regla de capas
 npm run test    # web, mobile y los packages
+npm run test:coverage   # lo mismo, con el reporte de cobertura de cada workspace
 npm run build --workspace=mobile-app   # typecheck de mobile (tsc --noEmit)
 ```
 
