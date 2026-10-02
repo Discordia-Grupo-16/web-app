@@ -10,6 +10,7 @@
     "build": "npm run build --workspace=web-app",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
+    "test:coverage": "npm run test --workspaces --if-present -- --coverage",
     "dev:mobile": "npm run start --workspace=mobile-app",
     "android": "npm run android --workspace=mobile-app"
   },
