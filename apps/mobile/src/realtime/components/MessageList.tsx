@@ -2,8 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Alert, FlatList, View, Text } from 'react-native';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
-import { displayName } from '../authorName';
-import { ERROR_TEXTS, isRetryable } from '../errorMessages';
+import { displayName, ERROR_TEXTS, isRetryable } from '@discordia/core';
 import { MessageItem } from './MessageItem';
 
 interface MessageListProps {

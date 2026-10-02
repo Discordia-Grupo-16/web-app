@@ -1,8 +1,7 @@
 import { KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderHeight } from 'expo-router/react-navigation';
-import { useAuth } from '@discordia/core';
-import { useChannelMessages } from '../useChannelMessages';
+import { useAuth, useChannelMessages } from '@discordia/core';
 import { ConnectionBanner } from './ConnectionBanner';
 import { MessageComposer } from './MessageComposer';
 import { MessageList } from './MessageList';

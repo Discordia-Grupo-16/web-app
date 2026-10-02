@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import type { ChatState } from '@discordia/core';
+import type { ChatState } from './chatStore';
 import type { ConnectionState } from '@discordia/api';
 
 export type RealtimeStatus = ConnectionState | 'disabled';

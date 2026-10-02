@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import type { ChatMessage, PendingMessage } from '@discordia/core';
+import type { ChatMessage, PendingMessage } from './chatStore';
 import type { RealtimeStatus, RejectedMessage } from './realtimeContext';
 import { useRealtime } from './useRealtime';
 

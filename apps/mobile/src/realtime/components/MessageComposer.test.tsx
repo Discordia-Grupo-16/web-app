@@ -1,6 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { MessageComposer } from './MessageComposer';
-import type { RealtimeStatus, RejectedMessage } from '../realtimeContext';
+import type { RealtimeStatus, RejectedMessage } from '@discordia/core';
 
 jest.useFakeTimers();
 

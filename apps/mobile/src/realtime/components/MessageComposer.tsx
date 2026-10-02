@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import type { RealtimeStatus, RejectedMessage } from '../realtimeContext';
+import type { RealtimeStatus, RejectedMessage } from '@discordia/core';
 
 interface MessageComposerProps {
   channelName: string;

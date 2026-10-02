@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { SendHorizontal } from 'lucide-react';
-import type { RealtimeStatus, RejectedMessage } from '../realtimeContext';
+import type { RealtimeStatus, RejectedMessage } from '@discordia/core';
 
 interface MessageComposerProps {
     channelName: string;

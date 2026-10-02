@@ -1,5 +1,4 @@
-import { useAuth } from '@discordia/core';
-import { useChannelMessages } from '../useChannelMessages';
+import { useAuth, useChannelMessages } from '@discordia/core';
 import { ConnectionBanner } from './ConnectionBanner';
 import { MessageComposer } from './MessageComposer';
 import { MessageList } from './MessageList';

@@ -1,4 +1,4 @@
-import type { RealtimeStatus } from '../realtimeContext';
+import type { RealtimeStatus } from '@discordia/core';
 
 const BANNERS: Record<Exclude<RealtimeStatus, 'open'>, { text: string; color: string }> = {
     idle: { text: 'Conectando…', color: '#faa61a' },
