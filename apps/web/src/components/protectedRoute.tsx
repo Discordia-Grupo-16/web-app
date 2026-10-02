@@ -1,5 +1,5 @@
 import { Navigate, Outlet } from 'react-router-dom';
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 import { RealtimeProvider } from '../realtime/RealtimeProvider';
 
 export const ProtectedRoute = () => {

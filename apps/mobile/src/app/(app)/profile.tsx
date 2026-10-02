@@ -1,6 +1,6 @@
 import { View, Text, Image, TouchableOpacity, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ProfileScreen() {

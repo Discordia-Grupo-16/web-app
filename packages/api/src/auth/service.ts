@@ -4,7 +4,7 @@ import type {
     AuthResponse,
     LoginCredentials,
     RegisterUserData,
-} from '../types/auth';
+} from './types';
 
 export const createAuthService = (apiClient: AxiosInstance) => ({
     async login(credentials: LoginCredentials): Promise<AuthResponse> {

@@ -1,4 +1,4 @@
-import type { User } from "@discordia/types";
+import type { User } from "@discordia/api";
 
 export const ProfilePopup = ({ user, onClose, onEditProfile }: { user: User; onClose: () => void; onEditProfile: () => void }) => {
     return (

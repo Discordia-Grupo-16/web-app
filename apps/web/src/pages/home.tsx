@@ -1,4 +1,4 @@
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 import { DiscordiaMark } from '@discordia/ui';
 import { useNavigate } from 'react-router-dom';
 

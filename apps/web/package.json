@@ -12,9 +12,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@discordia/context": "*",
+    "@discordia/api": "*",
     "@discordia/realtime": "*",
-    "@discordia/services": "*",
+    "@discordia/core": "*",
     "@discordia/ui": "*",
     "@hookform/resolvers": "^5.9.1",
     "axios": "^1.20.0",

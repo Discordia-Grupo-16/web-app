@@ -1,4 +1,4 @@
-import { createApiClient } from '@discordia/services';
+import { createApiClient } from '@discordia/api';
 import { mobileAuthStorage } from '@/services/auth-storage';
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/constants/config';
 

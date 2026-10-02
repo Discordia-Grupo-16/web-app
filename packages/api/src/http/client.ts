@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
-import type { AuthStorageStrategy } from '@discordia/context';
+import type { AuthStorageStrategy } from './storage';
 
 interface ApiConfig {
     baseURL: string;

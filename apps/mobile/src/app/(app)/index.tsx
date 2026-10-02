@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 import { getServers, createServer } from '@/services/serversService';
 import type { Server } from '@/types/server';
 import { useFocusedPolling } from '@/hooks/useFocusedPolling';

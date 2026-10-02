@@ -1,5 +1,5 @@
 import type { AxiosInstance } from 'axios';
-import type { editProfileRequest, userResponse } from '@discordia/types/user';
+import type { editProfileRequest, userResponse } from './types';
 
 export const createUserService = (apiClient: AxiosInstance) => ({
     async getOwnProfile(): Promise<userResponse> {

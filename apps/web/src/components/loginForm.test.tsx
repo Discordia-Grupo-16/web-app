@@ -8,7 +8,10 @@ import { authService } from '../services/authService.ts';
 const signIn = vi.fn();
 const navigate = vi.fn();
 
-vi.mock('@discordia/context', () => ({ useAuth: () => ({ signIn }) }));
+vi.mock('@discordia/core', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@discordia/core')>()),
+    useAuth: () => ({ signIn }),
+}));
 vi.mock('../services/authService.ts', () => ({ authService: { login: vi.fn() } }));
 vi.mock('react-router-dom', async (importOriginal) => ({
     ...(await importOriginal<typeof import('react-router-dom')>()),

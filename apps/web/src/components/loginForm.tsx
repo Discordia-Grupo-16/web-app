@@ -2,8 +2,8 @@ import { useState } from "react";
 import { DiscordiaMark } from "@discordia/ui";
 import { EyeIcon, EyeOffIcon } from "./ui/eyeIcons";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@discordia/context";
-import { validateLoginInput, getApiErrorMessage } from "@discordia/services";
+import { useAuth, validateLoginInput } from "@discordia/core";
+import { getApiErrorMessage } from "@discordia/api";
 import { authService } from "../services/authService.ts";
 
 export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {

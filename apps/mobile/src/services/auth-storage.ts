@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import type { AuthStorageStrategy } from '@discordia/context';
+import type { AuthStorageStrategy } from '@discordia/api';
 
 const TOKEN_KEY = 'discordia_auth_token';
 const REFRESH_TOKEN_KEY = 'discordia_auth_refresh_token';

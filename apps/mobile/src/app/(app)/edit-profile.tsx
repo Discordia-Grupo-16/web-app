@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 import { userService } from '../../services/userService';
 import axios from 'axios';
 

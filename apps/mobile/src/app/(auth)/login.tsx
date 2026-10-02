@@ -10,10 +10,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Link, useRouter } from 'expo-router';
-import { useAuth } from '@discordia/context';
+import { useAuth, validateLoginInput } from '@discordia/core';
 import { authService } from '@/services/auth-service';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
-import { validateLoginInput, getApiErrorMessage } from '@discordia/services';
+import { getApiErrorMessage } from '@discordia/api';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');

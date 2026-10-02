@@ -7,7 +7,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 import { getServer, leaveServer, deleteServer } from '@/services/serversService';
 import { createChannel, updateChannel, deleteChannel } from '@/services/channelsService';
 import { createRole, listRoles } from '@/services/rolesService';

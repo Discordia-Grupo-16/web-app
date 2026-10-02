@@ -1,6 +1,6 @@
 import { TouchableOpacity, Image, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import type { User } from '@discordia/types/auth';
+import type { User } from '@discordia/api';
 
 export function ProfileButton({ user }: { user: User }) {
     const router = useRouter();

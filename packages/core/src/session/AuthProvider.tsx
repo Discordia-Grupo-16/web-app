@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import type { User, AuthStorageStrategy } from '../types/auth';
-
-export type { AuthStorageStrategy };
+import type { AuthStorageStrategy, User } from '@discordia/api';
 
 interface AuthContextType {
     user: User | null;

@@ -1,4 +1,4 @@
-import { createApiClient } from '@discordia/services';
+import { createApiClient } from '@discordia/api';
 import { webAuthStorage } from './webStorage';
 
 const host = import.meta.env.VITE_API_HOST;

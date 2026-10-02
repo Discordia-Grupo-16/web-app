@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ProfilePopup } from "./userProfilePopUp";
 import { UserProfileEditModal } from "./userProfileEditModal";
-import { useAuth } from "@discordia/context";
+import { useAuth } from "@discordia/core";
 
 export const UserProfileSection = () => {
     const [showProfile, setShowProfile] = useState(false)

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DiscordiaMark } from "@discordia/ui";
-import { useAuth } from "@discordia/context";
-import { validateRegisterInput, getApiErrorMessage } from "@discordia/services";
+import { useAuth, validateRegisterInput } from "@discordia/core";
+import { getApiErrorMessage } from "@discordia/api";
 import { authService } from "../services/authService.ts";
 
 export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {

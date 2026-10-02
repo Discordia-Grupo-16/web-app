@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, Hash, LogOut, Pencil, Plus, Shield, Trash2, UserPlus, Volume2 } from 'lucide-react';
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 import { getServer, leaveServer } from '../../services/serversService';
 import { deleteChannel } from '../../services/channelsService';
 import { listRoles } from '../../services/rolesService';

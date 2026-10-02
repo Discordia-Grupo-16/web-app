@@ -1,7 +1,7 @@
 import { Redirect, Stack } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { useAuth } from '@discordia/context';
-import type { User } from '@discordia/types/auth';
+import { useAuth } from '@discordia/core';
+import type { User } from '@discordia/api';
 import { ProfileButton } from '../../components/user/userProfileButton';
 import { RealtimeProvider } from '@/realtime/RealtimeProvider';
 

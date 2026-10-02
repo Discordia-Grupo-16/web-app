@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 import { userService } from '../../services/userService';
 import axios from 'axios';
 

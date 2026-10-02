@@ -1,4 +1,4 @@
-import type { User } from "@discordia/types";
+import type { User } from "../auth/types";
 
 export interface userResponse {
     data: User;

@@ -11,7 +11,7 @@ import { LoginRegister } from './pages/loginRegister.tsx';
 import './index.css';
 import { webAuthStorage } from './services/webStorage.ts';
 import { authService } from './services/authService.ts';
-import { AuthProvider } from '@discordia/context';
+import { AuthProvider } from '@discordia/core';
 
 const router = createBrowserRouter([
   {
