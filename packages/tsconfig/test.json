@@ -1,0 +1,5 @@
+{
+  // Tests and vitest configs. vitest's types pull in jsdom's, and with them the DOM, so this
+  // check is separate from the source one and does not need platform.d.ts.
+  "extends": "./base.json"
+}

@@ -12,6 +12,7 @@
     }
   },
   "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "test": "vitest run"
   },
   "peerDependencies": {
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.1",
+    "typescript": "~6.0.3",
     "vitest": "^5.0.1"
   }
 }

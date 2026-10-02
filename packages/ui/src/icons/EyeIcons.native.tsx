@@ -1,4 +1,3 @@
-import React from 'react';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 
 export const EyeIcon = ({ size = 20, color = '#99aab5' }: { size?: number; color?: string }) => (

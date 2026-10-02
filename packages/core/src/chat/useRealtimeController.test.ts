@@ -6,7 +6,9 @@ import { useRealtimeController, type RealtimeControllerOptions } from './useReal
 
 // Fake client: records the calls and lets each test emit events as the socket would.
 const createFakeClient = () => {
-    const handlers: { [K in keyof RealtimeEventMap]?: RealtimeEventMap[K][] } = {};
+    // Stored untyped: each event has its own handler signature, emit restores it.
+    type Handler = (arg: never) => void;
+    const handlers = new Map<keyof RealtimeEventMap, Handler[]>();
     let state: ConnectionState = 'idle';
     const client = {
         connect: vi.fn(),
@@ -14,15 +16,15 @@ const createFakeClient = () => {
         sendMessage: vi.fn(),
         getState: () => state,
         on<K extends keyof RealtimeEventMap>(event: K, handler: RealtimeEventMap[K]) {
-            (handlers[event] ??= []).push(handler);
+            handlers.set(event, [...(handlers.get(event) ?? []), handler]);
             return () => {
-                handlers[event] = handlers[event]?.filter((h) => h !== handler) as never;
+                handlers.set(event, (handlers.get(event) ?? []).filter((h) => h !== handler));
             };
         },
     } satisfies RealtimeClient;
-    const emit = <K extends keyof RealtimeEventMap>(event: K, ...args: Parameters<RealtimeEventMap[K]>) => {
-        if (event === 'stateChange') state = args[0] as ConnectionState;
-        act(() => handlers[event]?.forEach((h) => (h as (...a: typeof args) => void)(...args)));
+    const emit = <K extends keyof RealtimeEventMap>(event: K, arg: Parameters<RealtimeEventMap[K]>[0]) => {
+        if (event === 'stateChange') state = arg as ConnectionState;
+        act(() => handlers.get(event)?.forEach((h) => (h as (a: typeof arg) => void)(arg)));
     };
     return { client, emit };
 };

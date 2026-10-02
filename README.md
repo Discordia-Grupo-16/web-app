@@ -30,7 +30,7 @@ npm run dev:web
 Compilar la aplicación web (corre `tsc -b` antes de Vite, así que también hace el typecheck):
 
 ```bash
-npm run build
+npm run build --workspace=web-app
 ```
 
 Correr los tests de la web (Vitest + React Testing Library):
@@ -118,7 +118,7 @@ npm run dev:web
 npm run lint    # ESLint en web y mobile, incluida la regla de capas
 npm run test    # web, mobile y los packages
 npm run test:coverage   # lo mismo, con el reporte de cobertura de cada workspace
-npm run build --workspace=mobile-app   # typecheck de mobile (tsc --noEmit)
+npm run build   # build de web y typecheck de mobile y de los packages
 ```
 
 ## Arquitectura
@@ -135,7 +135,11 @@ Los packages se parten por capa:
 | `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios y el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) | `@discordia/api`, `react` |
 | `@discordia/ui` | Componentes con variante web y `.native` (marca, íconos) | `react` |
 
-Cada package expone solo lo de su `src/index.ts`. La lógica que combine varios recursos va en
+Cada package expone solo lo de su `src/index.ts` y tiene su propio typecheck (`npm run build`
+dentro del package), con `strict` y **sin los tipos del DOM** en `api` y `core`: como también corren
+en React Native, usar `window`, `document` o `localStorage` no compila. Lo que sí existe en las dos
+plataformas (`FormData`, `Blob`, `setTimeout`…) está declarado en `packages/tsconfig/platform.d.ts`.
+Los tests se chequean aparte (`tsconfig.test.json`), porque los tipos de Vitest traen el DOM. La lógica que combine varios recursos va en
 una carpeta de funcionalidad dentro de `core`.
 
 ### Apps: `shared` → `features` → `app`
