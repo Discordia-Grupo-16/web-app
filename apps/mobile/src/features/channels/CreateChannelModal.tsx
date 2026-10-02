@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { Channel } from '@discordia/api';
 import { channelsService } from '@/shared/api';
+import { getErrorDetail } from '@discordia/api';
 
 export function CreateChannelModal({ type, serverId, onClose, onCreated }: {
   type: 'text' | 'voice'; serverId: string;
@@ -18,9 +19,8 @@ export function CreateChannelModal({ type, serverId, onClose, onCreated }: {
       const ch = await channelsService.createChannel(serverId, name.toLowerCase().replace(/\s+/g, '-'), type);
       setName('');
       onCreated(ch);
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      setError(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al crear el canal'));
+    } catch (err) {
+      setError(getErrorDetail(err) || 'Error al crear el canal');
     } finally {
       setLoading(false);
     }

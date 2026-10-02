@@ -1,4 +1,4 @@
-import { TouchableOpacity, Image, Text, View } from 'react-native';
+import { TouchableOpacity, Image, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { User } from '@discordia/api';
 

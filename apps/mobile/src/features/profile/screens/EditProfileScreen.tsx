@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '@discordia/core';
@@ -9,8 +9,8 @@ export function EditProfileScreen() {
     const { user, updateUser } = useAuth();
     const router = useRouter();
 
-    const [newName, setName] = useState('');
-    const [newBio, setBio] = useState('');
+    const [newName, setName] = useState(user?.name || '');
+    const [newBio, setBio] = useState(user?.bio || '');
     const [isSaving, setIsSaving] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -18,13 +18,6 @@ export function EditProfileScreen() {
     const nameIsTooLong = newName.trim().length > 80;
     const bioIsTooLong = newBio.trim().length > 240;
     const hasError = nameIsEmpty || nameIsTooLong || bioIsTooLong;
-
-    useEffect(() => {
-        if (user) {
-            setName(user.name || '');
-            setBio(user.bio || '');
-        }
-    }, [user]);
 
     if (!user) return null;
 

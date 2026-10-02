@@ -7,6 +7,7 @@ import { SectionHeader } from '@/shared/ui/SectionHeader';
 import { ChannelItem } from './ChannelItem';
 import { CreateChannelModal } from './CreateChannelModal';
 import { EditChannelModal } from './EditChannelModal';
+import { getErrorDetail } from '@discordia/api';
 
 interface ChannelSectionProps {
   serverId: string;
@@ -48,8 +49,8 @@ export function ChannelSection({ serverId, channels, canManage, onChannelsChange
             try {
               await channelsService.deleteChannel(serverId, ch.id);
               onChannelsChange(prev => prev.filter(c => c.id !== ch.id));
-            } catch (err: any) {
-              Alert.alert('Error', err?.response?.data?.detail || 'No se pudo eliminar el canal.');
+            } catch (err) {
+              Alert.alert('Error', getErrorDetail(err) || 'No se pudo eliminar el canal.');
             }
           },
         },

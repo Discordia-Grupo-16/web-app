@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { invitationsService } from '@/shared/api';
+import { getErrorDetail } from '@discordia/api';
 
 export function JoinScreen() {
   const router = useRouter();
@@ -16,8 +17,8 @@ export function JoinScreen() {
     try {
       const member = await invitationsService.joinServer(trimmed);
       router.replace(`/server/${member.server_id}`);
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail || 'Código inválido o expirado.';
+    } catch (err) {
+      const detail = getErrorDetail(err) || 'Código inválido o expirado.';
       Alert.alert('Error', detail);
     } finally {
       setLoading(false);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  Modal, TextInput, Alert, ActivityIndicator,
+  Modal, TextInput, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,6 +9,7 @@ import { useAuth } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import type { Server } from '@discordia/api';
 import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
+import { getErrorDetail } from '@discordia/api';
 
 export function ServersScreen() {
   const router = useRouter();
@@ -17,15 +18,12 @@ export function ServersScreen() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
 
-  const load = () => {
-    setLoading(true);
+  useEffect(() => {
     serversService.getServers()
       .then(setServers)
       .catch(console.error)
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, []);
+  }, []);
 
   // Servers deleted or joined elsewhere (or left from the server screen) show up on focus and
   // on the next poll. A response from before a local change (creating a server) is dropped.
@@ -125,8 +123,8 @@ function CreateServerModal({
       const server = await serversService.createServer(name.trim(), description.trim() || undefined);
       reset();
       onCreated(server);
-    } catch (err: any) {
-      setError(err?.response?.data?.detail || 'Error al crear el servidor');
+    } catch (err) {
+      setError(getErrorDetail(err) || 'Error al crear el servidor');
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { Channel } from '@discordia/api';
 import { channelsService } from '@/shared/api';
+import { getErrorDetail } from '@discordia/api';
 
 export function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
   channel: Channel; serverId: string;
@@ -23,9 +24,8 @@ export function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
         channel.type === 'text' ? topic || undefined : undefined,
       );
       onUpdated(updated);
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      setError(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al editar el canal'));
+    } catch (err) {
+      setError(getErrorDetail(err) || 'Error al editar el canal');
     } finally {
       setLoading(false);
     }

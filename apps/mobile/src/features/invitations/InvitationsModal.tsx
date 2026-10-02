@@ -5,6 +5,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import type { Invitation } from '@discordia/api';
 import { invitationsService } from '@/shared/api';
+import { getErrorDetail } from '@discordia/api';
 
 const EXPIRY_OPTIONS: { label: string; value: number | undefined }[] = [
   { label: 'Sin exp.', value: undefined },
@@ -30,8 +31,8 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
       onCreated(inv);
       setMaxUsesInput('');
       setExpiresInHours(undefined);
-    } catch (err: any) {
-      Alert.alert('Error', err?.response?.data?.detail || 'No se pudo crear la invitación.');
+    } catch (err) {
+      Alert.alert('Error', getErrorDetail(err) || 'No se pudo crear la invitación.');
     } finally {
       setCreating(false);
     }
@@ -45,8 +46,8 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
           try {
             await invitationsService.revokeInvitation(serverId, code);
             onRevoked(code);
-          } catch (err: any) {
-            Alert.alert('Error', err?.response?.data?.detail || 'No se pudo revocar.');
+          } catch (err) {
+            Alert.alert('Error', getErrorDetail(err) || 'No se pudo revocar.');
           }
         },
       },

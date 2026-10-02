@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import type { Role } from '@discordia/api';
 import { rolesService } from '@/shared/api';
+import { getErrorDetail } from '@discordia/api';
 
 export function CreateRoleModal({ visible, serverId, onClose, onCreated }: {
   visible: boolean; serverId: string;
@@ -18,9 +19,8 @@ export function CreateRoleModal({ visible, serverId, onClose, onCreated }: {
       const role = await rolesService.createRole(serverId, name.trim());
       setName('');
       onCreated(role);
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      setError(Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : (detail || 'Error al crear el rol'));
+    } catch (err) {
+      setError(getErrorDetail(err) || 'Error al crear el rol');
     } finally {
       setLoading(false);
     }

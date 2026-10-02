@@ -2,6 +2,7 @@ import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { Server } from '@discordia/api';
 import { serversService } from '@/shared/api';
+import { getErrorDetail } from '@discordia/api';
 
 interface ServerActionsProps {
   server: Server;
@@ -23,9 +24,9 @@ export function ServerActions({ server, isOwner, onLeavingChange }: ServerAction
             onLeavingChange(true);
             await serversService.leaveServer(server.id);
             router.back();
-          } catch (err: any) {
+          } catch (err) {
             onLeavingChange(false);
-            Alert.alert('Error', err?.response?.data?.detail || 'No se pudo abandonar el servidor.');
+            Alert.alert('Error', getErrorDetail(err) || 'No se pudo abandonar el servidor.');
           }
         },
       },
@@ -41,9 +42,9 @@ export function ServerActions({ server, isOwner, onLeavingChange }: ServerAction
             onLeavingChange(true);
             await serversService.deleteServer(server.id);
             router.back();
-          } catch (err: any) {
+          } catch (err) {
             onLeavingChange(false);
-            Alert.alert('Error', err?.response?.data?.detail || 'No se pudo eliminar el servidor.');
+            Alert.alert('Error', getErrorDetail(err) || 'No se pudo eliminar el servidor.');
           }
         },
       },
