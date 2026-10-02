@@ -1,13 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ProfilePopup } from './ProfilePopup';
 import { UserProfileEditModal } from './UserProfileEditModal';
 import { useAuth } from "@discordia/core";
 import { LogoutIcon } from "@discordia/ui";
+import { userService } from "@/shared/api";
 
 export const UserProfileSection = () => {
     const [showProfile, setShowProfile] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
-    const { user, signOut } = useAuth();
+    const { user, signOut, updateUser } = useAuth();
+
+    useEffect(() => {
+        userService.getOwnProfile().then((res) => {
+            updateUser(res.data);
+        });
+    }, []);
 
     if (!user) {
         return <div>Cargando...</div>;
