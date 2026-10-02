@@ -13,6 +13,8 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
 
     const [newName, setName] = useState('');
     const [newBio, setBio] = useState('');
+    const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [errorMessage, setErrorMessage] = useState(null)
     const nameIsEmpty = newName.trim() == ''
@@ -30,7 +32,18 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
 
     if (!isOpen || !user) return null;
 
-    const hasChanges = newName.trim() !== (user.name || '') || newBio.trim() !== (user.bio || '');
+    const avatarHasChanged = newAvatarFile !== null;
+    const nameHasChanged = newName.trim() !== (user.name || '');
+    const bioHasChanged = newBio.trim() !== (user.bio || '');
+    const hasChanges = nameHasChanged || bioHasChanged || avatarHasChanged;
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setNewAvatarFile(file);
+            setAvatarPreview(URL.createObjectURL(file));
+        }
+    };
 
     const handleSave = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -39,8 +52,20 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
         setErrorMessage(null);
         setIsSaving(true);
         try {
-            const response = await userService.editOwnProfile(newName.trim(), newBio.trim());
-            await updateUser(response.data);
+            let finalUserData = null;
+
+            if (nameHasChanged || bioHasChanged) {
+                finalUserData = await userService.editOwnProfile(newName.trim(), newBio.trim());
+            }
+
+            if (avatarHasChanged) {
+                finalUserData = await userService.editAvatar(newAvatarFile);
+            }
+
+            if (finalUserData) {
+                await updateUser(finalUserData.data);
+            }
+
             onClose();
         } catch (error) {
             const apiError = axios.isAxiosError(error) ? error.response?.data : null;
@@ -58,6 +83,8 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
     const handleCancel = () => {
         setName(user.name || '');
         setBio(user.bio || '');
+        setAvatarPreview(null);
+        setNewAvatarFile(null);
     };
 
     return (
@@ -77,21 +104,35 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
                 </div>
 
                 <div className="px-6 pb-6 relative">
-                    <div className="absolute top-0 -translate-y-1/2 left-6 p-1.5 bg-[#36393f] rounded-full overflow-hidden">
-                        {user.avatarUrl ? (
-                            <img
-                                src={user.avatarUrl}
-                                alt="Avatar"
-                                className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-[#36393f]"
-                            />
-                        ) : (
-                            <div
-                                className="w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center text-5xl font-bold text-white border-4 border-[#36393f]"
-                                style={{ background: '#7289da' }}
-                            >
-                                {user.name[0].toUpperCase()}
+                    <div className="absolute top-0 -translate-y-1/2 left-6 p-1.5 bg-[#36393f] rounded-full overflow-hidden group">
+                        <label htmlFor="avatar-upload" className="cursor-pointer relative block">
+                            <div className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center rounded-full z-10 text-white text-[10px] font-bold uppercase text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                Cambiar<br />Avatar
                             </div>
-                        )}
+
+                            {avatarPreview || user.avatarUrl ? (
+                                <img
+                                    src={avatarPreview || user.avatarUrl}
+                                    alt="Avatar"
+                                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-[#36393f]"
+                                />
+                            ) : (
+                                <div
+                                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center text-5xl font-bold text-white border-4 border-[#36393f]"
+                                    style={{ background: '#7289da' }}
+                                >
+                                    {user.name[0].toUpperCase()}
+                                </div>
+                            )}
+                        </label>
+
+                        <input
+                            id="avatar-upload"
+                            type="file"
+                            accept="image/png, image/jpeg, image/webp"
+                            className="hidden"
+                            onChange={handleAvatarChange}
+                        />
                     </div>
 
                     <div className="mt-16 sm:mt-20 bg-[#2f3136] p-4 rounded-lg border border-zinc-700/50 flex flex-col gap-4">
