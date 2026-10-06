@@ -25,3 +25,9 @@ declare var FormData: {
 
 declare function setTimeout(handler: () => void, timeoutMs?: number): number;
 declare function clearTimeout(id: number | undefined): void;
+
+declare var console: {
+    log(...args: unknown[]): void;
+    warn(...args: unknown[]): void;
+    error(...args: unknown[]): void;
+};

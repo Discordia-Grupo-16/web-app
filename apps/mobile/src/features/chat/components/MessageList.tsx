@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Alert, FlatList, View, Text } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, View, Text } from 'react-native';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
 import { displayName, ERROR_TEXTS, isRetryable } from '@discordia/core';
@@ -13,6 +13,9 @@ interface MessageListProps {
   canRetry: boolean;
   onRetry: (clientMessageId: string) => void;
   onDiscard: (clientMessageId: string) => void;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 }
 
 // There is no tooltip on mobile: the correlationId (for searching the logs) is shown on long-press.
@@ -31,6 +34,9 @@ export const MessageList = ({
   canRetry,
   onRetry,
   onDiscard,
+  hasMore,
+  loadingMore,
+  onLoadMore,
 }: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
   const pendingCountRef = useRef(pending.length);
@@ -71,6 +77,10 @@ export const MessageList = ({
       // clientMessageId is unique per channel and keeps the row mounted when a pending message is confirmed.
       keyExtractor={(item) => item.message.clientMessageId}
       keyboardShouldPersistTaps="handled"
+      // In an inverted list, onEndReached fires when scrolling to the visual top (oldest messages).
+      onEndReached={hasMore ? onLoadMore : undefined}
+      onEndReachedThreshold={0.2}
+      ListFooterComponent={loadingMore ? <ActivityIndicator size="small" color="#7289da" style={{ paddingVertical: 12 }} /> : null}
       renderItem={({ item }) =>
         item.kind === 'confirmed' ? (
           <MessageItem

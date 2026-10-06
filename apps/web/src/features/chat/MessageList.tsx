@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Hash } from 'lucide-react';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
@@ -14,9 +14,13 @@ interface MessageListProps {
     canRetry: boolean;
     onRetry: (clientMessageId: string) => void;
     onDiscard: (clientMessageId: string) => void;
+    hasMore: boolean;
+    loadingMore: boolean;
+    onLoadMore: () => void;
 }
 
 const STICK_TO_BOTTOM_PX = 100;
+const LOAD_MORE_THRESHOLD_PX = 80;
 
 export const MessageList = ({
     channelName,
@@ -27,24 +31,49 @@ export const MessageList = ({
     canRetry,
     onRetry,
     onDiscard,
+    hasMore,
+    loadingMore,
+    onLoadMore,
 }: MessageListProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const nearBottomRef = useRef(true);
     const pendingCountRef = useRef(pending.length);
+    const prevScrollHeightRef = useRef(0);
+    const prevMessageCountRef = useRef(messages.length);
 
     const handleScroll = () => {
         const el = containerRef.current;
         if (!el) return;
         nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
+        if (hasMore && !loadingMore && el.scrollTop < LOAD_MORE_THRESHOLD_PX) {
+            onLoadMore();
+        }
     };
+
+    // Capture scrollHeight before React commits the render that prepends older messages.
+    useLayoutEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        if (messages.length > prevMessageCountRef.current && !nearBottomRef.current) {
+            prevScrollHeightRef.current = el.scrollHeight;
+        } else {
+            prevScrollHeightRef.current = 0;
+        }
+        prevMessageCountRef.current = messages.length;
+    }, [messages.length]);
 
     useEffect(() => {
         const el = containerRef.current;
         if (!el) return;
-        // A new pending message is our own send: always follow it. Incoming ones only if the user was at the bottom.
         const ownSend = pending.length > pendingCountRef.current;
         pendingCountRef.current = pending.length;
-        if (ownSend || nearBottomRef.current) el.scrollTop = el.scrollHeight;
+        if (prevScrollHeightRef.current > 0) {
+            // Restore scroll position so prepending older messages doesn't jump the user to the top.
+            el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+            prevScrollHeightRef.current = 0;
+        } else if (ownSend || nearBottomRef.current) {
+            el.scrollTop = el.scrollHeight;
+        }
     }, [messages.length, pending.length]);
 
     const isEmpty = messages.length === 0 && pending.length === 0;
@@ -64,6 +93,11 @@ export const MessageList = ({
                 </div>
             ) : (
                 <>
+                    {loadingMore && (
+                        <div className="flex justify-center py-3">
+                            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#7289da', borderTopColor: 'transparent' }} />
+                        </div>
+                    )}
                     {messages.map((message) => (
                         <MessageItem
                             key={message.messageId}

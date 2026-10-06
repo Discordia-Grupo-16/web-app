@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { RealtimeClient } from '@discordia/api';
-import { chatReducer, initialChatState } from './chatStore';
+import { chatReducer, initialChatState, type ChatMessage } from './chatStore';
 import { rejectionMessage } from './errorMessages';
 import {
     DEFAULT_MAX_LENGTH,
@@ -8,6 +8,15 @@ import {
     type RealtimeStatus,
     type RejectedMessage,
 } from './realtimeContext';
+
+interface HistoryApiResponse {
+    messages: ChatMessage[];
+    hasMore: boolean;
+}
+
+interface HttpClient {
+    get<T>(url: string, config?: { params?: Record<string, string | undefined> }): Promise<{ data: T }>;
+}
 
 const SEND_TIMEOUT_MS = 10_000;
 
@@ -18,6 +27,8 @@ export interface RealtimeControllerOptions {
     token: string | null;
     /** Platform-specific: crypto.randomUUID is not available everywhere (insecure origins, Hermes). */
     newClientMessageId: () => string;
+    /** Axios-compatible client for history and resync HTTP calls. */
+    api: HttpClient;
 }
 
 export interface RealtimeController {
@@ -36,6 +47,7 @@ export const useRealtimeController = ({
     client,
     token,
     newClientMessageId,
+    api,
 }: RealtimeControllerOptions): RealtimeController => {
     const [status, setStatus] = useState<RealtimeStatus>(() => (client ? client.getState() : 'disabled'));
     const [state, dispatch] = useReducer(chatReducer, initialChatState);
@@ -48,6 +60,8 @@ export const useRealtimeController = ({
     const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
     // True from suspend() until the socket reconnects (see suspend).
     const resuming = useRef(false);
+    const historyFetching = useRef(new Set<string>());
+    const wasReconnecting = useRef(false);
 
     useEffect(() => {
         stateRef.current = state;
@@ -74,11 +88,27 @@ export const useRealtimeController = ({
         if (!client) return;
 
         const offState = client.on('stateChange', (next) => {
+            if (next === 'reconnecting') wasReconnecting.current = true;
+            if (next === 'closed') wasReconnecting.current = false;
             if (next !== 'closed') resuming.current = false;
             setStatus(resuming.current ? 'connecting' : next);
             if (next === 'reconnecting' || next === 'closed') {
                 clearAllTimers();
                 dispatch({ type: 'connectionLost' });
+            }
+            if (next === 'open' && wasReconnecting.current) {
+                wasReconnecting.current = false;
+                for (const [channelId, messages] of Object.entries(stateRef.current.byChannel)) {
+                    const lastMsg = messages[messages.length - 1];
+                    if (!lastMsg) continue;
+                    api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`, { params: { after: lastMsg.messageId } })
+                        .then(({ data }) => {
+                            if (data.messages.length > 0) {
+                                dispatch({ type: 'resyncLoaded', channelId, messages: data.messages });
+                            }
+                        })
+                        .catch((err) => console.error('resync channel failed', channelId, err));
+                }
             }
         });
         const offAck = client.on('ack', (frame) => {
@@ -190,9 +220,44 @@ export const useRealtimeController = ({
 
     const clearRejected = useCallback(() => setLastRejected(null), []);
 
+    const loadHistory = useCallback(async (channelId: string) => {
+        if (stateRef.current.historyByChannel[channelId]?.loaded) return;
+        if (historyFetching.current.has(channelId)) return;
+        historyFetching.current.add(channelId);
+        try {
+            const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
+            dispatch({ type: 'historyLoaded', channelId, messages: data.messages, hasMore: data.hasMore });
+        } catch (err) {
+            console.error('loadHistory failed', channelId, err);
+            dispatch({ type: 'historyLoaded', channelId, messages: [], hasMore: false });
+        } finally {
+            historyFetching.current.delete(channelId);
+        }
+    }, [api]);
+
+    const loadMoreHistory = useCallback(async (channelId: string, beforeId: string) => {
+        const hist = stateRef.current.historyByChannel[channelId];
+        if (!hist?.hasMore || hist.loadingMore) return;
+        if (historyFetching.current.has(`more:${channelId}`)) return;
+        historyFetching.current.add(`more:${channelId}`);
+        dispatch({ type: 'loadingMoreHistory', channelId });
+        try {
+            const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`, {
+                params: { before: beforeId },
+            });
+            dispatch({ type: 'moreHistoryLoaded', channelId, messages: data.messages, hasMore: data.hasMore });
+        } catch (err) {
+            console.error('loadMoreHistory failed', channelId, err);
+            const current = stateRef.current.historyByChannel[channelId];
+            dispatch({ type: 'moreHistoryLoaded', channelId, messages: [], hasMore: current?.hasMore ?? false });
+        } finally {
+            historyFetching.current.delete(`more:${channelId}`);
+        }
+    }, [api]);
+
     const value = useMemo<RealtimeContextValue>(
-        () => ({ status, state, maxLength, send, retry, discard, lastRejected, clearRejected }),
-        [status, state, maxLength, send, retry, discard, lastRejected, clearRejected],
+        () => ({ status, state, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, loadMoreHistory }),
+        [status, state, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, loadMoreHistory],
     );
 
     return { value, suspend };

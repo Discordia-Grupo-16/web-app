@@ -20,6 +20,8 @@ export interface RealtimeContextValue {
     discard: (clientMessageId: string) => void;
     lastRejected: RejectedMessage | null;
     clearRejected: () => void;
+    loadHistory: (channelId: string) => void;
+    loadMoreHistory: (channelId: string, beforeId: string) => void;
 }
 
 export const DEFAULT_MAX_LENGTH = 2000;

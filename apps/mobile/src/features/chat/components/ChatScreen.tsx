@@ -14,7 +14,7 @@ interface ChatScreenProps {
 export const ChatScreen = ({ channelId, channelName }: ChatScreenProps) => {
   const { user } = useAuth();
   const headerHeight = useHeaderHeight();
-  const { messages, pending, status, maxLength, send, retry, discard, rejected, clearRejected } =
+  const { messages, pending, status, maxLength, send, retry, discard, rejected, clearRejected, hasMore, loadingMore, loadMore } =
     useChannelMessages(channelId);
 
   return (
@@ -29,6 +29,9 @@ export const ChatScreen = ({ channelId, channelName }: ChatScreenProps) => {
           canRetry={status === 'open'}
           onRetry={retry}
           onDiscard={discard}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
         />
         <MessageComposer
           channelName={channelName}
