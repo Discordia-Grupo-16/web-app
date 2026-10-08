@@ -1,0 +1,50 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
+import { ProfilePopup } from './ProfilePopup';
+
+describe('ProfilePopup', () => {
+    const mockUser = {
+        id: '1',
+        name: 'Milton',
+        bio: 'Desarrollador de software',
+        createdAt: '2023-10-01T12:00:00Z',
+    };
+
+    it('renderiza la información del usuario correctamente', () => {
+        render(
+            <ProfilePopup
+                user={mockUser as any}
+                onClose={vi.fn()}
+                onEditProfile={vi.fn()}
+            />
+        );
+
+        expect(screen.getByText('Milton')).toBeInTheDocument();
+        expect(screen.getByText('Sobre mí')).toBeInTheDocument();
+        expect(screen.getByText('Desarrollador de software')).toBeInTheDocument();
+        expect(screen.getByText('Miembro desde')).toBeInTheDocument();
+
+        expect(screen.getByText(/1 de octubre de 2023/i)).toBeInTheDocument();
+    });
+
+    it('llama a onClose y onEditProfile cuando se hace clic en "Editar perfil"', async () => {
+        const onClose = vi.fn();
+        const onEditProfile = vi.fn();
+        const user = userEvent.setup();
+
+        render(
+            <ProfilePopup
+                user={mockUser as any}
+                onClose={onClose}
+                onEditProfile={onEditProfile}
+            />
+        );
+
+        const editButton = screen.getByRole('button', { name: /editar perfil/i });
+        await user.click(editButton);
+
+        expect(onClose).toHaveBeenCalledOnce();
+        expect(onEditProfile).toHaveBeenCalledOnce();
+    });
+});
