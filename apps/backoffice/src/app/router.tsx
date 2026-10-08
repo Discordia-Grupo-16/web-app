@@ -1,0 +1,25 @@
+import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { LoginPage, StaffRoute } from '@/features/auth';
+import { HomePage } from '@/features/dashboard';
+import App from './App';
+import { StaffLayout } from './layout/StaffLayout';
+
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <App />,
+    children: [
+      { path: 'login', element: <LoginPage /> },
+      {
+        element: <StaffRoute />,
+        children: [
+          {
+            element: <StaffLayout />,
+            children: [{ index: true, element: <HomePage /> }],
+          },
+        ],
+      },
+      { path: '*', element: <Navigate to="/" replace /> },
+    ],
+  },
+]);
