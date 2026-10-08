@@ -6,6 +6,7 @@ export * from './auth/service';
 export type * from './auth/types';
 
 export * from './users/service';
+export * from './users/publicProfileCache';
 export type * from './users/types';
 
 export * from './servers/service';

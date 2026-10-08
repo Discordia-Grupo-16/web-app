@@ -2,8 +2,11 @@ import type { AxiosInstance } from 'axios';
 import type { Server } from './types';
 
 export const createServersService = (apiClient: AxiosInstance) => ({
-    getServers: (): Promise<Server[]> =>
-        apiClient.get<Server[]>('/api/v1/servers/').then(r => r.data),
+    // withUser narrows the list to the servers shared with that user (public profile, SCRUM-26).
+    getServers: (options: { withUser?: string } = {}): Promise<Server[]> =>
+        apiClient
+            .get<Server[]>('/api/v1/servers/', { params: options.withUser ? { withUser: options.withUser } : undefined })
+            .then(r => r.data),
 
     getServer: (serverId: string): Promise<Server> =>
         apiClient.get<Server>(`/api/v1/servers/${serverId}`).then(r => r.data),
