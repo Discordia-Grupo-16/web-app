@@ -50,6 +50,7 @@ describe('useRealtimeController', () => {
                 client: fake.client,
                 token: 'token',
                 newClientMessageId: () => `msg-${++ids}`,
+                api: { get: vi.fn().mockResolvedValue({ data: { messages: [], hasMore: false } }) },
                 ...overrides,
             },
         });
@@ -65,7 +66,7 @@ describe('useRealtimeController', () => {
         const { rerender } = render();
         expect(fake.client.connect).toHaveBeenCalledTimes(1);
 
-        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x' });
+        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x', api: { get: vi.fn() } });
         expect(fake.client.disconnect).toHaveBeenCalled();
     });
 

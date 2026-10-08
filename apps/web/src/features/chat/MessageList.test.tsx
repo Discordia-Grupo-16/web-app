@@ -36,6 +36,9 @@ const renderList = (
                     canRetry
                     onRetry={vi.fn()}
                     onDiscard={vi.fn()}
+                    hasMore={false}
+                    loadingMore={false}
+                    onLoadMore={vi.fn()}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
