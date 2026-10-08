@@ -34,6 +34,7 @@ export const createUserService = (apiClient: AxiosInstance) => {
                   "Content-Type": "multipart/form-data",
                 },
             });
+            publicProfiles.invalidate(data.data.id);
             return data;
         },
 

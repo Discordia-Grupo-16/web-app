@@ -1,11 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import type { User } from '@discordia/api';
 import { ProfilePopup } from './ProfilePopup';
 
 describe('ProfilePopup', () => {
-    const mockUser = {
+    const mockUser: User = {
         id: '1',
+        email: 'milton@example.com',
+        role: 'user',
         name: 'Milton',
         bio: 'Desarrollador de software',
         createdAt: '2023-10-01T12:00:00Z',
@@ -14,7 +17,7 @@ describe('ProfilePopup', () => {
     it('renderiza la información del usuario correctamente', () => {
         render(
             <ProfilePopup
-                user={mockUser as any}
+                user={mockUser}
                 onClose={vi.fn()}
                 onEditProfile={vi.fn()}
             />
@@ -35,7 +38,7 @@ describe('ProfilePopup', () => {
 
         render(
             <ProfilePopup
-                user={mockUser as any}
+                user={mockUser}
                 onClose={onClose}
                 onEditProfile={onEditProfile}
             />
