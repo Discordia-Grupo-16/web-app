@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useMemo, useLayoutEffect, useRef } from 'react';
 import { Hash } from 'lucide-react';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
-import { displayName, ERROR_TEXTS, isRetryable } from '@discordia/core';
+import { authorView, ERROR_TEXTS, isRetryable, usePublicProfiles } from '@discordia/core';
+import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
 import { MessageItem } from './MessageItem';
 
 interface MessageListProps {
@@ -38,6 +39,15 @@ export const MessageList = ({
     const containerRef = useRef<HTMLDivElement>(null);
     const nearBottomRef = useRef(true);
     const pendingCountRef = useRef(pending.length);
+    const { openProfile } = useProfileViewer();
+
+    // Own messages come from the session, so only the other authors need their public profile.
+    const authorIds = useMemo(
+        () => [...new Set(messages.map((message) => message.authorId))].filter((id) => id !== currentUser?.id),
+        [messages, currentUser?.id],
+    );
+    const profiles = usePublicProfiles(authorIds);
+
     const prevScrollHeightRef = useRef(0);
     const prevMessageCountRef = useRef(messages.length);
 
@@ -92,26 +102,31 @@ export const MessageList = ({
                     </div>
                 </div>
             ) : (
-                <>
-                    {loadingMore && (
+                <>{loadingMore && (
                         <div className="flex justify-center py-3">
                             <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#7289da', borderTopColor: 'transparent' }} />
                         </div>
                     )}
-                    {messages.map((message) => (
-                        <MessageItem
-                            key={message.messageId}
-                            authorId={message.authorId}
-                            authorName={displayName(message.authorId, currentUser)}
-                            content={message.content}
-                            createdAt={message.createdAt}
-                        />
-                    ))}
+                    {messages.map((message) => {
+                        const author = authorView(message.authorId, currentUser, profiles.get(message.authorId));
+                        return (
+                            <MessageItem
+                                key={message.messageId}
+                                authorId={message.authorId}
+                                authorName={author.name}
+                                authorAvatarUrl={author.avatarUrl}
+                                content={message.content}
+                                createdAt={message.createdAt}
+                                onSelectAuthor={() => openProfile(message.authorId)}
+                            />
+                        );
+                    })}
                     {pending.map((message) => (
                         <MessageItem
                             key={message.clientMessageId}
                             authorId={currentUser?.id ?? ''}
                             authorName={currentUser?.name || 'Vos'}
+                            authorAvatarUrl={currentUser?.avatarUrl ?? null}
                             content={message.content}
                             sending={message.status === 'sending'}
                             failed={message.status === 'failed'}
