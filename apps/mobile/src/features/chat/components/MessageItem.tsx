@@ -1,8 +1,9 @@
-import { View, Text, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
 
 interface MessageItemProps {
   authorId: string;
   authorName: string;
+  authorAvatarUrl?: string | null;
   content: string;
   createdAt?: string;
   sending?: boolean;
@@ -12,6 +13,7 @@ interface MessageItemProps {
   onRetry?: () => void;
   retryDisabled?: boolean;
   onDiscard?: () => void;
+  onSelectAuthor?: () => void;
 }
 
 const AVATAR_COLORS = ['#7289da', '#43b581', '#faa61a', '#f47fff', '#f04747', '#00b0f4', '#747f8d', '#e67e22'];
@@ -31,6 +33,7 @@ const formatTime = (createdAt: string): string => {
 export const MessageItem = ({
   authorId,
   authorName,
+  authorAvatarUrl = null,
   content,
   createdAt,
   sending = false,
@@ -40,6 +43,7 @@ export const MessageItem = ({
   onRetry,
   retryDisabled = false,
   onDiscard,
+  onSelectAuthor,
 }: MessageItemProps) => (
   <Pressable
     className="flex-row px-4 py-1"
@@ -50,15 +54,28 @@ export const MessageItem = ({
     }}
     onLongPress={onLongPress}
   >
-    <View
-      className="w-9 h-9 rounded-full items-center justify-center mr-3"
-      style={{ backgroundColor: avatarColor(authorId) }}
+    <TouchableOpacity
+      accessibilityLabel={`Ver perfil de ${authorName}`}
+      disabled={!onSelectAuthor}
+      onPress={onSelectAuthor}
+      className="self-start mr-3"
     >
-      <Text className="text-white font-bold">{(authorName.trim()[0] ?? '?').toUpperCase()}</Text>
-    </View>
+      <View
+        className="w-9 h-9 rounded-full items-center justify-center overflow-hidden"
+        style={{ backgroundColor: authorAvatarUrl ? 'transparent' : avatarColor(authorId) }}
+      >
+        {authorAvatarUrl ? (
+          <Image source={{ uri: authorAvatarUrl }} testID="author-avatar" className="w-full h-full" />
+        ) : (
+          <Text className="text-white font-bold">{(authorName.trim()[0] ?? '?').toUpperCase()}</Text>
+        )}
+      </View>
+    </TouchableOpacity>
     <View className="flex-1">
       <View className="flex-row items-baseline">
-        <Text className="text-white font-bold text-sm mr-2">{authorName}</Text>
+        <TouchableOpacity disabled={!onSelectAuthor} onPress={onSelectAuthor} accessibilityLabel={authorName}>
+          <Text className="text-white font-bold text-sm mr-2">{authorName}</Text>
+        </TouchableOpacity>
         {createdAt && <Text className="text-xs text-[#72767d]">{formatTime(createdAt)}</Text>}
       </View>
       {/* Content comes from other users: always rendered as plain text. Not selectable when failed so the long-press reaches the row. */}
