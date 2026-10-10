@@ -50,7 +50,7 @@ describe('useRealtimeController', () => {
                 client: fake.client,
                 token: 'token',
                 newClientMessageId: () => `msg-${++ids}`,
-                api: { get: vi.fn().mockResolvedValue({ data: { messages: [], hasMore: false } }) },
+                api: { get: vi.fn().mockResolvedValue({ data: { data: [], hasMore: false } }) },
                 ...overrides,
             },
         });

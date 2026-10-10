@@ -10,7 +10,7 @@ import {
 } from './realtimeContext';
 
 interface HistoryApiResponse {
-    messages: ChatMessage[];
+    data: ChatMessage[];
     hasMore: boolean;
 }
 
@@ -101,13 +101,41 @@ export const useRealtimeController = ({
                 for (const [channelId, messages] of Object.entries(stateRef.current.byChannel)) {
                     const lastMsg = messages[messages.length - 1];
                     if (!lastMsg) continue;
-                    api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`, { params: { after: lastMsg.messageId } })
-                        .then(({ data }) => {
-                            if (data.messages.length > 0) {
-                                dispatch({ type: 'resyncLoaded', channelId, messages: data.messages });
+                    (async () => {
+                        let afterId = lastMsg.messageId;
+                        while (true) {
+                            let resp: HistoryApiResponse;
+                            try {
+                                const { data } = await api.get<HistoryApiResponse>(
+                                    `/api/v1/channels/${channelId}/messages`,
+                                    { params: { after: afterId } },
+                                );
+                                resp = data;
+                            } catch (err: unknown) {
+                                const status = (err as { response?: { status?: number } })?.response?.status;
+                                if ((status === 404 || status === 410) && !historyFetching.current.has(channelId)) {
+                                    historyFetching.current.add(channelId);
+                                    dispatch({ type: 'historyReset', channelId });
+                                    try {
+                                        const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
+                                        dispatch({ type: 'historyLoaded', channelId, messages: data.data, hasMore: data.hasMore });
+                                    } catch (reloadErr) {
+                                        console.error('history reload after stale anchor failed', channelId, reloadErr);
+                                    } finally {
+                                        historyFetching.current.delete(channelId);
+                                    }
+                                } else {
+                                    console.error('resync channel failed', channelId, err);
+                                }
+                                return;
                             }
-                        })
-                        .catch((err) => console.error('resync channel failed', channelId, err));
+                            if (resp.data.length > 0) {
+                                dispatch({ type: 'resyncLoaded', channelId, messages: resp.data });
+                            }
+                            if (!resp.hasMore || resp.data.length === 0) return;
+                            afterId = resp.data[resp.data.length - 1].messageId;
+                        }
+                    })();
                 }
             }
         });
@@ -226,7 +254,7 @@ export const useRealtimeController = ({
         historyFetching.current.add(channelId);
         try {
             const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
-            dispatch({ type: 'historyLoaded', channelId, messages: data.messages, hasMore: data.hasMore });
+            dispatch({ type: 'historyLoaded', channelId, messages: data.data, hasMore: data.hasMore });
         } catch (err) {
             console.error('loadHistory failed', channelId, err);
             dispatch({ type: 'historyLoaded', channelId, messages: [], hasMore: false });
@@ -245,7 +273,7 @@ export const useRealtimeController = ({
             const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`, {
                 params: { before: beforeId },
             });
-            dispatch({ type: 'moreHistoryLoaded', channelId, messages: data.messages, hasMore: data.hasMore });
+            dispatch({ type: 'moreHistoryLoaded', channelId, messages: data.data, hasMore: data.hasMore });
         } catch (err) {
             console.error('loadMoreHistory failed', channelId, err);
             const current = stateRef.current.historyByChannel[channelId];

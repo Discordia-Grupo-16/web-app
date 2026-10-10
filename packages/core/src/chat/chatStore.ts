@@ -52,7 +52,8 @@ export type ChatAction =
     | { type: 'historyLoaded'; channelId: string; messages: ChatMessage[]; hasMore: boolean }
     | { type: 'loadingMoreHistory'; channelId: string }
     | { type: 'moreHistoryLoaded'; channelId: string; messages: ChatMessage[]; hasMore: boolean }
-    | { type: 'resyncLoaded'; channelId: string; messages: ChatMessage[] };
+    | { type: 'resyncLoaded'; channelId: string; messages: ChatMessage[] }
+    | { type: 'historyReset'; channelId: string };
 
 export const MAX_MESSAGES_PER_CHANNEL = 200;
 
@@ -247,6 +248,22 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             return {
                 ...state,
                 byChannel: { ...state.byChannel, [channelId]: merged },
+                seenMessageIds: seen,
+            };
+        }
+
+        case 'historyReset': {
+            const { channelId } = action;
+            const channelMessages = state.byChannel[channelId] ?? [];
+            const seen = { ...state.seenMessageIds };
+            channelMessages.forEach((m) => { delete seen[m.messageId]; });
+            return {
+                ...state,
+                byChannel: { ...state.byChannel, [channelId]: [] },
+                historyByChannel: {
+                    ...state.historyByChannel,
+                    [channelId]: { loaded: false, hasMore: false, loadingMore: false },
+                },
                 seenMessageIds: seen,
             };
         }
