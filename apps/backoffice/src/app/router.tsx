@@ -1,10 +1,10 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
 import { LoginPage, StaffRoute } from '@/features/auth';
 import { HomePage } from '@/features/dashboard';
 import App from './App';
 import { StaffLayout } from './layout/StaffLayout';
 
-export const router = createBrowserRouter([
+export const routes: RouteObject[] = [
   {
     path: '/',
     element: <App />,
@@ -22,4 +22,6 @@ export const router = createBrowserRouter([
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);
