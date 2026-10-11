@@ -9,12 +9,15 @@ export interface ChannelMessages {
     status: RealtimeStatus;
     maxLength: number;
     historyLoaded: boolean;
+    historyError: boolean;
     hasMore: boolean;
     loadingMore: boolean;
+    loadMoreError: boolean;
     send: (content: string) => void;
     retry: (clientMessageId: string) => void;
     discard: (clientMessageId: string) => void;
     loadMore: () => void;
+    retryHistory: () => void;
     rejected: RejectedMessage | null;
     clearRejected: () => void;
 }
@@ -22,7 +25,7 @@ export interface ChannelMessages {
 const NO_MESSAGES: ChatMessage[] = [];
 
 export const useChannelMessages = (channelId: string): ChannelMessages => {
-    const { state, status, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, loadMoreHistory } =
+    const { state, status, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, retryHistory, loadMoreHistory } =
         useRealtime();
 
     useEffect(() => {
@@ -32,8 +35,10 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
     const messages = state.byChannel[channelId] ?? NO_MESSAGES;
     const historyMeta = state.historyByChannel[channelId];
     const historyLoaded = historyMeta?.loaded ?? false;
+    const historyError = historyMeta?.error ?? false;
     const hasMore = historyMeta?.hasMore ?? false;
     const loadingMore = historyMeta?.loadingMore ?? false;
+    const loadMoreError = historyMeta?.loadMoreError ?? false;
 
     const pending = useMemo(
         () =>
@@ -51,6 +56,8 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
         loadMoreHistory(channelId, firstMessage.messageId);
     }, [channelId, messages, hasMore, loadingMore, loadMoreHistory]);
 
+    const retryHistoryForChannel = useCallback(() => retryHistory(channelId), [retryHistory, channelId]);
+
     const rejected = lastRejected && lastRejected.channelId === channelId ? lastRejected : null;
 
     return {
@@ -59,12 +66,15 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
         status,
         maxLength,
         historyLoaded,
+        historyError,
         hasMore,
         loadingMore,
+        loadMoreError,
         send: sendToChannel,
         retry,
         discard,
         loadMore,
+        retryHistory: retryHistoryForChannel,
         rejected,
         clearRejected,
     };

@@ -15,8 +15,12 @@ interface MessageListProps {
     canRetry: boolean;
     onRetry: (clientMessageId: string) => void;
     onDiscard: (clientMessageId: string) => void;
+    historyLoaded: boolean;
+    historyError: boolean;
+    onRetryHistory: () => void;
     hasMore: boolean;
     loadingMore: boolean;
+    loadMoreError: boolean;
     onLoadMore: () => void;
 }
 
@@ -32,8 +36,12 @@ export const MessageList = ({
     canRetry,
     onRetry,
     onDiscard,
+    historyLoaded,
+    historyError,
+    onRetryHistory,
     hasMore,
     loadingMore,
+    loadMoreError,
     onLoadMore,
 }: MessageListProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -48,28 +56,25 @@ export const MessageList = ({
     );
     const profiles = usePublicProfiles(authorIds);
 
+    // Saved BEFORE calling onLoadMore so the post-update height delta is correct.
     const prevScrollHeightRef = useRef(0);
-    const prevMessageCountRef = useRef(messages.length);
 
     const handleScroll = () => {
         const el = containerRef.current;
         if (!el) return;
         nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_TO_BOTTOM_PX;
         if (hasMore && !loadingMore && el.scrollTop < LOAD_MORE_THRESHOLD_PX) {
+            prevScrollHeightRef.current = el.scrollHeight;
             onLoadMore();
         }
     };
 
-    // Capture scrollHeight before React commits the render that prepends older messages.
+    // Apply scroll restoration synchronously before paint (prevents Safari jump when prepending).
     useLayoutEffect(() => {
         const el = containerRef.current;
-        if (!el) return;
-        if (messages.length > prevMessageCountRef.current && !nearBottomRef.current) {
-            prevScrollHeightRef.current = el.scrollHeight;
-        } else {
-            prevScrollHeightRef.current = 0;
-        }
-        prevMessageCountRef.current = messages.length;
+        if (!el || prevScrollHeightRef.current === 0) return;
+        el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
+        prevScrollHeightRef.current = 0;
     }, [messages.length]);
 
     useEffect(() => {
@@ -77,14 +82,31 @@ export const MessageList = ({
         if (!el) return;
         const ownSend = pending.length > pendingCountRef.current;
         pendingCountRef.current = pending.length;
-        if (prevScrollHeightRef.current > 0) {
-            // Restore scroll position so prepending older messages doesn't jump the user to the top.
-            el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
-            prevScrollHeightRef.current = 0;
-        } else if (ownSend || nearBottomRef.current) {
+        if (ownSend || nearBottomRef.current) {
             el.scrollTop = el.scrollHeight;
         }
     }, [messages.length, pending.length]);
+
+    if (!historyLoaded && !historyError) {
+        return (
+            <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center" style={{ color: '#99aab5' }}>
+                <div className="w-6 h-6 border-2 border-blurple border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (historyError) {
+        return (
+            <div className="flex-1 min-h-0 overflow-y-auto flex items-center justify-center" style={{ color: '#99aab5' }}>
+                <div className="text-center select-none">
+                    <p className="text-sm">No se pudo cargar el historial.</p>
+                    <button onClick={onRetryHistory} className="mt-2 text-sm text-blurple hover:underline">
+                        Reintentar
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     const isEmpty = messages.length === 0 && pending.length === 0;
 
@@ -102,9 +124,15 @@ export const MessageList = ({
                     </div>
                 </div>
             ) : (
-                <>{loadingMore && (
+                <>
+                    {loadingMore && (
                         <div className="flex justify-center py-3">
-                            <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#7289da', borderTopColor: 'transparent' }} />
+                            <div className="w-5 h-5 border-2 border-blurple border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    )}
+                    {loadMoreError && (
+                        <div className="flex justify-center py-2 text-xs" style={{ color: '#ed4245' }}>
+                            No se pudo cargar más mensajes.
                         </div>
                     )}
                     {messages.map((message) => {

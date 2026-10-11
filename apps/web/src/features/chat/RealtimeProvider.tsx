@@ -15,7 +15,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         }
         return createRealtimeClient({ url: WS_URL, getToken: webAuthStorage.getToken });
     });
-    const { value } = useRealtimeController({ client, token, newClientMessageId, api });
+    const { value } = useRealtimeController({ client, token, newClientMessageId, api, logger: console });
 
     // Logout in another tab of the same browser: cut this tab's socket without touching the local session.
     useEffect(() => {

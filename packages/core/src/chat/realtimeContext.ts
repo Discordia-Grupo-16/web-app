@@ -21,6 +21,7 @@ export interface RealtimeContextValue {
     lastRejected: RejectedMessage | null;
     clearRejected: () => void;
     loadHistory: (channelId: string) => void;
+    retryHistory: (channelId: string) => void;
     loadMoreHistory: (channelId: string, beforeId: string) => void;
 }
 

@@ -28,6 +28,8 @@ export interface ChannelHistoryMeta {
     loaded: boolean;
     hasMore: boolean;
     loadingMore: boolean;
+    error: boolean;
+    loadMoreError: boolean;
 }
 
 export interface ChatState {
@@ -50,8 +52,11 @@ export type ChatAction =
     | { type: 'connectionLost' }
     | { type: 'discard'; clientMessageId: string }
     | { type: 'historyLoaded'; channelId: string; messages: ChatMessage[]; hasMore: boolean }
+    | { type: 'historyFailed'; channelId: string }
+    | { type: 'historyRetry'; channelId: string }
     | { type: 'loadingMoreHistory'; channelId: string }
     | { type: 'moreHistoryLoaded'; channelId: string; messages: ChatMessage[]; hasMore: boolean }
+    | { type: 'loadMoreFailed'; channelId: string }
     | { type: 'resyncLoaded'; channelId: string; messages: ChatMessage[] }
     | { type: 'historyReset'; channelId: string };
 
@@ -206,8 +211,29 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             return {
                 ...state,
                 byChannel: { ...state.byChannel, [channelId]: merged },
-                historyByChannel: { ...state.historyByChannel, [channelId]: { loaded: true, hasMore, loadingMore: false } },
+                historyByChannel: { ...state.historyByChannel, [channelId]: { loaded: true, hasMore, loadingMore: false, error: false, loadMoreError: false } },
                 seenMessageIds: seen,
+            };
+        }
+
+        case 'historyFailed':
+            return {
+                ...state,
+                historyByChannel: {
+                    ...state.historyByChannel,
+                    [action.channelId]: { loaded: false, hasMore: false, loadingMore: false, error: true, loadMoreError: false },
+                },
+            };
+
+        case 'historyRetry': {
+            const current = state.historyByChannel[action.channelId];
+            if (!current?.error) return state;
+            return {
+                ...state,
+                historyByChannel: {
+                    ...state.historyByChannel,
+                    [action.channelId]: { ...current, error: false, loaded: false },
+                },
             };
         }
 
@@ -216,7 +242,7 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             if (!current) return state;
             return {
                 ...state,
-                historyByChannel: { ...state.historyByChannel, [action.channelId]: { ...current, loadingMore: true } },
+                historyByChannel: { ...state.historyByChannel, [action.channelId]: { ...current, loadingMore: true, loadMoreError: false } },
             };
         }
 
@@ -226,14 +252,25 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             const newMsgs = messages.filter((m) => !state.seenMessageIds[m.messageId]);
             const seen = { ...state.seenMessageIds };
             newMsgs.forEach((m) => { seen[m.messageId] = true; });
-            // Older messages go to the front; when trimming keep the front (oldest visible to the user
-            // who just scrolled up) rather than the end.
-            const merged = [...newMsgs, ...existing].slice(0, MAX_MESSAGES_PER_CHANNEL);
+            // Older messages prepended; no slice so newest messages are never discarded from seenMessageIds.
+            const merged = [...newMsgs, ...existing];
             return {
                 ...state,
                 byChannel: { ...state.byChannel, [channelId]: merged },
-                historyByChannel: { ...state.historyByChannel, [channelId]: { loaded: true, hasMore, loadingMore: false } },
+                historyByChannel: { ...state.historyByChannel, [channelId]: { loaded: true, hasMore, loadingMore: false, error: false, loadMoreError: false } },
                 seenMessageIds: seen,
+            };
+        }
+
+        case 'loadMoreFailed': {
+            const current = state.historyByChannel[action.channelId];
+            if (!current) return state;
+            return {
+                ...state,
+                historyByChannel: {
+                    ...state.historyByChannel,
+                    [action.channelId]: { ...current, loadingMore: false, loadMoreError: true },
+                },
             };
         }
 
@@ -244,7 +281,9 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             if (newMsgs.length === 0) return state;
             const seen = { ...state.seenMessageIds };
             newMsgs.forEach((m) => { seen[m.messageId] = true; });
-            const merged = [...existing, ...newMsgs].slice(-MAX_MESSAGES_PER_CHANNEL);
+            const merged = [...existing, ...newMsgs]
+                .sort((a, b) => a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.messageId < b.messageId ? -1 : 1)
+                .slice(-MAX_MESSAGES_PER_CHANNEL);
             return {
                 ...state,
                 byChannel: { ...state.byChannel, [channelId]: merged },
@@ -262,7 +301,7 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                 byChannel: { ...state.byChannel, [channelId]: [] },
                 historyByChannel: {
                     ...state.historyByChannel,
-                    [channelId]: { loaded: false, hasMore: false, loadingMore: false },
+                    [channelId]: { loaded: false, hasMore: false, loadingMore: false, error: false, loadMoreError: false },
                 },
                 seenMessageIds: seen,
             };

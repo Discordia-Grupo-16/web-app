@@ -13,8 +13,12 @@ interface MessageListProps {
   canRetry: boolean;
   onRetry: (clientMessageId: string) => void;
   onDiscard: (clientMessageId: string) => void;
+  historyLoaded: boolean;
+  historyError: boolean;
+  onRetryHistory: () => void;
   hasMore: boolean;
   loadingMore: boolean;
+  loadMoreError: boolean;
   onLoadMore: () => void;
 }
 
@@ -34,8 +38,12 @@ export const MessageList = ({
   canRetry,
   onRetry,
   onDiscard,
+  historyLoaded,
+  historyError,
+  onRetryHistory,
   hasMore,
   loadingMore,
+  loadMoreError,
   onLoadMore,
 }: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
@@ -55,6 +63,25 @@ export const MessageList = ({
     if (pending.length > pendingCountRef.current) listRef.current?.scrollToOffset({ offset: 0, animated: true });
     pendingCountRef.current = pending.length;
   }, [pending.length]);
+
+  if (!historyLoaded && !historyError) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator size="large" color="#7289da" />
+      </View>
+    );
+  }
+
+  if (historyError) {
+    return (
+      <View className="flex-1 items-center justify-center px-6">
+        <Text className="text-sm text-[#99aab5]">No se pudo cargar el historial.</Text>
+        <Text className="mt-2 text-sm text-[#7289da]" onPress={onRetryHistory}>
+          Reintentar
+        </Text>
+      </View>
+    );
+  }
 
   // Rendered outside the FlatList: ListEmptyComponent would come out upside down in an inverted list.
   if (data.length === 0) {
@@ -80,7 +107,11 @@ export const MessageList = ({
       // In an inverted list, onEndReached fires when scrolling to the visual top (oldest messages).
       onEndReached={hasMore ? onLoadMore : undefined}
       onEndReachedThreshold={0.2}
-      ListFooterComponent={loadingMore ? <ActivityIndicator size="small" color="#7289da" style={{ paddingVertical: 12 }} /> : null}
+      ListFooterComponent={
+        loadingMore ? <ActivityIndicator size="small" color="#7289da" style={{ paddingVertical: 12 }} /> :
+        loadMoreError ? <Text className="text-xs text-center text-[#ed4245] py-2">No se pudo cargar más mensajes.</Text> :
+        null
+      }
       renderItem={({ item }) =>
         item.kind === 'confirmed' ? (
           <MessageItem

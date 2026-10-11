@@ -18,6 +18,10 @@ interface HttpClient {
     get<T>(url: string, config?: { params?: Record<string, string | undefined> }): Promise<{ data: T }>;
 }
 
+export interface Logger {
+    error(...args: unknown[]): void;
+}
+
 const SEND_TIMEOUT_MS = 10_000;
 
 export interface RealtimeControllerOptions {
@@ -29,6 +33,8 @@ export interface RealtimeControllerOptions {
     newClientMessageId: () => string;
     /** Axios-compatible client for history and resync HTTP calls. */
     api: HttpClient;
+    /** Error reporter. Pass `console` from the platform provider. */
+    logger: Logger;
 }
 
 export interface RealtimeController {
@@ -48,6 +54,7 @@ export const useRealtimeController = ({
     token,
     newClientMessageId,
     api,
+    logger,
 }: RealtimeControllerOptions): RealtimeController => {
     const [status, setStatus] = useState<RealtimeStatus>(() => (client ? client.getState() : 'disabled'));
     const [state, dispatch] = useReducer(chatReducer, initialChatState);
@@ -61,7 +68,9 @@ export const useRealtimeController = ({
     // True from suspend() until the socket reconnects (see suspend).
     const resuming = useRef(false);
     const historyFetching = useRef(new Set<string>());
-    const wasReconnecting = useRef(false);
+    const loadMoreFetching = useRef(new Set<string>());
+    const syncAbortRef = useRef<AbortController | null>(null);
+    const MAX_RESYNC_PAGES = 20;
 
     useEffect(() => {
         stateRef.current = state;
@@ -88,22 +97,40 @@ export const useRealtimeController = ({
         if (!client) return;
 
         const offState = client.on('stateChange', (next) => {
-            if (next === 'reconnecting') wasReconnecting.current = true;
-            if (next === 'closed') wasReconnecting.current = false;
             if (next !== 'closed') resuming.current = false;
             setStatus(resuming.current ? 'connecting' : next);
             if (next === 'reconnecting' || next === 'closed') {
                 clearAllTimers();
                 dispatch({ type: 'connectionLost' });
             }
-            if (next === 'open' && wasReconnecting.current) {
-                wasReconnecting.current = false;
-                for (const [channelId, messages] of Object.entries(stateRef.current.byChannel)) {
+            if (next === 'open') {
+                // Cancel any in-progress resync and start a fresh one.
+                syncAbortRef.current?.abort();
+                const abort = new AbortController();
+                syncAbortRef.current = abort;
+                for (const [channelId, hist] of Object.entries(stateRef.current.historyByChannel)) {
+                    if (!hist.loaded) continue;
+                    const messages = stateRef.current.byChannel[channelId] ?? [];
                     const lastMsg = messages[messages.length - 1];
-                    if (!lastMsg) continue;
+                    if (!lastMsg) {
+                        // Channel loaded but empty: reload initial history to fill the gap.
+                        if (!historyFetching.current.has(channelId)) {
+                            historyFetching.current.add(channelId);
+                            (async () => {
+                                try {
+                                    const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
+                                    if (abort.signal.aborted) return;
+                                    dispatch({ type: 'historyLoaded', channelId, messages: data.data, hasMore: data.hasMore });
+                                } catch { /* keep existing state */ }
+                                finally { historyFetching.current.delete(channelId); }
+                            })();
+                        }
+                        continue;
+                    }
                     (async () => {
                         let afterId = lastMsg.messageId;
-                        while (true) {
+                        for (let page = 0; page < MAX_RESYNC_PAGES; page++) {
+                            if (abort.signal.aborted) return;
                             let resp: HistoryApiResponse;
                             try {
                                 const { data } = await api.get<HistoryApiResponse>(
@@ -112,23 +139,26 @@ export const useRealtimeController = ({
                                 );
                                 resp = data;
                             } catch (err: unknown) {
-                                const status = (err as { response?: { status?: number } })?.response?.status;
-                                if ((status === 404 || status === 410) && !historyFetching.current.has(channelId)) {
+                                const httpStatus = (err as { response?: { status?: number } })?.response?.status;
+                                if (httpStatus === 404 || httpStatus === 410) {
+                                    if (abort.signal.aborted || historyFetching.current.has(channelId)) return;
                                     historyFetching.current.add(channelId);
                                     dispatch({ type: 'historyReset', channelId });
                                     try {
                                         const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
+                                        if (abort.signal.aborted) return;
                                         dispatch({ type: 'historyLoaded', channelId, messages: data.data, hasMore: data.hasMore });
                                     } catch (reloadErr) {
-                                        console.error('history reload after stale anchor failed', channelId, reloadErr);
+                                        logger.error('history reload after stale anchor failed', channelId, reloadErr);
                                     } finally {
                                         historyFetching.current.delete(channelId);
                                     }
                                 } else {
-                                    console.error('resync channel failed', channelId, err);
+                                    logger.error('resync channel failed', channelId, err);
                                 }
                                 return;
                             }
+                            if (abort.signal.aborted) return;
                             if (resp.data.length > 0) {
                                 dispatch({ type: 'resyncLoaded', channelId, messages: resp.data });
                             }
@@ -174,8 +204,9 @@ export const useRealtimeController = ({
             offAck();
             offCreated();
             offError();
+            syncAbortRef.current?.abort();
         };
-    }, [client, clearTimer, clearAllTimers]);
+    }, [client, clearTimer, clearAllTimers, logger]);
 
     // StrictMode runs this effect twice in dev: connect() is idempotent and works after disconnect().
     useEffect(() => {
@@ -256,18 +287,24 @@ export const useRealtimeController = ({
             const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
             dispatch({ type: 'historyLoaded', channelId, messages: data.data, hasMore: data.hasMore });
         } catch (err) {
-            console.error('loadHistory failed', channelId, err);
-            dispatch({ type: 'historyLoaded', channelId, messages: [], hasMore: false });
+            logger.error('loadHistory failed', channelId, err);
+            dispatch({ type: 'historyFailed', channelId });
         } finally {
             historyFetching.current.delete(channelId);
         }
-    }, [api]);
+    }, [api, logger]);
+
+    const retryHistory = useCallback((channelId: string) => {
+        dispatch({ type: 'historyRetry', channelId });
+        historyFetching.current.delete(channelId);
+        loadHistory(channelId);
+    }, [loadHistory]);
 
     const loadMoreHistory = useCallback(async (channelId: string, beforeId: string) => {
         const hist = stateRef.current.historyByChannel[channelId];
         if (!hist?.hasMore || hist.loadingMore) return;
-        if (historyFetching.current.has(`more:${channelId}`)) return;
-        historyFetching.current.add(`more:${channelId}`);
+        if (loadMoreFetching.current.has(channelId)) return;
+        loadMoreFetching.current.add(channelId);
         dispatch({ type: 'loadingMoreHistory', channelId });
         try {
             const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`, {
@@ -275,17 +312,16 @@ export const useRealtimeController = ({
             });
             dispatch({ type: 'moreHistoryLoaded', channelId, messages: data.data, hasMore: data.hasMore });
         } catch (err) {
-            console.error('loadMoreHistory failed', channelId, err);
-            const current = stateRef.current.historyByChannel[channelId];
-            dispatch({ type: 'moreHistoryLoaded', channelId, messages: [], hasMore: current?.hasMore ?? false });
+            logger.error('loadMoreHistory failed', channelId, err);
+            dispatch({ type: 'loadMoreFailed', channelId });
         } finally {
-            historyFetching.current.delete(`more:${channelId}`);
+            loadMoreFetching.current.delete(channelId);
         }
-    }, [api]);
+    }, [api, logger]);
 
     const value = useMemo<RealtimeContextValue>(
-        () => ({ status, state, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, loadMoreHistory }),
-        [status, state, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, loadMoreHistory],
+        () => ({ status, state, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, retryHistory, loadMoreHistory }),
+        [status, state, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, retryHistory, loadMoreHistory],
     );
 
     return { value, suspend };
