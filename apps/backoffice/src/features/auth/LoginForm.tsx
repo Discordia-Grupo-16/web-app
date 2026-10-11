@@ -2,11 +2,21 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { useAuth, validateLoginInput } from '@discordia/core';
-import { authService } from '@/shared/api';
+import { api, authService } from '@/shared/api';
 import { isStaff } from './isStaff';
 import { loginErrorMessage } from './loginErrorMessage';
 
 const NOT_STAFF_MESSAGE = 'Esta cuenta no tiene acceso al backoffice.';
+
+// The login gave a session to an account that cannot use it: revoke it so it does not stay alive in
+// identity. Best-effort, and the token goes explicitly because nothing was stored for the api client.
+const revokeSession = async (token: string) => {
+    try {
+        await api.delete('/api/v1/sessions', { headers: { Authorization: `Bearer ${token}` } });
+    } catch {
+        // Ignored: the user sees the same error either way, and the session expires on its own.
+    }
+};
 
 const inputClass =
     'w-full px-4 py-3 rounded-lg text-sm text-white bg-discord-dark outline-none border-[1.5px] border-transparent placeholder-discord-muted focus:border-blurple';
@@ -39,6 +49,7 @@ export const LoginForm = () => {
             });
             // Without signIn nothing is stored: a non-staff account never gets a backoffice session.
             if (!isStaff(user)) {
+                await revokeSession(token);
                 setError(NOT_STAFF_MESSAGE);
                 return;
             }

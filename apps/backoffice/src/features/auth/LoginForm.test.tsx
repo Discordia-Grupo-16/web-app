@@ -4,19 +4,20 @@ import { AxiosError, type AxiosResponse } from 'axios';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '@discordia/core';
-import { authService } from '@/shared/api';
+import { api, authService } from '@/shared/api';
 import { backofficeAuthStorage, TOKEN_KEY, USER_KEY } from '@/shared/session/authStorage';
 import { LoginForm } from './LoginForm';
 
 const navigate = vi.fn();
 
-vi.mock('@/shared/api', () => ({ authService: { login: vi.fn() } }));
+vi.mock('@/shared/api', () => ({ authService: { login: vi.fn() }, api: { delete: vi.fn() } }));
 vi.mock('react-router-dom', async (importOriginal) => ({
     ...(await importOriginal<typeof import('react-router-dom')>()),
     useNavigate: () => navigate,
 }));
 
 const login = vi.mocked(authService.login);
+const revoke = vi.mocked(api.delete);
 
 const staff = { id: '1', email: 'staff@discordia.dev', name: 'Staff', role: 'staff' };
 const regularUser = { ...staff, id: '2', role: 'user' };
@@ -81,6 +82,44 @@ describe('LoginForm', () => {
         expect(await screen.findByText('Esta cuenta no tiene acceso al backoffice.')).toBeInTheDocument();
         expect(navigate).not.toHaveBeenCalled();
         expect(localStorage.length).toBe(0);
+    });
+
+    it('revokes the orphan session with the token of the login, without storing it', async () => {
+        login.mockResolvedValue({ token: 'orphan-token', refreshToken: 'r', user: regularUser });
+        revoke.mockResolvedValue({});
+        renderForm();
+
+        await fillAndSubmit('ana@correo.com', 'secret123');
+
+        await screen.findByText('Esta cuenta no tiene acceso al backoffice.');
+        expect(revoke).toHaveBeenCalledOnce();
+        expect(revoke).toHaveBeenCalledWith('/api/v1/sessions', {
+            headers: { Authorization: 'Bearer orphan-token' },
+        });
+        expect(localStorage.length).toBe(0);
+    });
+
+    it('shows the same error when revoking the orphan session fails', async () => {
+        login.mockResolvedValue({ token: 'orphan-token', refreshToken: 'r', user: regularUser });
+        revoke.mockRejectedValue(new AxiosError('Network Error', 'ERR_NETWORK'));
+        renderForm();
+
+        await fillAndSubmit('ana@correo.com', 'secret123');
+
+        expect(await screen.findByText('Esta cuenta no tiene acceso al backoffice.')).toBeInTheDocument();
+        expect(revoke).toHaveBeenCalledOnce();
+        expect(navigate).not.toHaveBeenCalled();
+        expect(localStorage.length).toBe(0);
+    });
+
+    it('does not revoke anything when the account is staff', async () => {
+        login.mockResolvedValue({ token: 't', refreshToken: 'r', user: staff });
+        renderForm();
+
+        await fillAndSubmit('staff@discordia.dev', 'secret123');
+
+        await waitFor(() => expect(navigate).toHaveBeenCalled());
+        expect(revoke).not.toHaveBeenCalled();
     });
 
     it.each([
