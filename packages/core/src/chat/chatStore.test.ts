@@ -202,7 +202,7 @@ describe('chatReducer — historial', () => {
     it('historyLoaded stores messages and marks the channel as loaded', () => {
         const s = run([historyLoaded([histMsg('m1'), histMsg('m2')])]);
         expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2']);
-        expect(s.historyByChannel.ch1).toEqual({ loaded: true, hasMore: false, loadingMore: false });
+        expect(s.historyByChannel.ch1).toMatchObject({ loaded: true, hasMore: false, loadingMore: false });
     });
 
     it('historyLoaded with hasMore=true forwards that flag', () => {
@@ -227,7 +227,7 @@ describe('chatReducer — historial', () => {
     it('historyLoaded on an empty channel with no messages sets loaded and empty list', () => {
         const s = run([historyLoaded([])]);
         expect(s.byChannel.ch1 ?? []).toHaveLength(0);
-        expect(s.historyByChannel.ch1).toEqual({ loaded: true, hasMore: false, loadingMore: false });
+        expect(s.historyByChannel.ch1).toMatchObject({ loaded: true, hasMore: false, loadingMore: false });
     });
 
     it('loadingMoreHistory sets loadingMore to true', () => {
@@ -248,7 +248,7 @@ describe('chatReducer — historial', () => {
             moreHistoryLoaded([histMsg('m1'), histMsg('m2')]),
         ]);
         expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2', 'm3', 'm4']);
-        expect(s.historyByChannel.ch1).toEqual({ loaded: true, hasMore: false, loadingMore: false });
+        expect(s.historyByChannel.ch1).toMatchObject({ loaded: true, hasMore: false, loadingMore: false });
     });
 
     it('moreHistoryLoaded deduplicates messages already in the channel', () => {
@@ -259,14 +259,56 @@ describe('chatReducer — historial', () => {
         expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2', 'm3']);
     });
 
-    it('moreHistoryLoaded respects MAX_MESSAGES_PER_CHANNEL', () => {
+    it('moreHistoryLoaded preserves all existing messages — no newest are discarded', () => {
         const initial = Array.from({ length: MAX_MESSAGES_PER_CHANNEL }, (_, i) => histMsg(`existing-${i}`));
         const s = run([
             historyLoaded(initial, true),
             moreHistoryLoaded([histMsg('older-1'), histMsg('older-2')]),
         ]);
-        expect(s.byChannel.ch1).toHaveLength(MAX_MESSAGES_PER_CHANNEL);
+        expect(s.byChannel.ch1).toHaveLength(MAX_MESSAGES_PER_CHANNEL + 2);
         expect(s.byChannel.ch1[0].messageId).toBe('older-1');
+        expect(s.byChannel.ch1[s.byChannel.ch1.length - 1].messageId).toBe(`existing-${MAX_MESSAGES_PER_CHANNEL - 1}`);
+    });
+
+    it('resyncLoaded sorts merged messages by (createdAt, messageId) when a live message arrived out of order', () => {
+        const m1 = { ...histMsg('m1'), createdAt: '2026-01-01T00:00:00.000Z' };
+        const m3 = { ...histMsg('m3'), createdAt: '2026-01-01T00:00:02.000Z' };
+        const m2 = { ...histMsg('m2'), createdAt: '2026-01-01T00:00:01.000Z' };
+        const m4 = { ...histMsg('m4'), createdAt: '2026-01-01T00:00:03.000Z' };
+        const withLive = run([
+            historyLoaded([m1]),
+            { type: 'created', frame: { type: 'message.created', messageId: 'm3', channelId: 'ch1', serverId: 's1', authorId: 'u1', content: 'x', createdAt: '2026-01-01T00:00:02.000Z', clientMessageId: 'c-m3' } },
+        ]);
+        const s = chatReducer(withLive, { type: 'resyncLoaded', channelId: 'ch1', messages: [m2, m4] });
+        expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2', 'm3', 'm4']);
+    });
+
+    it('historyFailed marks the channel with error and loaded=false', () => {
+        const s = run([{ type: 'historyFailed', channelId: 'ch1' }]);
+        expect(s.historyByChannel.ch1).toMatchObject({ loaded: false, error: true });
+    });
+
+    it('historyRetry clears the error and sets loaded=false to allow re-fetch', () => {
+        const s = run([
+            { type: 'historyFailed', channelId: 'ch1' },
+            { type: 'historyRetry', channelId: 'ch1' },
+        ]);
+        expect(s.historyByChannel.ch1).toMatchObject({ error: false, loaded: false });
+    });
+
+    it('historyRetry is a no-op when there is no error', () => {
+        const before = run([historyLoaded([histMsg('m1')])]);
+        const after = chatReducer(before, { type: 'historyRetry', channelId: 'ch1' });
+        expect(after).toBe(before);
+    });
+
+    it('loadMoreFailed clears loadingMore and sets loadMoreError', () => {
+        const s = run([
+            historyLoaded([histMsg('m1')], true),
+            { type: 'loadingMoreHistory', channelId: 'ch1' },
+            { type: 'loadMoreFailed', channelId: 'ch1' },
+        ]);
+        expect(s.historyByChannel.ch1).toMatchObject({ loadingMore: false, loadMoreError: true, hasMore: true });
     });
 
     it('resyncLoaded appends missed messages after the last known one', () => {
