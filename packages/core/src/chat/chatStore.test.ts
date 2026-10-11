@@ -277,7 +277,7 @@ describe('chatReducer — historial', () => {
         const m4 = { ...histMsg('m4'), createdAt: '2026-01-01T00:00:03.000Z' };
         const withLive = run([
             historyLoaded([m1]),
-            { type: 'created', frame: { type: 'message.created', messageId: 'm3', channelId: 'ch1', serverId: 's1', authorId: 'u1', content: 'x', createdAt: '2026-01-01T00:00:02.000Z', clientMessageId: 'c-m3' } },
+            { type: 'created', frame: { type: 'message.created', messageId: 'm3', channelId: 'ch1', serverId: 's1', authorId: 'u1', content: 'x', createdAt: m3.createdAt, clientMessageId: 'c-m3' } },
         ]);
         const s = chatReducer(withLive, { type: 'resyncLoaded', channelId: 'ch1', messages: [m2, m4] });
         expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2', 'm3', 'm4']);
