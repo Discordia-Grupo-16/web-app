@@ -3,13 +3,15 @@ import { useAuth } from '@discordia/core';
 import { buildLoginPath } from './returnTo';
 
 export const ProtectedRoute = () => {
-    const { user, isLoading } = useAuth();
+    const { user, isLoading, signedOutByUser } = useAuth();
     const { pathname, search, hash } = useLocation();
 
     if (isLoading) return null;
 
     if (!user) {
-        return <Navigate to={buildLoginPath(`${pathname}${search}${hash}`)} replace />;
+        // Closing the session on purpose does not leave a pending destination for the next login.
+        const pending = signedOutByUser ? '/' : `${pathname}${search}${hash}`;
+        return <Navigate to={buildLoginPath(pending)} replace />;
     }
 
     return <Outlet />;

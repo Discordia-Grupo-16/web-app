@@ -5,6 +5,7 @@ import { AuthProvider, PublicProfilesProvider } from '@discordia/core';
 import { router } from '@/app/router';
 import { authService, userService } from '@/shared/api';
 import { webAuthStorage } from '@/shared/session/authStorage';
+import { sessionExpiry } from '@/shared/session/sessionExpiry';
 import './index.css';
 
 // The public profile cache is per session: drop it before logging out.
@@ -13,9 +14,12 @@ const signOut = async () => {
   await authService.logout();
 };
 
+// An expired session also ends the profile cache of that session.
+sessionExpiry.subscribe(() => userService.clearPublicProfiles());
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider storage={webAuthStorage} onSignOut={signOut}>
+    <AuthProvider storage={webAuthStorage} onSignOut={signOut} sessionExpiry={sessionExpiry}>
       <PublicProfilesProvider source={userService}>
         <RouterProvider router={router} />
       </PublicProfilesProvider>
