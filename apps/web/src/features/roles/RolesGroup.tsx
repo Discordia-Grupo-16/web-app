@@ -1,13 +1,14 @@
-import { Plus, Shield } from 'lucide-react';
+import { Pencil, Plus, Shield } from 'lucide-react';
 import type { Role } from '@discordia/api';
 
 interface RolesGroupProps {
     roles: Role[];
     canManage: boolean;
     onAdd: () => void;
+    onEdit: (role: Role) => void;
 }
 
-export const RolesGroup = ({ roles, canManage, onAdd }: RolesGroupProps) => (
+export const RolesGroup = ({ roles, canManage, onAdd, onEdit }: RolesGroupProps) => (
     <div className="mb-4">
         <div className="flex items-center justify-between px-2 py-1 group">
             <span
@@ -31,11 +32,26 @@ export const RolesGroup = ({ roles, canManage, onAdd }: RolesGroupProps) => (
         {roles.map(role => (
             <div
                 key={role.id}
-                className="flex items-center gap-2 text-sm px-2 py-1.5 mx-1 rounded"
+                className="group/role flex items-center gap-2 text-sm px-2 py-1.5 mx-1 rounded"
                 style={{ color: '#8e9297' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#34373c')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
                 <Shield size={14} style={{ flexShrink: 0 }} />
-                <span className="truncate">{role.name}</span>
+                <span className="truncate flex-1">{role.name}</span>
+
+                {canManage && (
+                    <button
+                        onClick={() => onEdit(role)}
+                        className="opacity-0 group-hover/role:opacity-100 transition-opacity p-1 rounded shrink-0"
+                        style={{ color: '#8e9297' }}
+                        title={`Editar permisos de ${role.name}`}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                    >
+                        <Pencil size={13} />
+                    </button>
+                )}
             </div>
         ))}
     </div>

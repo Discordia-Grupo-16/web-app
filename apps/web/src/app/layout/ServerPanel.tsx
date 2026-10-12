@@ -10,7 +10,7 @@ export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
     const { server, loading: loadingServer, updateChannels } = useServer(serverId, channelId);
-    const { roles, loading: loadingRoles, addRole } = useRoles(serverId);
+    const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
 
     const loading = loadingServer || loadingRoles;
     const isOwner = !!user && server?.owner_id === user.id;
@@ -43,6 +43,7 @@ export const ServerPanel = () => {
                             roles={roles}
                             canManage={isOwner}
                             onRoleCreated={addRole}
+                            onRoleUpdated={updateRole}
                         />
                     </>
                 )}
