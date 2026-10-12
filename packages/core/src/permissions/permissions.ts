@@ -10,6 +10,9 @@
  * and mobile cannot drift apart.
  */
 
+/** No permission at all. The safe default when the server has not loaded yet. */
+export const NONE = 0;
+
 export const VIEW_CHANNEL = 1 << 0;
 export const SEND_MESSAGES = 1 << 1;
 export const CONNECT = 1 << 2;

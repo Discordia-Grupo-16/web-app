@@ -1,5 +1,11 @@
 import { useParams } from 'react-router-dom';
-import { useAuth } from '@discordia/core';
+import {
+    MANAGE_CHANNELS,
+    MANAGE_ROLES,
+    NONE,
+    hasPermission,
+    useAuth,
+} from '@discordia/core';
 import { ChannelList } from '@/features/channels';
 import { InviteButton } from '@/features/invitations';
 import { RolesSection, useRoles } from '@/features/roles';
@@ -13,6 +19,13 @@ export const ServerPanel = () => {
     const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
 
     const loading = loadingServer || loadingRoles;
+
+    // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
+    // showing a button that then disappears is worse than showing it one render late.
+    const permissions = server?.my_permissions ?? NONE;
+
+    // Leaving is not a permission but a condition: the owner cannot leave their own server, they
+    // delete it. That is why this is still an ownership check and not a bit.
     const isOwner = !!user && server?.owner_id === user.id;
 
     return (
@@ -35,13 +48,13 @@ export const ServerPanel = () => {
                             serverId={serverId}
                             channels={server?.channels ?? []}
                             activeChannelId={channelId}
-                            canManage={isOwner}
+                            canManage={hasPermission(permissions, MANAGE_CHANNELS)}
                             onChannelsChange={updateChannels}
                         />
                         <RolesSection
                             serverId={serverId}
                             roles={roles}
-                            canManage={isOwner}
+                            canManage={hasPermission(permissions, MANAGE_ROLES)}
                             onRoleCreated={addRole}
                             onRoleUpdated={updateRole}
                         />
