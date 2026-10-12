@@ -13,6 +13,7 @@ const role = (id: string, name: string): Role => ({
     name,
     is_default: false,
     permissions: 0,
+    permission_names: [],
     position: 0,
     created_at: '2026-10-01T00:00:00Z',
 });
