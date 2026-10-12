@@ -7,6 +7,7 @@ import {
     useAuth,
 } from '@discordia/core';
 import { ChannelList } from '@/features/channels';
+import { MembersSection, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
 import { RolesSection, useRoles } from '@/features/roles';
 import { LeaveServerButton, ServerHeader, useServer } from '@/features/servers';
@@ -17,8 +18,9 @@ export const ServerPanel = () => {
     const { user } = useAuth();
     const { server, loading: loadingServer, updateChannels } = useServer(serverId, channelId);
     const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
+    const { members, loading: loadingMembers, setMemberRoles } = useMembers(serverId);
 
-    const loading = loadingServer || loadingRoles;
+    const loading = loadingServer || loadingRoles || loadingMembers;
 
     // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
     // showing a button that then disappears is worse than showing it one render late.
@@ -57,6 +59,14 @@ export const ServerPanel = () => {
                             canManage={hasPermission(permissions, MANAGE_ROLES)}
                             onRoleCreated={addRole}
                             onRoleUpdated={updateRole}
+                        />
+                        <MembersSection
+                            serverId={serverId}
+                            members={members}
+                            roles={roles}
+                            ownerId={server?.owner_id}
+                            canManage={hasPermission(permissions, MANAGE_ROLES)}
+                            onRolesChange={setMemberRoles}
                         />
                     </>
                 )}
