@@ -9,6 +9,8 @@ interface MessageComposerProps {
     onSend: (content: string) => void;
     rejected: RejectedMessage | null;
     onRejectedHandled: () => void;
+    /** SEND_MESSAGES, resolved by `community`. The backend checks it too: this only hides it. */
+    canSendMessages: boolean;
 }
 
 const MAX_TEXTAREA_HEIGHT_PX = 8 * 24;
@@ -21,6 +23,7 @@ export const MessageComposer = ({
     onSend,
     rejected,
     onRejectedHandled,
+    canSendMessages,
 }: MessageComposerProps) => {
     const [content, setContent] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -29,7 +32,7 @@ export const MessageComposer = ({
     // The server limit counts runes (code points), so [...content] instead of content.length: an emoji is 1.
     const length = [...content].length;
     const tooLong = length > maxLength;
-    const canSend = content.trim() !== '' && !tooLong && status === 'open';
+    const canSend = canSendMessages && content.trim() !== '' && !tooLong && status === 'open';
 
     useEffect(() => {
         const el = textareaRef.current;
@@ -79,7 +82,12 @@ export const MessageComposer = ({
                         setError(null);
                     }}
                     onKeyDown={handleKeyDown}
-                    placeholder={`Enviar mensaje a #${channelName}`}
+                    disabled={!canSendMessages}
+                    placeholder={
+                        canSendMessages
+                            ? `Enviar mensaje a #${channelName}`
+                            : `No tenés permiso para escribir en #${channelName}`
+                    }
                     className="flex-1 resize-none bg-transparent outline-none text-sm leading-6"
                     style={{ color: '#dcddde' }}
                 />
