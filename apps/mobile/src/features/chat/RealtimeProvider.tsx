@@ -4,6 +4,7 @@ import { createRealtimeClient } from '@discordia/api';
 import { RealtimeContext, useAuth, useRealtimeController } from '@discordia/core';
 import { WS_URL } from '@/shared/config/env';
 import { mobileAuthStorage } from '@/shared/session/authStorage';
+import { api } from '@/shared/api';
 import { newClientMessageId } from './clientMessageId';
 
 export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
@@ -15,7 +16,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     }
     return createRealtimeClient({ url: WS_URL, getToken: mobileAuthStorage.getToken });
   });
-  const { value, suspend } = useRealtimeController({ client, token, newClientMessageId });
+  const { value, suspend } = useRealtimeController({ client, token, newClientMessageId, api, logger: console });
 
   // Android may freeze the process in the background and kill the socket without a clean close, and an
   // idle socket drains battery. Only 'background' closes it: 'inactive' also fires for system dialogs on iOS.

@@ -50,6 +50,8 @@ describe('useRealtimeController', () => {
                 client: fake.client,
                 token: 'token',
                 newClientMessageId: () => `msg-${++ids}`,
+                api: { get: vi.fn().mockResolvedValue({ data: { data: [], hasMore: false } }) },
+                logger: { error: vi.fn() },
                 ...overrides,
             },
         });
@@ -65,7 +67,7 @@ describe('useRealtimeController', () => {
         const { rerender } = render();
         expect(fake.client.connect).toHaveBeenCalledTimes(1);
 
-        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x' });
+        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x', api: { get: vi.fn() }, logger: { error: vi.fn() } });
         expect(fake.client.disconnect).toHaveBeenCalled();
     });
 
@@ -168,5 +170,103 @@ describe('useRealtimeController', () => {
         fake.emit('stateChange', 'open');
         fake.emit('stateChange', 'closed');
         expect(result.current.value.status).toBe('closed');
+    });
+
+    it('resyncs on every open, not only after reconnecting (covers mobile suspend/resume)', async () => {
+        const msg = { messageId: 'm1', clientMessageId: 'c1', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'x', createdAt: '2026-01-01T00:00:00Z' };
+        const apiGet = vi.fn()
+            .mockResolvedValueOnce({ data: { data: [msg], hasMore: false } })
+            .mockResolvedValue({ data: { data: [], hasMore: false } });
+        const { result } = render({ api: { get: apiGet } });
+
+        // Initial open: load history
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            result.current.value.loadHistory(CHANNEL);
+            await Promise.resolve();
+        });
+        apiGet.mockClear();
+
+        // Simulate mobile resume: closed → open without going through reconnecting
+        fake.emit('stateChange', 'closed');
+        fake.emit('stateChange', 'open');
+        await act(async () => { await Promise.resolve(); });
+
+        expect(apiGet).toHaveBeenCalled();
+    });
+
+    it('paginates resync when the server returns hasMore=true', async () => {
+        const msg1 = { messageId: 'm1', clientMessageId: 'c1', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'a', createdAt: '2026-01-01T00:00:00Z' };
+        const msg2 = { messageId: 'm2', clientMessageId: 'c2', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'b', createdAt: '2026-01-01T00:00:01Z' };
+        const msg3 = { messageId: 'm3', clientMessageId: 'c3', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'c', createdAt: '2026-01-01T00:00:02Z' };
+        const apiGet = vi.fn()
+            .mockResolvedValueOnce({ data: { data: [msg1], hasMore: false } })
+            .mockResolvedValueOnce({ data: { data: [msg2], hasMore: true } })
+            .mockResolvedValueOnce({ data: { data: [msg3], hasMore: false } });
+        const { result } = render({ api: { get: apiGet } });
+
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            result.current.value.loadHistory(CHANNEL);
+            await Promise.resolve();
+        });
+
+        fake.emit('stateChange', 'closed');
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+
+        expect(result.current.value.state.byChannel[CHANNEL]?.map((m) => m.messageId)).toContain('m3');
+    });
+
+    it('dispatches historyFailed when loadHistory throws and retryHistory re-fetches', async () => {
+        const apiGet = vi.fn()
+            .mockRejectedValueOnce(new Error('network error'))
+            .mockResolvedValueOnce({ data: { data: [], hasMore: false } });
+        const { result } = render({ api: { get: apiGet } });
+
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            result.current.value.loadHistory(CHANNEL);
+            await Promise.resolve();
+        });
+
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.error).toBe(true);
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.loaded).toBe(false);
+
+        await act(async () => {
+            result.current.value.retryHistory(CHANNEL);
+            await Promise.resolve();
+        });
+
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.error).toBe(false);
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.loaded).toBe(true);
+    });
+
+    it('stale ?after anchor (404) triggers historyReset and reloads', async () => {
+        const msg = { messageId: 'm1', clientMessageId: 'c1', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'x', createdAt: '2026-01-01T00:00:00Z' };
+        const freshMsg = { messageId: 'm2', clientMessageId: 'c2', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'y', createdAt: '2026-01-01T00:00:01Z' };
+        const apiGet = vi.fn()
+            .mockResolvedValueOnce({ data: { data: [msg], hasMore: false } })
+            .mockRejectedValueOnce(Object.assign(new Error('not found'), { response: { status: 404 } }))
+            .mockResolvedValueOnce({ data: { data: [freshMsg], hasMore: false } });
+        const { result } = render({ api: { get: apiGet } });
+
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            result.current.value.loadHistory(CHANNEL);
+            await Promise.resolve();
+        });
+
+        fake.emit('stateChange', 'closed');
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+
+        expect(result.current.value.state.byChannel[CHANNEL]?.map((m) => m.messageId)).toEqual(['m2']);
     });
 });
