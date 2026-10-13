@@ -1,18 +1,8 @@
 import { useSearchParams } from 'react-router-dom';
+import { RETURN_TO_PARAM, sanitizeReturnTo } from '@discordia/core';
 
-export const RETURN_TO_PARAM = 'returnTo';
+export { RETURN_TO_PARAM, sanitizeReturnTo };
 export const LOGIN_PATH = '/home';
-
-/**
- * Only internal paths are valid destinations: otherwise the login link would be an open redirect
- * (`/home?returnTo=//evil.com` or `?returnTo=https://evil.com`).
- */
-export const sanitizeReturnTo = (value: string | null | undefined): string | null => {
-    if (!value) return null;
-    if (!value.startsWith('/') || value.startsWith('//')) return null;
-    if (value.includes('://') || value.includes('\\')) return null;
-    return value;
-};
 
 /** The login URL that brings the user back to `destination` once the session is open. */
 export const buildLoginPath = (destination: string): string => {
