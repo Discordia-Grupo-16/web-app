@@ -41,9 +41,13 @@ export function EditProfileScreen() {
             setAvatarPreview(asset.uri);
 
             const fileName = asset.uri.split('/').pop() || 'avatar.jpg';
-            const match = /\.(\w+)$/.exec(fileName);
-            const type = match ? `image/${match[1]}` : `image/jpeg`;
 
+            let type = asset.mimeType;
+            if (!type) {
+                const match = /\.(\w+)$/.exec(fileName);
+                type = match ? `image/${match[1]}` : `image/jpeg`;
+                if (type === 'image/jpg') type = 'image/jpeg'
+            }
 
             setNewAvatarFile({
                 uri: asset.uri,

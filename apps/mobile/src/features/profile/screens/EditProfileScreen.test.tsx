@@ -193,7 +193,7 @@ describe('EditProfileScreen', () => {
       expect(userService.editAvatar).toHaveBeenCalledWith({
         uri: 'file:///path/profile.jpg',
         name: 'profile.jpg',
-        type: 'image/jpg',
+        type: 'image/jpeg',
       });
       expect(mockUpdateUser).toHaveBeenCalledWith(updatedUser);
       expect(mockBack).toHaveBeenCalled();
