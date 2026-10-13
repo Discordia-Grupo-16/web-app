@@ -11,7 +11,7 @@ export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { user } = useAuth();
   const { server, loading: loadingServer, updateChannels, setLeaving } = useServerDetails(serverId);
-  const { roles, loading: loadingRoles, addRole } = useRoles(serverId);
+  const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
 
   if (loadingServer || loadingRoles || !server) {
     return (
@@ -32,7 +32,13 @@ export default function ServerScreen() {
           canManage={isOwner}
           onChannelsChange={updateChannels}
         />
-        <RolesSection serverId={server.id} roles={roles} canManage={isOwner} onRoleCreated={addRole} />
+        <RolesSection
+          serverId={server.id}
+          roles={roles}
+          canManage={isOwner}
+          onRoleCreated={addRole}
+          onRoleUpdated={updateRole}
+        />
         <InvitationsSection serverId={server.id} canManage={isOwner} />
         <ServerActions server={server} isOwner={isOwner} onLeavingChange={setLeaving} />
       </ScrollView>
