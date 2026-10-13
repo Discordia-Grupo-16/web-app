@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { SendHorizontal } from 'lucide-react';
-import type { RealtimeStatus, RejectedMessage } from '@discordia/core';
+import { PERMISSION_COPY, type RealtimeStatus, type RejectedMessage } from '@discordia/core';
 
 interface MessageComposerProps {
     channelName: string;
@@ -85,8 +85,8 @@ export const MessageComposer = ({
                     disabled={!canSendMessages}
                     placeholder={
                         canSendMessages
-                            ? `Enviar mensaje a #${channelName}`
-                            : `No tenés permiso para escribir en #${channelName}`
+                            ? PERMISSION_COPY.sendMessage(channelName)
+                            : PERMISSION_COPY.cannotSendMessage(channelName)
                     }
                     className="flex-1 resize-none bg-transparent outline-none text-sm leading-6"
                     style={{ color: '#dcddde' }}

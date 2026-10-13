@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import {
+    ADMINISTRATOR,
+    PERMISSION_BY_NAME,
+    PERMISSION_COPY,
     PERMISSION_HINT,
     PERMISSION_LABEL,
     PERMISSION_ORDER,
-    PERMISSION_BY_NAME,
-    ADMINISTRATOR,
     hasPermission,
     togglePermission,
     toPermissionNames,
@@ -43,7 +44,7 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
             // The hierarchy lives in the backend: it knows which roles the caller has and
             // this screen does not, so a role above the caller's own is rejected here with
             // the reason it gives.
-            setError(getErrorDetail(err) ?? 'Error al editar los permisos');
+            setError(getErrorDetail(err) ?? PERMISSION_COPY.rolePermissionsError);
         } finally {
             setLoading(false);
         }
@@ -65,7 +66,7 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
                 </button>
 
                 <h2 className="text-xl font-black text-white mb-1" style={{ fontFamily: 'Nunito, sans-serif' }}>
-                    Permisos del rol
+                    {PERMISSION_COPY.rolePermissionsTitle}
                 </h2>
                 <p className="text-sm mb-6" style={{ color: '#99aab5' }}>
                     {role.name}
@@ -104,11 +105,8 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
                     </div>
 
                     {isAdministrator && (
-                        // The other boxes are left as they are instead of being shown ticked: what
-                        // gets saved is what is ticked, and the implication is resolved by the
-                        // backend. Saying so is clearer than drawing a state that is not stored.
                         <p role="status" className="text-xs mt-4" style={{ color: '#faa61a' }}>
-                            Con «Administrador» el rol tiene todos los permisos, estén marcados o no.
+                            {PERMISSION_COPY.administratorNotice}
                         </p>
                     )}
 
@@ -127,7 +125,7 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
                             cursor: loading || unchanged ? 'not-allowed' : 'pointer',
                         }}
                     >
-                        {loading ? 'Guardando...' : 'Guardar cambios'}
+                        {loading ? PERMISSION_COPY.saving : PERMISSION_COPY.save}
                     </button>
                 </form>
             </div>

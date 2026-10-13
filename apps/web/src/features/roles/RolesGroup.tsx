@@ -1,4 +1,5 @@
 import { Pencil, Plus, Shield } from 'lucide-react';
+import { PERMISSION_COPY } from '@discordia/core';
 import type { Role } from '@discordia/api';
 
 interface RolesGroupProps {
@@ -45,7 +46,7 @@ export const RolesGroup = ({ roles, canManage, onAdd, onEdit }: RolesGroupProps)
                         onClick={() => onEdit(role)}
                         className="opacity-0 group-hover/role:opacity-100 transition-opacity p-1 rounded shrink-0"
                         style={{ color: '#8e9297' }}
-                        title={`Editar permisos de ${role.name}`}
+                        title={PERMISSION_COPY.editRolePermissions(role.name)}
                         onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
                         onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
                     >

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Crown, Pencil } from 'lucide-react';
-import { authorView, useAuth, usePublicProfiles } from '@discordia/core';
+import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
 import { MemberRolesModal } from './MemberRolesModal';
@@ -40,7 +40,7 @@ export const MembersSection = ({
                     className="text-xs font-semibold uppercase tracking-wider"
                     style={{ color: '#8e9297' }}
                 >
-                    Miembros — {members.length}
+                    {PERMISSION_COPY.membersTitle(members.length)}
                 </span>
             </div>
 
@@ -65,7 +65,7 @@ export const MembersSection = ({
                             onMouseLeave={e => (e.currentTarget.style.color = 'inherit')}
                         >
                             {isOwner && (
-                                <span title="Dueño del servidor" style={{ display: 'flex', flexShrink: 0 }}>
+                                <span title={PERMISSION_COPY.ownerMark} style={{ display: 'flex', flexShrink: 0 }}>
                                     <Crown size={13} style={{ color: '#faa61a' }} />
                                 </span>
                             )}
@@ -84,7 +84,7 @@ export const MembersSection = ({
                                 onClick={() => setEditing(user_id)}
                                 className="opacity-0 group-hover/member:opacity-100 transition-opacity p-1 rounded shrink-0"
                                 style={{ color: '#8e9297' }}
-                                title={`Editar roles de ${nameOf(user_id)}`}
+                                title={PERMISSION_COPY.editMemberRoles(nameOf(user_id))}
                                 onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
                                 onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
                             >

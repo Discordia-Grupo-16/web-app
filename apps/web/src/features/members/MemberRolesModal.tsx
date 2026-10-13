@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { PERMISSION_COPY } from '@discordia/core';
 import { getErrorDetail, type Role, type ServerMember } from '@discordia/api';
 import { rolesService } from '@/shared/api';
 
@@ -51,7 +52,7 @@ export const MemberRolesModal = ({
             // The hierarchy is the backend's: it knows the roles of the caller and of the
             // target, and this screen does not. The list is left untouched, so the tick
             // goes back to what the server still holds.
-            setError(getErrorDetail(err) ?? 'No se pudo cambiar el rol');
+            setError(getErrorDetail(err) ?? PERMISSION_COPY.memberRoleError);
         } finally {
             setPending(null);
         }
@@ -73,7 +74,7 @@ export const MemberRolesModal = ({
                 </button>
 
                 <h2 className="text-xl font-black text-white mb-1" style={{ fontFamily: 'Nunito, sans-serif' }}>
-                    Roles del miembro
+                    {PERMISSION_COPY.memberRolesTitle}
                 </h2>
                 <p className="text-sm mb-6" style={{ color: '#99aab5' }}>
                     {memberName}
@@ -81,7 +82,7 @@ export const MemberRolesModal = ({
 
                 {roles.length === 0 ? (
                     <p className="text-sm" style={{ color: '#99aab5' }}>
-                        Este servidor todavía no tiene roles. Creá uno para poder asignarlo.
+                        {PERMISSION_COPY.noRolesYet}
                     </p>
                 ) : (
                     <div className="space-y-1 max-h-80 overflow-y-auto -mx-2 px-2">
