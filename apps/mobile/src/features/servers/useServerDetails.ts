@@ -40,13 +40,21 @@ export const useServerDetails = (serverId: string | undefined) => {
     };
   }, [serverId, navigation, router]);
 
-  // Channels created or deleted from another client show up on focus and on the next poll.
+  // Channels created or deleted from another client, and permissions changed by someone else,
+  // show up on focus and on the next poll.
   const goneRef = useRef(false);
   useFocusedPolling(() => {
     if (!serverId || goneRef.current) return;
     serversService.getServer(serverId)
       .then(srv => {
-        setServer(prev => prev && prev.id === srv.id ? { ...prev, channels: srv.channels } : prev);
+        // Only the fields that change behind our back: replacing the whole server would throw
+        // away a channel the user just created but the poll has not seen yet.
+        setServer(prev => prev && prev.id === srv.id ? {
+          ...prev,
+          channels: srv.channels,
+          my_permissions: srv.my_permissions,
+          my_permission_names: srv.my_permission_names,
+        } : prev);
       })
       .catch(err => {
         if (!isGoneError(err) || goneRef.current) return;

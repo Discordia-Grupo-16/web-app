@@ -1,7 +1,7 @@
 import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
-import { useAuth } from '@discordia/core';
+import { MANAGE_CHANNELS, MANAGE_ROLES, NONE, hasPermission, useAuth } from '@discordia/core';
 import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
 import { RolesSection, useRoles } from '@/features/roles';
@@ -21,6 +21,13 @@ export default function ServerScreen() {
     );
   }
 
+  // What the caller can do comes resolved from `community` (ADR-0011).
+  const permissions = server.my_permissions ?? NONE;
+  const canManageChannels = hasPermission(permissions, MANAGE_CHANNELS);
+  const canManageRoles = hasPermission(permissions, MANAGE_ROLES);
+
+  // Leaving is not a permission but a condition: the owner cannot leave their own server, they
+  // delete it. That is why this is still an ownership check and not a bit.
   const isOwner = !!user && server.owner_id === user.id;
 
   return (
@@ -29,13 +36,13 @@ export default function ServerScreen() {
         <ChannelSection
           serverId={server.id}
           channels={server.channels}
-          canManage={isOwner}
+          canManage={canManageChannels}
           onChannelsChange={updateChannels}
         />
         <RolesSection
           serverId={server.id}
           roles={roles}
-          canManage={isOwner}
+          canManage={canManageRoles}
           onRoleCreated={addRole}
           onRoleUpdated={updateRole}
         />
