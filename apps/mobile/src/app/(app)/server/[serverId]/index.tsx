@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { MANAGE_CHANNELS, MANAGE_ROLES, NONE, hasPermission, useAuth } from '@discordia/core';
 import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
+import { MembersSection, useMembers } from '@/features/members';
 import { RolesSection, useRoles } from '@/features/roles';
 import { ServerActions, useServerDetails } from '@/features/servers';
 
@@ -12,8 +13,9 @@ export default function ServerScreen() {
   const { user } = useAuth();
   const { server, loading: loadingServer, updateChannels, setLeaving } = useServerDetails(serverId);
   const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
+  const { members, loading: loadingMembers, setMemberRoles } = useMembers(serverId);
 
-  if (loadingServer || loadingRoles || !server) {
+  if (loadingServer || loadingRoles || loadingMembers || !server) {
     return (
       <View className="flex-1 items-center justify-center bg-[#23272a]">
         <ActivityIndicator color="#7289da" />
@@ -45,6 +47,14 @@ export default function ServerScreen() {
           canManage={canManageRoles}
           onRoleCreated={addRole}
           onRoleUpdated={updateRole}
+        />
+        <MembersSection
+          serverId={server.id}
+          members={members}
+          roles={roles}
+          ownerId={server.owner_id}
+          canManage={canManageRoles}
+          onRolesChange={setMemberRoles}
         />
         <InvitationsSection serverId={server.id} canManage={isOwner} />
         <ServerActions server={server} isOwner={isOwner} onLeavingChange={setLeaving} />
