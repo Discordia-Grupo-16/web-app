@@ -1,9 +1,13 @@
 import { useParams } from 'react-router-dom';
-import { useAuth } from '@discordia/core';
+import type { Channel } from '@discordia/api';
+import { useAuth, useVoice, useVoiceCallParticipants, type VoiceParticipant } from '@discordia/core';
 import { ChannelList } from '@/features/channels';
 import { InviteButton } from '@/features/invitations';
 import { RolesSection, useRoles } from '@/features/roles';
 import { LeaveServerButton, ServerHeader, useServer } from '@/features/servers';
+import { VoiceParticipantList } from '@/features/voice';
+
+const NO_PARTICIPANTS: VoiceParticipant[] = [];
 
 // Second column of the layout: the selected server with its channels and roles.
 export const ServerPanel = () => {
@@ -11,6 +15,13 @@ export const ServerPanel = () => {
     const { user } = useAuth();
     const { server, loading: loadingServer, updateChannels } = useServer(serverId, channelId);
     const { roles, loading: loadingRoles, addRole } = useRoles(serverId);
+
+    const { call } = useVoice();
+    const callChannelId = call.status === 'connected' ? call.channel.id : null;
+    const callParticipants = useVoiceCallParticipants(call.status === 'connected' ? call.participants : NO_PARTICIPANTS);
+    // Only the channel of the call shows who is in it. Another server does not list that channel.
+    const renderBelowChannel = (channel: Channel) =>
+        channel.id === callChannelId ? <VoiceParticipantList participants={callParticipants} /> : null;
 
     const loading = loadingServer || loadingRoles;
     const isOwner = !!user && server?.owner_id === user.id;
@@ -37,6 +48,7 @@ export const ServerPanel = () => {
                             activeChannelId={channelId}
                             canManage={isOwner}
                             onChannelsChange={updateChannels}
+                            renderBelowChannel={renderBelowChannel}
                         />
                         <RolesSection
                             serverId={serverId}
