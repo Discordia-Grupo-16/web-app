@@ -62,33 +62,46 @@ export function EditProfileScreen() {
 
         setErrorMessage(null);
         setIsSaving(true);
-        try {
-            let finalUserData = null;
 
-            if (nameHasChanges || bioHasChanges) {
+        let didSaveProfile = false;
+        if (nameHasChanges || bioHasChanges) {
+            try {
                 const response = await userService.editOwnProfile(newName.trim(), newBio.trim());
-                finalUserData = response.data;
+                await updateUser(response.data);
+                didSaveProfile = true;
+            } catch (error) {
+                const apiError = axios.isAxiosError(error) ? error.response?.data : null;
+                const errorMsg = apiError?.detail
+                    || apiError?.title
+                    || "Hubo un error al actualizar los datos del perfil.";
+                setErrorMessage(errorMsg);
+                setIsSaving(false);
+                return;
             }
-
-            if (newAvatarFile) {
-                const response = await userService.editAvatar(newAvatarFile as unknown as File)
-                finalUserData = response.data;
-            }
-
-            if (finalUserData) {
-                await updateUser(finalUserData);
-            }
-            router.back();
-        } catch (error) {
-            const apiError = axios.isAxiosError(error) ? error.response?.data : null;
-            const errorMsg = apiError?.detail
-                || apiError?.title
-                || "Hubo un error al actualizar tu perfil. Intenta de nuevo más tarde.";
-
-            setErrorMessage(errorMsg);
-        } finally {
-            setIsSaving(false);
         }
+
+        if (newAvatarFile) {
+            try {
+                const response = await userService.editAvatar(newAvatarFile as unknown as File)
+                await updateUser(response.data);
+                setNewAvatarFile(null);
+            } catch (error) {
+                const apiError = axios.isAxiosError(error) ? error.response?.data : null;
+                const errorMsg = apiError?.detail
+                    || apiError?.title
+                    || "Hubo un error al actualizar la foto de perfil.";
+                if (didSaveProfile) {
+                    setErrorMessage(`Datos guardados, pero falló la imagen: ${errorMsg}`);
+                } else {
+                    setErrorMessage(`Avatar: ${errorMsg}`);
+                }
+                setIsSaving(false);
+                return;
+            }
+        }
+
+        setIsSaving(false);
+        router.back();
     };
 
     const handleCancel = () => {

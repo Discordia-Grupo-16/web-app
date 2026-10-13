@@ -173,7 +173,9 @@ describe('EditProfileScreen', () => {
       await user.press(screen.getByText('Guardar cambios'));
 
       expect(userService.editOwnProfile).toHaveBeenCalledWith('Juan Carlos', 'Nueva biografía');
+      // Verificamos que se llame de inmediato a updateUser tras guardar el texto
       expect(mockUpdateUser).toHaveBeenCalledWith(updatedUser);
+      expect(userService.editAvatar).not.toHaveBeenCalled();
       expect(mockBack).toHaveBeenCalled();
     });
 
@@ -181,7 +183,7 @@ describe('EditProfileScreen', () => {
       const updatedUser: User = { ...baseUser, avatarUrl: 'http://cdn/avatar.jpg' };
       jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
         canceled: false,
-        assets: [{ uri: 'file:///path/profile.jpg', width: 200, height: 200 }],
+        assets: [{ uri: 'file:///path/profile.jpg', width: 200, height: 200, mimeType: 'image/jpeg' }],
       });
       jest.mocked(userService.editAvatar).mockResolvedValue({ data: updatedUser } as never);
 
@@ -190,6 +192,7 @@ describe('EditProfileScreen', () => {
       await user.press(screen.getByText('Editar'));
       await user.press(screen.getByText('Guardar cambios'));
 
+      expect(userService.editOwnProfile).not.toHaveBeenCalled();
       expect(userService.editAvatar).toHaveBeenCalledWith({
         uri: 'file:///path/profile.jpg',
         name: 'profile.jpg',
@@ -199,7 +202,38 @@ describe('EditProfileScreen', () => {
       expect(mockBack).toHaveBeenCalled();
     });
 
-    it('muestra el mensaje de error de la API cuando la actualización falla', async () => {
+    it('maneja el guardado parcial: guarda texto, falla avatar y notifica error', async () => {
+      const updatedTextUser: User = { ...baseUser, name: 'Juan Carlos' };
+
+      jest.mocked(userService.editOwnProfile).mockResolvedValue({ data: updatedTextUser } as never);
+      jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+        canceled: false,
+        assets: [{ uri: 'file:///path/profile.jpg', width: 200, height: 200, mimeType: 'image/jpeg' }],
+      });
+      jest.mocked(userService.editAvatar).mockRejectedValue({
+        isAxiosError: true,
+        response: { data: { detail: 'Archivo demasiado grande' } },
+      });
+
+      const { user } = await renderScreen();
+
+      await user.clear(nameInput());
+      await user.paste(nameInput(), 'Juan Carlos');
+
+      await user.press(screen.getByText('Editar'));
+
+      await user.press(screen.getByText('Guardar cambios'));
+
+      expect(userService.editOwnProfile).toHaveBeenCalled();
+      expect(mockUpdateUser).toHaveBeenCalledWith(updatedTextUser);
+      expect(userService.editAvatar).toHaveBeenCalled();
+
+      expect(screen.getByText('Datos guardados, pero falló la imagen: Archivo demasiado grande')).toBeOnTheScreen();
+
+      expect(mockBack).not.toHaveBeenCalled();
+    });
+
+    it('muestra el mensaje de error de la API cuando la actualización falla en el primer paso', async () => {
       jest.mocked(userService.editOwnProfile).mockRejectedValue({
         isAxiosError: true,
         response: { data: { detail: 'El nombre ya está en uso' } },
@@ -211,6 +245,7 @@ describe('EditProfileScreen', () => {
       await user.press(screen.getByText('Guardar cambios'));
 
       expect(screen.getByText('El nombre ya está en uso')).toBeOnTheScreen();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
       expect(mockBack).not.toHaveBeenCalled();
     });
 
@@ -223,7 +258,7 @@ describe('EditProfileScreen', () => {
       await user.press(screen.getByText('Guardar cambios'));
 
       expect(
-        screen.getByText('Hubo un error al actualizar tu perfil. Intenta de nuevo más tarde.'),
+        screen.getByText('Hubo un error al actualizar los datos del perfil.'),
       ).toBeOnTheScreen();
       expect(mockBack).not.toHaveBeenCalled();
     });

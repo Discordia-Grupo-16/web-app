@@ -16,7 +16,7 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
     const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [errorMessage, setErrorMessage] = useState(null)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const nameIsEmpty = newName.trim() == ''
     const nameIsTooLong = newName.trim().length > 80
     const bioIsTooLong = newBio.trim().length > 240
@@ -51,33 +51,45 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
 
         setErrorMessage(null);
         setIsSaving(true);
-        try {
-            let finalUserData = null;
 
-            if (nameHasChanged || bioHasChanged) {
-                finalUserData = await userService.editOwnProfile(newName.trim(), newBio.trim());
+        let didSaveProfile = false;
+
+        if (nameHasChanged || bioHasChanged) {
+            try {
+                const response = await userService.editOwnProfile(newName.trim(), newBio.trim());
+                await updateUser(response.data);
+                didSaveProfile = true;
+            } catch (error) {
+                const apiError = axios.isAxiosError(error) ? error.response?.data : null;
+                const errorMsg = apiError?.detail || apiError?.title || "Hubo un error al actualizar los datos del perfil.";
+
+                setErrorMessage(errorMsg);
+                setIsSaving(false);
+                return;
             }
-
-            if (avatarHasChanged) {
-                finalUserData = await userService.editAvatar(newAvatarFile);
-            }
-
-            if (finalUserData) {
-                await updateUser(finalUserData.data);
-            }
-
-            onClose();
-        } catch (error) {
-            const apiError = axios.isAxiosError(error) ? error.response?.data : null;
-
-            const errorMsg = apiError?.detail
-                || apiError?.title
-                || "Hubo un error al actualizar tu perfil. Intenta de nuevo más tarde.";
-
-            setErrorMessage(errorMsg);
-        } finally {
-            setIsSaving(false);
         }
+
+        if (avatarHasChanged && newAvatarFile) {
+            try {
+                const response = await userService.editAvatar(newAvatarFile);
+                await updateUser(response.data);
+            } catch (error) {
+                const apiError = axios.isAxiosError(error) ? error.response?.data : null;
+                const errorMsg = apiError?.detail || apiError?.title || "Hubo un error al subir el avatar.";
+
+                if (didSaveProfile) {
+                    setErrorMessage(`Datos guardados, pero falló la imagen: ${errorMsg}`);
+                } else {
+                    setErrorMessage(`Avatar: ${errorMsg}`);
+                }
+
+                setIsSaving(false);
+                return;
+            }
+        }
+
+        setIsSaving(false);
+        onClose();
     };
 
     const handleCancel = () => {
