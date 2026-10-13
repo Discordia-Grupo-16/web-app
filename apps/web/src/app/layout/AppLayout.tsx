@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { ServerSidebar } from '@/features/servers';
 import { ServerPanel } from './ServerPanel';
 import { UserProfileSection } from '@/features/profile';
+import { VoiceBar } from '@/features/voice';
 import { ProfileViewerProvider } from './ProfileViewerProvider';
 
 export const AppLayout = () => {
@@ -30,6 +31,7 @@ export const AppLayout = () => {
                             </div>
                         </div>
                         <div className="w-full bg-[#292b2f] shrink-0">
+                            <VoiceBar />
                             <UserProfileSection />
                         </div>
                     </div>
