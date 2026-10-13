@@ -9,3 +9,6 @@ export * from './chat/errorMessages';
 export * from './chat/authorName';
 export * from './profiles/PublicProfilesProvider';
 export * from './profiles/usePublicProfiles';
+export type * from './voice/types';
+export * from './voice/voiceContext';
+export * from './voice/useVoice';
