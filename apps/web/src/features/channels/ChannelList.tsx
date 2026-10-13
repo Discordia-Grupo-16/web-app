@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Channel } from '@discordia/api';
 import { channelsService } from '@/shared/api';
@@ -14,9 +14,11 @@ interface ChannelListProps {
     canManage: boolean;
     /** The list does not own the channels: the server does. */
     onChannelsChange: (update: (channels: Channel[]) => Channel[]) => void;
+    /** Drawn under the row of each channel; the list does not know what goes there. */
+    renderBelowChannel?: (channel: Channel) => ReactNode;
 }
 
-export const ChannelList = ({ serverId, channels, activeChannelId, canManage, onChannelsChange }: ChannelListProps) => {
+export const ChannelList = ({ serverId, channels, activeChannelId, canManage, onChannelsChange, renderBelowChannel }: ChannelListProps) => {
     const navigate = useNavigate();
     const [createType, setCreateType] = useState<'text' | 'voice' | null>(null);
     const [pendingEdit, setPendingEdit] = useState<Channel | null>(null);
@@ -55,6 +57,7 @@ export const ChannelList = ({ serverId, channels, activeChannelId, canManage, on
         canManage,
         onDelete: (id: string, name: string) => setPendingDelete({ id, name }),
         onEdit: setPendingEdit,
+        renderBelowChannel,
     };
 
     return (
