@@ -51,4 +51,21 @@ describe('UserProfileSection', () => {
 
         expect(await screen.findByRole('button', { name: /editar perfil/i })).toBeInTheDocument();
     });
+
+    it('maneja silenciosamente los errores al obtener el perfil (catch)', async () => {
+        // Simulamos un error de red
+        getOwnProfile.mockRejectedValue(new Error('Network Error') as never);
+        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+
+        render(<UserProfileSection />);
+
+        await waitFor(() => {
+            expect(getOwnProfile).toHaveBeenCalled();
+        });
+
+        expect(consoleSpy).toHaveBeenCalledWith(expect.any(Error));
+        expect(updateUser).not.toHaveBeenCalled();
+
+        consoleSpy.mockRestore();
+    });
 });

@@ -76,6 +76,25 @@ describe('UserProfileEditModal', () => {
             expect(await screen.findByText('La biografia no puede superar los 240 caracteres.')).toBeInTheDocument();
             expect(screen.getByRole('button', { name: /guardar cambios/i })).toBeDisabled();
         });
+
+        it('restablece los valores y limpia la previsualización al hacer clic en Restablecer', async () => {
+            renderModal();
+            const user = userEvent.setup();
+
+            const nameInput = screen.getByDisplayValue('Milton');
+            await user.clear(nameInput);
+            await user.type(nameInput, 'Nombre Temporal');
+
+            const file = new File(['fake'], 'fake.png', { type: 'image/png' });
+            const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
+            await user.upload(fileInput, file);
+
+            const resetButton = screen.getByRole('button', { name: /restablecer/i });
+
+            await user.click(resetButton);
+            expect(screen.getByDisplayValue('Milton')).toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: /restablecer/i })).not.toBeInTheDocument();
+        });
     });
 
     describe('Flujo de guardado', () => {
@@ -171,6 +190,53 @@ describe('UserProfileEditModal', () => {
             expect(await screen.findByText('Error interno de prueba')).toBeInTheDocument();
             expect(updateUser).not.toHaveBeenCalled();
             expect(editAvatar).not.toHaveBeenCalled();
+        });
+
+        it('previsualiza y guarda exitosamente un nuevo avatar', async () => {
+            const updatedUser = { ...mockUser, avatarUrl: 'blob:http://localhost/test-image' };
+            editAvatar.mockResolvedValue({ data: updatedUser } as never);
+
+            renderModal();
+            const user = userEvent.setup();
+
+            expect(screen.getByText('M')).toBeInTheDocument();
+
+            const file = new File(['fake-image-content'], 'foto.jpg', { type: 'image/jpeg' });
+            const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
+            await user.upload(fileInput, file);
+
+            const avatarImage = await screen.findByAltText('Avatar');
+            expect(avatarImage).toHaveAttribute('src', 'blob:http://localhost/test-image');
+            expect(URL.createObjectURL).toHaveBeenCalledWith(file);
+
+            await user.click(screen.getByRole('button', { name: /guardar cambios/i }));
+            expect(editOwnProfile).not.toHaveBeenCalled();
+
+            expect(editAvatar).toHaveBeenCalledWith(file);
+
+            await waitFor(() => {
+                expect(updateUser).toHaveBeenCalledWith(updatedUser);
+            });
+        });
+
+        it('muestra error si la subida del avatar falla', async () => {
+            editAvatar.mockRejectedValue(Object.assign(new Error(), {
+                isAxiosError: true,
+                response: { data: { detail: 'El archivo es demasiado grande (máximo 5MB)' } }
+            }));
+
+            renderModal();
+            const user = userEvent.setup();
+
+            const file = new File(['fake-huge-image'], 'huge.png', { type: 'image/png' });
+            const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
+            await user.upload(fileInput, file);
+
+            await user.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+            expect(await screen.findByText('Avatar: El archivo es demasiado grande (máximo 5MB)')).toBeInTheDocument();
+
+            expect(updateUser).not.toHaveBeenCalled();
         });
     });
 });
