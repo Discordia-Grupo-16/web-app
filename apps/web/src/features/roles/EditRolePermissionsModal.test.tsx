@@ -1,31 +1,33 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ADMINISTRATOR, SEND_MESSAGES, VIEW_CHANNEL } from '@discordia/core';
+import { ADMINISTRATOR, PERMISSION_COPY, SEND_MESSAGES, VIEW_CHANNEL } from '@discordia/core';
 import type { Role } from '@discordia/api';
 import { rolesService } from '@/shared/api';
 import { EditRolePermissionsModal } from './EditRolePermissionsModal';
 
-vi.mock('@/shared/api', () => ({ rolesService: { updateRolePermissions: vi.fn() } }));
+vi.mock('@/shared/api', () => ({
+    rolesService: { updateRolePermissions: vi.fn(), setDefaultRole: vi.fn() },
+}));
 
-const role = (permissions: number): Role => ({
+const role = (permissions: number, is_default = false): Role => ({
     id: 'r1',
     server_id: 'srv',
     name: 'Moderador',
-    is_default: false,
+    is_default,
     permissions,
     permission_names: [],
     position: 1,
     created_at: '2026-10-01T00:00:00Z',
 });
 
-const renderModal = (permissions: number) => {
+const renderModal = (permissions: number, isDefault = false) => {
     const onUpdated = vi.fn();
     const onClose = vi.fn();
     render(
         <EditRolePermissionsModal
             serverId="srv"
-            role={role(permissions)}
+            role={role(permissions, isDefault)}
             onClose={onClose}
             onUpdated={onUpdated}
         />,
@@ -140,5 +142,44 @@ describe('EditRolePermissionsModal', () => {
         expect(rolesService.updateRolePermissions).toHaveBeenCalledWith('srv', 'r1', [
             'ADMINISTRATOR',
         ]);
+    });
+});
+
+describe('el rol por defecto (SCRUM-63)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('ofrece marcarlo cuando no lo es', async () => {
+        vi.mocked(rolesService.setDefaultRole).mockResolvedValue();
+        const { user, onUpdated } = renderModal(VIEW_CHANNEL);
+
+        await user.click(screen.getByText(PERMISSION_COPY.makeDefaultRole));
+
+        expect(rolesService.setDefaultRole).toHaveBeenCalledWith('srv', 'r1');
+        expect(onUpdated).toHaveBeenCalledWith(expect.objectContaining({ is_default: true }));
+    });
+
+    it('dice que ya lo es, en vez de ofrecerlo', () => {
+        renderModal(VIEW_CHANNEL, true);
+
+        expect(screen.getByText(PERMISSION_COPY.isDefaultRole)).toBeInTheDocument();
+        expect(screen.queryByText(PERMISSION_COPY.makeDefaultRole)).not.toBeInTheDocument();
+    });
+
+    it('muestra el motivo cuando el backend lo rechaza', async () => {
+        // La jerarquía: marcar como defecto un rol más alto sería dárselo a
+        // todo el que entre.
+        vi.mocked(rolesService.setDefaultRole).mockRejectedValue({
+            response: {
+                data: { detail: 'No podés marcar como rol por defecto uno que está en tu misma posición o por encima' },
+            },
+        });
+        const { user, onUpdated } = renderModal(VIEW_CHANNEL);
+
+        await user.click(screen.getByText(PERMISSION_COPY.makeDefaultRole));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(/por encima/);
+        expect(onUpdated).not.toHaveBeenCalled();
     });
 });

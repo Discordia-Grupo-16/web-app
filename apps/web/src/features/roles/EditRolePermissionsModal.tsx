@@ -25,6 +25,22 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
     const [permissions, setPermissions] = useState(role.permissions);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [settingDefault, setSettingDefault] = useState(false);
+
+    const makeDefault = async () => {
+        setSettingDefault(true);
+        setError(null);
+        try {
+            await rolesService.setDefaultRole(serverId, role.id);
+            // El backend desmarca el anterior en la misma transacción, así que
+            // la lista se refresca con el rol entero y no con un flag aparte.
+            onUpdated({ ...role, permissions, is_default: true });
+        } catch (err) {
+            setError(getErrorDetail(err) ?? PERMISSION_COPY.defaultRoleError);
+        } finally {
+            setSettingDefault(false);
+        }
+    };
 
     const isAdministrator = hasPermission(permissions, ADMINISTRATOR);
     const unchanged = permissions === role.permissions;
@@ -109,6 +125,27 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
                             {PERMISSION_COPY.administratorNotice}
                         </p>
                     )}
+
+                    <div className="mt-4 pt-4" style={{ borderTop: '1px solid #40444b' }}>
+                        {role.is_default ? (
+                            <p className="text-xs" style={{ color: '#99aab5' }}>
+                                {PERMISSION_COPY.isDefaultRole}
+                            </p>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={makeDefault}
+                                disabled={settingDefault}
+                                className="text-xs underline"
+                                style={{
+                                    color: '#99aab5',
+                                    cursor: settingDefault ? 'not-allowed' : 'pointer',
+                                }}
+                            >
+                                {PERMISSION_COPY.makeDefaultRole}
+                            </button>
+                        )}
+                    </div>
 
                     {error && (
                         <p role="alert" className="text-sm mt-4" style={{ color: '#ed4245' }}>

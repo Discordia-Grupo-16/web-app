@@ -39,7 +39,16 @@ export const RolesGroup = ({ roles, canManage, onAdd, onEdit }: RolesGroupProps)
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
                 <Shield size={14} style={{ flexShrink: 0 }} />
-                <span className="truncate flex-1">{role.name}</span>
+                <span className="truncate">{role.name}</span>
+                {role.is_default && (
+                    <span
+                        className="text-xs px-1.5 rounded shrink-0"
+                        style={{ background: '#40444b', color: '#99aab5' }}
+                    >
+                        {PERMISSION_COPY.defaultRoleBadge}
+                    </span>
+                )}
+                <span className="flex-1" />
 
                 {canManage && (
                     <button
