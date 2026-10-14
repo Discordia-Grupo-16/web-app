@@ -31,6 +31,17 @@ export const createRolesService = (apiClient: AxiosInstance) => ({
             .patch<Role>(`/api/v1/servers/${serverId}/roles/${roleId}`, { permissions })
             .then(r => r.data),
 
+    /**
+     * Marks the role as the one new members receive (SCRUM-63).
+     *
+     * Exclusive: the previous default is unmarked by the backend in the same
+     * transaction, so there is nothing to undo here. Idempotent as well.
+     */
+    setDefaultRole: (serverId: string, roleId: string): Promise<void> =>
+        apiClient
+            .put(`/api/v1/servers/${serverId}/roles/${roleId}/default`)
+            .then(() => undefined),
+
     /** Gives the role to a member. Repeating it neither fails nor duplicates. */
     assignRole: (serverId: string, roleId: string, userId: string): Promise<void> =>
         apiClient

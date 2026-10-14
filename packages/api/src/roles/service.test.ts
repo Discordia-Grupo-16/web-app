@@ -95,3 +95,21 @@ describe('what was already there', () => {
         expect(roles).toEqual([role]);
     });
 });
+
+describe('setDefaultRole', () => {
+    it('marks the role as the default of the server', async () => {
+        const { apiClient, service } = setup();
+
+        await service.setDefaultRole('srv', 'role-1');
+
+        expect(apiClient.put).toHaveBeenCalledWith(
+            '/api/v1/servers/srv/roles/role-1/default',
+        );
+    });
+
+    it('returns no body: the backend unmarks the previous one on its own', async () => {
+        const { service } = setup();
+
+        await expect(service.setDefaultRole('srv', 'role-1')).resolves.toBeUndefined();
+    });
+});

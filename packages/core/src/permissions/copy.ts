@@ -32,6 +32,12 @@ export const PERMISSION_COPY = {
     noRolesYet: 'Este servidor todavía no tiene roles. Creá uno para poder asignarlo.',
     memberRoleError: 'No se pudo cambiar el rol',
 
+    /** The role new members receive (SCRUM-63). */
+    defaultRoleBadge: 'Por defecto',
+    isDefaultRole: 'Es el rol que reciben los nuevos miembros.',
+    makeDefaultRole: 'Marcar como rol por defecto',
+    defaultRoleError: 'No se pudo cambiar el rol por defecto',
+
     /** Placeholder of the composer for whoever lacks SEND_MESSAGES. */
     sendMessage: (channelName: string) => `Enviar mensaje a #${channelName}`,
     cannotSendMessage: (channelName: string) =>
