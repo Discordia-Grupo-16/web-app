@@ -38,12 +38,22 @@ export function RolesSection({
             accessibilityLabel={PERMISSION_COPY.editRolePermissions(role.name)}
             className="bg-[#2c2f33] rounded-lg px-4 py-3 flex-row items-center justify-between"
           >
-            <Text className="text-[#dcddde] text-sm">🛡 {role.name}</Text>
+            <Text className="text-[#dcddde] text-sm">
+              🛡 {role.name}
+              {role.is_default ? (
+                <Text className="text-[#72767d] text-xs"> · {PERMISSION_COPY.defaultRoleBadge}</Text>
+              ) : null}
+            </Text>
             <Text className="text-[#72767d] text-xs">Permisos ›</Text>
           </TouchableOpacity>
         ) : (
           <View key={role.id} className="bg-[#2c2f33] rounded-lg px-4 py-3">
-            <Text className="text-[#dcddde] text-sm">🛡 {role.name}</Text>
+            <Text className="text-[#dcddde] text-sm">
+              🛡 {role.name}
+              {role.is_default ? (
+                <Text className="text-[#72767d] text-xs"> · {PERMISSION_COPY.defaultRoleBadge}</Text>
+              ) : null}
+            </Text>
           </View>
         ),
       )}

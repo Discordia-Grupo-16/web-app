@@ -26,6 +26,22 @@ export function EditRolePermissionsModal({ visible, serverId, role, onClose, onU
   const [permissions, setPermissions] = useState(role.permissions);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [settingDefault, setSettingDefault] = useState(false);
+
+  const makeDefault = async () => {
+    setSettingDefault(true);
+    setError(null);
+    try {
+      await rolesService.setDefaultRole(serverId, role.id);
+      // El backend desmarca el anterior en la misma transacción, así que la
+      // lista se refresca con el rol entero y no con un flag aparte.
+      onUpdated({ ...role, permissions, is_default: true });
+    } catch (err) {
+      setError(getErrorDetail(err) || PERMISSION_COPY.defaultRoleError);
+    } finally {
+      setSettingDefault(false);
+    }
+  };
 
   const isAdministrator = hasPermission(permissions, ADMINISTRATOR);
   const unchanged = permissions === role.permissions;
@@ -88,6 +104,23 @@ export function EditRolePermissionsModal({ visible, serverId, role, onClose, onU
               {PERMISSION_COPY.administratorNotice}
             </Text>
           ) : null}
+
+          <View className="mt-4 pt-3" style={{ borderTopWidth: 1, borderTopColor: '#40444b' }}>
+            {role.is_default ? (
+              <Text className="text-[#99aab5] text-xs">{PERMISSION_COPY.isDefaultRole}</Text>
+            ) : (
+              <TouchableOpacity
+                onPress={makeDefault}
+                disabled={settingDefault}
+                accessibilityLabel={PERMISSION_COPY.makeDefaultRole}
+                style={{ opacity: settingDefault ? 0.6 : 1 }}
+              >
+                <Text className="text-[#99aab5] text-xs underline">
+                  {PERMISSION_COPY.makeDefaultRole}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {error ? <Text className="text-[#ed4245] text-sm mt-3">{error}</Text> : null}
 

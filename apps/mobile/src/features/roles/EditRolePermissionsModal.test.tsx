@@ -6,28 +6,28 @@ import { EditRolePermissionsModal } from './EditRolePermissionsModal';
 
 jest.useFakeTimers();
 jest.mock('@/shared/api', () => ({
-  rolesService: { updateRolePermissions: jest.fn() },
+  rolesService: { updateRolePermissions: jest.fn(), setDefaultRole: jest.fn() },
 }));
 
-const role = (permissions: number): Role => ({
+const role = (permissions: number, is_default = false): Role => ({
   id: 'r1',
   server_id: 'srv',
   name: 'Moderador',
-  is_default: false,
+  is_default,
   permissions,
   permission_names: [],
   position: 1,
   created_at: '2026-10-01T00:00:00Z',
 });
 
-const renderModal = async (permissions: number) => {
+const renderModal = async (permissions: number, isDefault = false) => {
   const onUpdated = jest.fn();
   const user = userEvent.setup();
   await render(
     <EditRolePermissionsModal
       visible
       serverId="srv"
-      role={role(permissions)}
+      role={role(permissions, isDefault)}
       onClose={jest.fn()}
       onUpdated={onUpdated}
     />,
@@ -152,5 +152,42 @@ describe('EditRolePermissionsModal', () => {
     expect(rolesService.updateRolePermissions).toHaveBeenCalledWith('srv', 'r1', [
       'ADMINISTRATOR',
     ]);
+  });
+});
+
+describe('el rol por defecto (SCRUM-63)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('ofrece marcarlo cuando no lo es', async () => {
+    jest.mocked(rolesService.setDefaultRole).mockResolvedValue();
+    const { user, onUpdated } = await renderModal(VIEW_CHANNEL);
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.makeDefaultRole));
+
+    expect(rolesService.setDefaultRole).toHaveBeenCalledWith('srv', 'r1');
+    expect(onUpdated).toHaveBeenCalledWith(expect.objectContaining({ is_default: true }));
+  });
+
+  it('dice que ya lo es, en vez de ofrecerlo', async () => {
+    await renderModal(VIEW_CHANNEL, true);
+
+    expect(screen.getByText(PERMISSION_COPY.isDefaultRole)).toBeOnTheScreen();
+    expect(screen.queryByLabelText(PERMISSION_COPY.makeDefaultRole)).not.toBeOnTheScreen();
+  });
+
+  it('muestra el motivo cuando el backend lo rechaza', async () => {
+    jest.mocked(rolesService.setDefaultRole).mockRejectedValue({
+      response: {
+        data: { detail: 'No podés marcar como rol por defecto uno que está en tu misma posición o por encima' },
+      },
+    });
+    const { user, onUpdated } = await renderModal(VIEW_CHANNEL);
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.makeDefaultRole));
+
+    expect(await screen.findByText(/por encima/)).toBeOnTheScreen();
+    expect(onUpdated).not.toHaveBeenCalled();
   });
 });
