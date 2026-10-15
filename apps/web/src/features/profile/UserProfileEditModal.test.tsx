@@ -26,6 +26,7 @@ const renderModal = () => render(<UserProfileEditModal isOpen={true} onClose={vi
 beforeAll(() => {
     vi.stubGlobal('URL', {
         createObjectURL: vi.fn(() => 'blob:http://localhost/test-image'),
+        revokeObjectURL: vi.fn(),
     });
 });
 

@@ -30,6 +30,14 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
         }
     }, [isOpen, user]);
 
+    useEffect(() => {
+        return () => {
+            if (avatarPreview && avatarPreview.startsWith('blob:')) {
+                URL.revokeObjectURL(avatarPreview);
+            }
+        };
+    }, [avatarPreview]);
+
     if (!isOpen || !user) return null;
 
     const avatarHasChanged = newAvatarFile !== null;
