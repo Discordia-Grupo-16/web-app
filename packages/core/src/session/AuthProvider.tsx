@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import type { AuthStorageStrategy, User } from '@discordia/api';
 
 interface AuthContextType {
@@ -73,10 +73,10 @@ export function AuthProvider({ children, storage, onSignOut }: AuthProviderProps
         }
     };
 
-    const updateUser = async (updatedUser: User) => {
+    const updateUser = useCallback(async (updatedUser: User) => {
         await storage.setUser(updatedUser);
         setUser(updatedUser);
-    };
+    }, [storage]);
 
     const value = useMemo(
         () => ({
@@ -88,7 +88,7 @@ export function AuthProvider({ children, storage, onSignOut }: AuthProviderProps
             signOut,
             updateUser,
         }),
-        [user, token, refreshToken, isLoading]
+        [user, token, refreshToken, isLoading, updateUser]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

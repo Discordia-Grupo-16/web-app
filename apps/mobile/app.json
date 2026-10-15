@@ -25,7 +25,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Discordia necesita acceso a tu galería para que puedas cambiar tu avatar."
+        }
+      ]
     ]
   }
 }
