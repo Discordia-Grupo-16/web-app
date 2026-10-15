@@ -119,6 +119,12 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
         setBio(user.bio || '');
         setAvatarPreview(null);
         setNewAvatarFile(null);
+        setErrorMessage(null);
+
+        const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
+        if (fileInput) {
+            fileInput.value = '';
+        }
     };
 
     return (
