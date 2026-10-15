@@ -94,7 +94,7 @@ export function EditProfileScreen() {
 
         if (newAvatarFile) {
             try {
-                const response = await userService.editAvatar(newAvatarFile as unknown as File)
+                const response = await userService.editAvatar(newAvatarFile)
                 await updateUser(response.data);
                 setNewAvatarFile(null);
             } catch (error) {

@@ -1,6 +1,6 @@
 import type { AxiosInstance } from 'axios';
 import { createPublicProfileCache } from './publicProfileCache';
-import type { editProfileRequest, PublicProfiles, publicUsersResponse, userResponse } from './types';
+import type { editProfileRequest, PublicProfiles, publicUsersResponse, userResponse, AvatarUpload } from './types';
 
 export const createUserService = (apiClient: AxiosInstance) => {
     // One cache per service instance: web and mobile create a single userService, so every screen shares it.
@@ -26,12 +26,12 @@ export const createUserService = (apiClient: AxiosInstance) => {
             return data;
         },
 
-        async editAvatar(file: File): Promise<userResponse> {
+        async editAvatar(file: AvatarUpload): Promise<userResponse> {
             const formData = new FormData();
-            formData.append("file", file);
+            formData.append("file", file as Blob);
             const { data } = await apiClient.put<userResponse>("/api/v1/users/me/avatar", formData, {
                 headers: {
-                  "Content-Type": "multipart/form-data",
+                    "Content-Type": "multipart/form-data",
                 },
             });
             publicProfiles.invalidate(data.data.id);
