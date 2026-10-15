@@ -25,7 +25,7 @@ export function ChannelItem({ channel, canManage, onDelete, onEdit, onOpen }: {
   );
   const rowClass = 'bg-[#2c2f33] rounded-lg px-4 py-3 flex-row items-center justify-between';
 
-  // Only channels with an onOpen handler (text) are tappable; the delete button keeps its own onPress.
+  // Only channels with an onOpen handler are tappable; the delete button keeps its own onPress.
   if (!onOpen) return <View className={rowClass}>{content}</View>;
   return (
     <TouchableOpacity className={rowClass} onPress={() => onOpen(channel)}>
