@@ -36,5 +36,10 @@ export const useRoles = (serverId: string | undefined) => {
 
     const addRole = useCallback((role: Role) => setRoles(prev => [...prev, role]), []);
 
-    return { roles, loading, addRole };
+    const updateRole = useCallback(
+        (role: Role) => setRoles(prev => prev.map(r => (r.id === role.id ? role : r))),
+        [],
+    );
+
+    return { roles, loading, addRole, updateRole };
 };

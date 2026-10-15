@@ -1,26 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
+import { NONE, SEND_MESSAGES, hasPermission } from '@discordia/core';
 import { serversService } from '@/shared/api';
-import type { Channel } from '@discordia/api';
+import type { Server } from '@discordia/api';
 import { ChatPanel } from './ChatPanel';
 
 export const ChannelView = () => {
     const { serverId, channelId } = useParams();
-    const [channel, setChannel] = useState<Channel | null>(null);
+    // The whole server and not just the channel: `my_permissions` comes with it, and it is what
+    // decides whether the composer is usable.
+    const [server, setServer] = useState<Server | null>(null);
 
     useEffect(() => {
         if (!serverId || !channelId) return;
         serversService.getServer(serverId)
-            .then(srv => {
-                const ch = srv.channels.find(c => c.id === channelId) ?? null;
-                setChannel(ch);
-            })
+            .then(setServer)
             .catch(console.error);
     }, [serverId, channelId]);
 
+    const channel = server?.channels.find(c => c.id === channelId) ?? null;
+
     // Until the new channel loads, don't keep rendering the previous one.
-    if (!channel || channel.id !== channelId) return null;
+    if (!channel) return null;
 
     const isText = channel.type === 'text';
 
@@ -45,7 +47,13 @@ export const ChannelView = () => {
             </div>
 
             {isText ? (
-                <ChatPanel key={channel.id} channelId={channel.id} channelName={channel.name} topic={channel.topic} />
+                <ChatPanel
+                    key={channel.id}
+                    channelId={channel.id}
+                    channelName={channel.name}
+                    topic={channel.topic}
+                    canSendMessages={hasPermission(server?.my_permissions ?? NONE, SEND_MESSAGES)}
+                />
             ) : (
                 <div className="flex-1 flex items-center justify-center" style={{ color: '#99aab5' }}>
                     <div className="text-center select-none">
