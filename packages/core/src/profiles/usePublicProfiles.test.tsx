@@ -103,6 +103,15 @@ describe('usePublicProfile', () => {
         await waitFor(() => expect(result.current.state).toEqual({ status: 'ready', profile: user('a') }));
     });
 
+    it('always asks the API instead of reading what the chat cached', async () => {
+        const { wrapper, source } = setup(resolving);
+
+        const { result } = renderHook(() => usePublicProfile('a'), { wrapper });
+        await waitFor(() => expect(result.current.state.status).toBe('ready'));
+
+        expect(source.getPublicProfiles).toHaveBeenCalledWith(['a'], { fresh: true });
+    });
+
     it('is ready with a null profile when the account is not available', async () => {
         const { wrapper } = setup(async () => new Map());
 
