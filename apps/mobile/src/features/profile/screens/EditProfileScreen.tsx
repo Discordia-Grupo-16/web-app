@@ -38,8 +38,6 @@ export function EditProfileScreen() {
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
             const asset = result.assets[0];
-            setAvatarPreview(asset.uri);
-
             const fileName = asset.uri.split('/').pop() || 'avatar.jpg';
 
             let type = asset.mimeType;
@@ -49,6 +47,20 @@ export function EditProfileScreen() {
                 if (type === 'image/jpg') type = 'image/jpeg'
             }
 
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!validTypes.includes(type)) {
+                setErrorMessage('El formato de imagen no es válido. Usa JPG, PNG o WEBP.');
+                return;
+            }
+
+            const maxSize = 5 * 1024 * 1024;
+            if (asset.fileSize && asset.fileSize > maxSize) {
+                setErrorMessage('La imagen es demasiado grande (máximo 5MB).');
+                return;
+            }
+
+            setErrorMessage(null);
+            setAvatarPreview(asset.uri);
             setNewAvatarFile({
                 uri: asset.uri,
                 name: fileName,

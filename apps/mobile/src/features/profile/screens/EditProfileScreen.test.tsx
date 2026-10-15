@@ -140,6 +140,40 @@ describe('EditProfileScreen', () => {
 
       expect(screen.queryByText('Guardar cambios')).not.toBeOnTheScreen();
     });
+
+    it('muestra error de validación si el formato del avatar no es válido', async () => {
+      jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+        canceled: false,
+        assets: [{ uri: 'file:///path/documento.pdf', mimeType: 'application/pdf', width: 200, height: 200 }],
+      });
+
+      const { user } = await renderScreen();
+
+      await user.press(screen.getByText('Editar'));
+
+      expect(screen.getByText('El formato de imagen no es válido. Usa JPG, PNG o WEBP.')).toBeOnTheScreen();
+      expect(screen.queryByText('Guardar cambios')).not.toBeOnTheScreen();
+    });
+
+    it('muestra error de validación si el avatar supera los 5MB', async () => {
+      jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValue({
+        canceled: false,
+        assets: [{
+          uri: 'file:///path/gigante.jpg',
+          mimeType: 'image/jpeg',
+          fileSize: 6 * 1024 * 1024,
+          width: 200,
+          height: 200
+        }],
+      });
+
+      const { user } = await renderScreen();
+
+      await user.press(screen.getByText('Editar'));
+
+      expect(screen.getByText('La imagen es demasiado grande (máximo 5MB).')).toBeOnTheScreen();
+      expect(screen.queryByText('Guardar cambios')).not.toBeOnTheScreen();
+    });
   });
 
   describe('Sección de Restablecer', () => {
