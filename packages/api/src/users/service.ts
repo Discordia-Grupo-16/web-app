@@ -29,11 +29,7 @@ export const createUserService = (apiClient: AxiosInstance) => {
         async editAvatar(file: AvatarUpload): Promise<userResponse> {
             const formData = new FormData();
             formData.append("file", file as Blob);
-            const { data } = await apiClient.put<userResponse>("/api/v1/users/me/avatar", formData, {
-                headers: {
-                    "Content-Type": "multipart/form-data",
-                },
-            });
+            const { data } = await apiClient.put<userResponse>("/api/v1/users/me/avatar", formData);
             publicProfiles.invalidate(data.data.id);
             return data;
         },
