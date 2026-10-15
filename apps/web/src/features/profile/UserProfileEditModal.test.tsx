@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UserProfileEditModal } from './UserProfileEditModal';
@@ -95,6 +95,36 @@ describe('UserProfileEditModal', () => {
             await user.click(resetButton);
             expect(screen.getByDisplayValue('Milton')).toBeInTheDocument();
             expect(screen.queryByRole('button', { name: /restablecer/i })).not.toBeInTheDocument();
+        });
+
+        it('muestra error de validación si el formato del avatar no es válido', async () => {
+            renderModal();
+
+            const invalidFile = new File(['fake-content'], 'documento.pdf', { type: 'application/pdf' });
+            const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
+
+            fireEvent.change(fileInput, { target: { files: [invalidFile] } });
+
+            expect(await screen.findByText('El formato de imagen no es válido. Usa JPG, PNG o WEBP.')).toBeInTheDocument();
+
+            expect(window.URL.createObjectURL).not.toHaveBeenCalled();
+            expect(screen.queryByRole('button', { name: /guardar cambios/i })).not.toBeInTheDocument();
+        });
+
+        it('muestra error de validación si el avatar supera los 5MB', async () => {
+            renderModal();
+            const user = userEvent.setup();
+
+            const hugeFile = new File(['fake-content'], 'gigante.jpg', { type: 'image/jpeg' });
+            Object.defineProperty(hugeFile, 'size', { value: 6 * 1024 * 1024 });
+
+            const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
+
+            await user.upload(fileInput, hugeFile);
+
+            expect(await screen.findByText('La imagen es demasiado grande (máximo 5MB).')).toBeInTheDocument();
+
+            expect(window.URL.createObjectURL).not.toHaveBeenCalled();
         });
     });
 

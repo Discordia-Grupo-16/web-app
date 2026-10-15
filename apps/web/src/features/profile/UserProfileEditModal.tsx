@@ -48,6 +48,20 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
+
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+            if (!validTypes.includes(file.type)) {
+                setErrorMessage('El formato de imagen no es válido. Usa JPG, PNG o WEBP.');
+                return;
+            }
+
+            const maxSize = 5 * 1024 * 1024;
+            if (file.size > maxSize) {
+                setErrorMessage('La imagen es demasiado grande (máximo 5MB).');
+                return;
+            }
+
+            setErrorMessage(null);
             setNewAvatarFile(file);
             setAvatarPreview(URL.createObjectURL(file));
         }
@@ -149,7 +163,7 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
                         <input
                             id="avatar-upload"
                             type="file"
-                            accept="image/png, image/jpeg, image/webp"
+                            accept="image/png, image/jpeg, image/webp, image/jpg"
                             className="hidden"
                             onChange={handleAvatarChange}
                         />
