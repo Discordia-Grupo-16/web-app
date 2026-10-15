@@ -1,4 +1,4 @@
-import { createApiClient, createAuthService } from '@discordia/api';
+import { createAdminUserService, createApiClient, createAuthService } from '@discordia/api';
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/shared/config/env';
 import { backofficeAuthStorage } from '@/shared/session/authStorage';
 
@@ -9,3 +9,4 @@ export const api = createApiClient({
 });
 
 export const authService = createAuthService(api);
+export const adminUserService = createAdminUserService(api);
