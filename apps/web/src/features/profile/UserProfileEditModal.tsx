@@ -138,8 +138,8 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
                 </div>
 
                 <div className="px-6 pb-6 relative">
-                    <div className="absolute top-0 -translate-y-1/2 left-6 p-1.5 bg-[#36393f] rounded-full overflow-hidden group">
-                        <label htmlFor="avatar-upload" className="cursor-pointer relative block">
+                    <div className="absolute top-0 -translate-y-1/2 left-6 p-1.5 bg-[#36393f] rounded-full overflow-hidden group focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-[#36393f] focus-within:ring-[#5865f2]">
+                        <label htmlFor="avatar-upload" className="cursor-pointer relative block rounded-full">
                             <div className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center rounded-full z-10 text-white text-[10px] font-bold uppercase text-center opacity-0 group-hover:opacity-100 transition-opacity">
                                 Cambiar<br />Avatar
                             </div>
@@ -164,7 +164,7 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
                             id="avatar-upload"
                             type="file"
                             accept="image/png, image/jpeg, image/webp, image/jpg"
-                            className="hidden"
+                            className="sr-only"
                             onChange={handleAvatarChange}
                         />
                     </div>
