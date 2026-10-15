@@ -1,7 +1,7 @@
 import type { AxiosInstance } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { createAdminUserService } from './service';
-import type { AdminUserListResponse } from './types';
+import type { AdminUser, AdminUserListResponse } from './types';
 
 const page: AdminUserListResponse = {
     data: [
@@ -17,8 +17,13 @@ const page: AdminUserListResponse = {
     meta: { total: 1, limit: 20, offset: 0 },
 };
 
+const suspended: AdminUser = { ...page.data[0], status: 'suspended' };
+
 const setup = () => {
-    const apiClient = { get: vi.fn(async () => ({ data: page })) };
+    const apiClient = {
+        get: vi.fn(async () => ({ data: page })),
+        post: vi.fn(async () => ({ data: { data: suspended } })),
+    };
     return { apiClient, service: createAdminUserService(apiClient as unknown as AxiosInstance) };
 };
 
@@ -52,5 +57,31 @@ describe('createAdminUserService listUsers', () => {
         const result = await service.listUsers({ limit: 20, offset: 0 });
 
         expect(result).toEqual(page);
+    });
+});
+
+describe('createAdminUserService suspendUser', () => {
+    it('calls POST /api/v1/admin/users/{id}/suspension with no body', async () => {
+        const { apiClient, service } = setup();
+
+        await service.suspendUser('u1');
+
+        expect(apiClient.post).toHaveBeenCalledTimes(1);
+        expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/users/u1/suspension');
+    });
+
+    it('returns the updated AdminUser unwrapped from { data }', async () => {
+        const { service } = setup();
+
+        const result = await service.suspendUser('u1');
+
+        expect(result).toEqual(suspended);
+    });
+
+    it('lets the error through when the request fails', async () => {
+        const { apiClient, service } = setup();
+        apiClient.post.mockRejectedValueOnce(new Error('409'));
+
+        await expect(service.suspendUser('u1')).rejects.toThrow('409');
     });
 });

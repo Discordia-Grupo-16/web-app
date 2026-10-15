@@ -1,5 +1,5 @@
 import type { AxiosInstance, GenericAbortSignal } from 'axios';
-import type { AdminUserListResponse, ListAdminUsersParams } from './types';
+import type { AdminUser, AdminUserListResponse, ListAdminUsersParams } from './types';
 
 // Drops what carries no filter: undefined keys and a blank search. The backend treats a blank
 // search as "no filter" too, but not sending it keeps the URL and the request log clean.
@@ -20,5 +20,11 @@ export const createAdminUserService = (apiClient: AxiosInstance) => ({
             signal,
         });
         return data;
+    },
+
+    // Resolves to the updated user (unwrapped from { data }): the screen reloads the list from it.
+    async suspendUser(userId: string): Promise<AdminUser> {
+        const res = await apiClient.post<{ data: AdminUser }>(`/api/v1/admin/users/${userId}/suspension`);
+        return res.data.data;
     },
 });
