@@ -102,14 +102,13 @@ describe('createUserService profile editing', () => {
 
         expect(apiClient.put).toHaveBeenCalledTimes(1);
 
-        const [url, body, config] = vi.mocked(apiClient.put).mock.calls[0];
+        const [url, body, config] = vi.mocked(apiClient.put).mock.calls[0] as unknown as [string, FormData, any];
 
         expect(url).toBe('/api/v1/users/me/avatar');
 
         expect(body).toBeInstanceOf(FormData);
 
-        const formData = body as FormData;
-        expect(formData.get('file')).toBe(fakeFile);
+        expect(body.get('file')).toBe(fakeFile);
 
         expect(config?.headers?.['Content-Type']).toBe('multipart/form-data');
     });
