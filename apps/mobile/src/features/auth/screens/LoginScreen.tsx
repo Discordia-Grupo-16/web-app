@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Link, useRouter } from 'expo-router';
 import { useAuth, validateLoginInput } from '@discordia/core';
 import { authService } from '@/shared/api';
+import { consumeLoginNotice } from '@/shared/session/loginNotice';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { getApiErrorMessage } from '@discordia/api';
 
@@ -21,6 +22,8 @@ export function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Lazy initializer: consumed once on mount, so a later visit to the screen does not show it again.
+  const [notice] = useState(consumeLoginNotice);
   const { signIn } = useAuth();
   const router = useRouter();
 
@@ -81,6 +84,16 @@ export function LoginScreen() {
                 Nos alegra verte de nuevo.
               </Text>
             </View>
+
+            {notice && (
+              <View
+                accessible
+                accessibilityRole="alert"
+                className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/40"
+              >
+                <Text className="text-red-400 text-xs font-medium">{notice}</Text>
+              </View>
+            )}
 
             {error && (
               <View className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/40">
