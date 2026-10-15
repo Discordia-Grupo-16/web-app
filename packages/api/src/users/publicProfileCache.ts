@@ -78,6 +78,11 @@ export const createPublicProfileCache = ({
         return promise;
     };
 
+    const invalidate = (id: string) => {
+        entries.delete(id);
+        inFlight.delete(id);
+    };
+
     const resolveOne = (id: string): Promise<PublicUser | null> => {
         const cached = entries.get(id);
         if (cached && cached.expiresAt > now()) return Promise.resolve(cached.profile);
@@ -85,8 +90,11 @@ export const createPublicProfileCache = ({
     };
 
     return {
-        async get(ids: string[]): Promise<PublicProfiles> {
+        // fresh: skip what is cached (or in flight) and ask again. The profile view uses it, so
+        // opening a profile never shows a bio or avatar that changed within the TTL.
+        async get(ids: string[], { fresh = false }: { fresh?: boolean } = {}): Promise<PublicProfiles> {
             const unique = [...new Set(ids)];
+            if (fresh) unique.forEach(invalidate);
             const profiles = await Promise.all(unique.map(resolveOne));
             return new Map(unique.map((id, index) => [id, profiles[index]]));
         },
@@ -98,10 +106,7 @@ export const createPublicProfileCache = ({
             return cached && cached.expiresAt > now() ? cached.profile : undefined;
         },
 
-        invalidate(id: string) {
-            entries.delete(id);
-            inFlight.delete(id);
-        },
+        invalidate,
 
         clear() {
             entries.clear();
