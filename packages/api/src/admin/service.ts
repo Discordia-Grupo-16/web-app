@@ -27,4 +27,10 @@ export const createAdminUserService = (apiClient: AxiosInstance) => ({
         const res = await apiClient.post<{ data: AdminUser }>(`/api/v1/admin/users/${userId}/suspension`);
         return res.data.data;
     },
+
+    // Same resource as suspendUser, opposite verb: DELETE lifts the suspension.
+    async reactivateUser(userId: string): Promise<AdminUser> {
+        const res = await apiClient.delete<{ data: AdminUser }>(`/api/v1/admin/users/${userId}/suspension`);
+        return res.data.data;
+    },
 });

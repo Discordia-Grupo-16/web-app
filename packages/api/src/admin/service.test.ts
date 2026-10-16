@@ -18,11 +18,13 @@ const page: AdminUserListResponse = {
 };
 
 const suspended: AdminUser = { ...page.data[0], status: 'suspended' };
+const reactivated: AdminUser = { ...page.data[0], status: 'active' };
 
 const setup = () => {
     const apiClient = {
         get: vi.fn(async () => ({ data: page })),
         post: vi.fn(async () => ({ data: { data: suspended } })),
+        delete: vi.fn(async () => ({ data: { data: reactivated } })),
     };
     return { apiClient, service: createAdminUserService(apiClient as unknown as AxiosInstance) };
 };
@@ -83,5 +85,32 @@ describe('createAdminUserService suspendUser', () => {
         apiClient.post.mockRejectedValueOnce(new Error('409'));
 
         await expect(service.suspendUser('u1')).rejects.toThrow('409');
+    });
+});
+
+describe('createAdminUserService reactivateUser', () => {
+    it('calls DELETE /api/v1/admin/users/{id}/suspension and nothing else', async () => {
+        const { apiClient, service } = setup();
+
+        await service.reactivateUser('u1');
+
+        expect(apiClient.delete).toHaveBeenCalledTimes(1);
+        expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/admin/users/u1/suspension');
+        expect(apiClient.post).not.toHaveBeenCalled();
+    });
+
+    it('returns the updated AdminUser unwrapped from { data }', async () => {
+        const { service } = setup();
+
+        const result = await service.reactivateUser('u1');
+
+        expect(result).toEqual(reactivated);
+    });
+
+    it('lets the error through when the request fails', async () => {
+        const { apiClient, service } = setup();
+        apiClient.delete.mockRejectedValueOnce(new Error('409'));
+
+        await expect(service.reactivateUser('u1')).rejects.toThrow('409');
     });
 });
