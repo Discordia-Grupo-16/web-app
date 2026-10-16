@@ -8,6 +8,8 @@ jest.useFakeTimers();
 jest.mock('@/shared/api', () => ({
   rolesService: { assignRole: jest.fn(), removeRole: jest.fn() },
 }));
+const mockPush = jest.fn();
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
 jest.mock('@discordia/core', () => ({
   ...jest.requireActual('@discordia/core'),
   useAuth: () => ({ user: { id: 'me', name: 'Felipe', avatarUrl: null } }),
@@ -168,5 +170,32 @@ describe('MembersSection', () => {
     await user.press(screen.getByLabelText(PERMISSION_COPY.editMemberRoles('Milton')));
 
     expect(screen.getByText(PERMISSION_COPY.noRolesYet)).toBeOnTheScreen();
+  });
+});
+
+describe('MembersSection: el perfil público', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('abre el perfil del miembro que se toca, igual que la web', async () => {
+    const { user } = await renderSection();
+
+    await user.press(await screen.findByText('Milton'));
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/user/[userId]',
+      params: { userId: 'milton' },
+    });
+  });
+
+  it('el nombre abre el perfil también para quien no gestiona roles', async () => {
+    // Las dos acciones están separadas: el nombre lleva al perfil y el lápiz a
+    // los roles, así que perder MANAGE_ROLES no esconde el perfil.
+    const { user } = await renderSection({ canManage: false });
+
+    await user.press(await screen.findByText('Milton'));
+
+    expect(mockPush).toHaveBeenCalled();
   });
 });

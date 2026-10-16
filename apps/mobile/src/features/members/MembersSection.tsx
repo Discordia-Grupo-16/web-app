@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 import { MemberRolesModal } from './MemberRolesModal';
@@ -22,6 +23,7 @@ export function MembersSection({
   onRolesChange,
 }: MembersSectionProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const [editing, setEditing] = useState<string | null>(null);
 
   // `community` only returns ids: the names are `identity`'s, resolved in one request.
@@ -45,34 +47,45 @@ export function MembersSection({
         // backend's hierarchy uses, and the list comes ordered by position.
         const topRole = memberRoles.at(-1);
 
-        const row = (
-          <View className="flex-row items-center">
-            {isOwner && (
-              <Text className="text-[#faa61a] text-sm mr-1" accessibilityLabel={PERMISSION_COPY.ownerMark}>
-                👑
-              </Text>
-            )}
-            <Text className="text-[#dcddde] text-sm flex-1" numberOfLines={1}>
-              {nameOf(user_id)}
-            </Text>
-            {topRole && <Text className="text-[#72767d] text-xs ml-2">{topRole.name}</Text>}
-          </View>
-        );
-
-        // The owner is never a target: the backend refuses it, because nobody is above them
-        // in the hierarchy. Without the permission there is nothing to open either.
-        return canManage && !isOwner ? (
-          <TouchableOpacity
+        return (
+          <View
             key={user_id}
-            onPress={() => setEditing(user_id)}
-            accessibilityLabel={PERMISSION_COPY.editMemberRoles(nameOf(user_id))}
-            className="bg-[#2c2f33] rounded-lg px-4 py-3"
+            className="bg-[#2c2f33] rounded-lg px-4 py-3 flex-row items-center"
           >
-            {row}
-          </TouchableOpacity>
-        ) : (
-          <View key={user_id} className="bg-[#2c2f33] rounded-lg px-4 py-3">
-            {row}
+            {/* El nombre abre el perfil público, igual que en la web. El lápiz
+                va aparte, para que las dos acciones no compitan por el mismo
+                toque. */}
+            <TouchableOpacity
+              onPress={() =>
+                router.push({ pathname: '/user/[userId]', params: { userId: user_id } })
+              }
+              className="flex-row items-center flex-1 min-w-0"
+            >
+              {isOwner && (
+                <Text
+                  className="text-[#faa61a] text-sm mr-1"
+                  accessibilityLabel={PERMISSION_COPY.ownerMark}
+                >
+                  👑
+                </Text>
+              )}
+              <Text className="text-[#dcddde] text-sm flex-1" numberOfLines={1}>
+                {nameOf(user_id)}
+              </Text>
+              {topRole && <Text className="text-[#72767d] text-xs ml-2">{topRole.name}</Text>}
+            </TouchableOpacity>
+
+            {/* El dueño nunca es blanco: el backend lo rechaza, porque nadie está
+                por encima suyo en la jerarquía. */}
+            {canManage && !isOwner && (
+              <TouchableOpacity
+                onPress={() => setEditing(user_id)}
+                accessibilityLabel={PERMISSION_COPY.editMemberRoles(nameOf(user_id))}
+                className="pl-3"
+              >
+                <Text className="text-[#8e9297] text-xs">Roles ›</Text>
+              </TouchableOpacity>
+            )}
           </View>
         );
       })}
