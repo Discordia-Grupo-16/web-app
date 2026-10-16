@@ -12,6 +12,7 @@ const FORBIDDEN_MESSAGE = 'Tu cuenta ya no tiene permisos de staff. Volvé a ini
 
 const FEEDBACK: Record<UserStatusAction, string> = {
     suspend: 'Cuenta suspendida.',
+    reactivate: 'Cuenta reactivada.',
 };
 
 const dialogCopy = (user: AdminUser, kind: UserStatusAction) => {
@@ -22,6 +23,13 @@ const dialogCopy = (user: AdminUser, kind: UserStatusAction) => {
                 description: `${user.email} no va a poder iniciar sesión, se cierran todas sus sesiones abiertas y su perfil deja de estar visible. Podés reactivarla después.`,
                 confirmLabel: 'Suspender cuenta',
                 tone: 'danger' as const,
+            };
+        case 'reactivate':
+            return {
+                title: `¿Reactivar a ${user.name}?`,
+                description: 'Va a poder volver a iniciar sesión y su perfil vuelve a estar visible.',
+                confirmLabel: 'Reactivar cuenta',
+                tone: 'default' as const,
             };
     }
 };
@@ -63,6 +71,11 @@ export const UsersPage = () => {
     });
     const copy = action.target && action.kind ? dialogCopy(action.target, action.kind) : null;
 
+    const openAction = (target: AdminUser, kind: UserStatusAction) => {
+        setFeedback(null);
+        action.open(target, kind);
+    };
+
     const hasFilters = search !== '' || status !== '';
 
     const renderResults = () => {
@@ -102,10 +115,8 @@ export const UsersPage = () => {
         return (
             <UsersTable
                 users={users}
-                onSuspend={(target) => {
-                    setFeedback(null);
-                    action.open(target, 'suspend');
-                }}
+                onSuspend={(target) => openAction(target, 'suspend')}
+                onReactivate={(target) => openAction(target, 'reactivate')}
             />
         );
     };

@@ -4,12 +4,25 @@ import { UserStatusBadge } from './UserStatusBadge';
 interface UsersTableProps {
     users: AdminUser[];
     onSuspend: (user: AdminUser) => void;
+    onReactivate: (user: AdminUser) => void;
 }
 
-// Staff cannot be suspended (E3) and a suspended account has nothing to suspend: both show "—".
-// SCRUM-82 puts "Reactivar" in the suspended case.
-const UserActions = ({ user, onSuspend }: { user: AdminUser; onSuspend: (user: AdminUser) => void }) => {
-    if (user.role === 'staff' || user.status !== 'active') return <span>—</span>;
+// Staff cannot be suspended (E3), so they have no action at all and show "—".
+const UserActions = ({ user, onSuspend, onReactivate }: { user: AdminUser } & Omit<UsersTableProps, 'users'>) => {
+    if (user.role === 'staff') return <span>—</span>;
+
+    if (user.status === 'suspended') {
+        return (
+            <button
+                type="button"
+                aria-label={`Reactivar a ${user.name}`}
+                onClick={() => onReactivate(user)}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-blurple hover:bg-blurple-dark"
+            >
+                Reactivar
+            </button>
+        );
+    }
 
     return (
         <button
@@ -23,7 +36,7 @@ const UserActions = ({ user, onSuspend }: { user: AdminUser; onSuspend: (user: A
     );
 };
 
-export const UsersTable = ({ users, onSuspend }: UsersTableProps) => (
+export const UsersTable = ({ users, onSuspend, onReactivate }: UsersTableProps) => (
     <div className="overflow-x-auto rounded-xl bg-discord-card">
         <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase text-discord-muted">
@@ -47,7 +60,7 @@ export const UsersTable = ({ users, onSuspend }: UsersTableProps) => (
                         </td>
                         <td className="px-4 py-3">{new Date(user.createdAt).toLocaleDateString('es-AR')}</td>
                         <td className="px-4 py-3">
-                            <UserActions user={user} onSuspend={onSuspend} />
+                            <UserActions user={user} onSuspend={onSuspend} onReactivate={onReactivate} />
                         </td>
                     </tr>
                 ))}

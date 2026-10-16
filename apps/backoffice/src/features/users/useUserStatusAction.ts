@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { getApiErrorMessage, type AdminUser } from '@discordia/api';
 import { adminUserService } from '@/shared/api';
 
-// SCRUM-82 adds 'reactivate' here and one case in runAction.
-export type UserStatusAction = 'suspend';
+export type UserStatusAction = 'suspend' | 'reactivate';
 
 interface State {
     target: AdminUser | null;
@@ -18,6 +17,8 @@ const runAction = (user: AdminUser, kind: UserStatusAction): Promise<AdminUser> 
     switch (kind) {
         case 'suspend':
             return adminUserService.suspendUser(user.id);
+        case 'reactivate':
+            return adminUserService.reactivateUser(user.id);
     }
 };
 

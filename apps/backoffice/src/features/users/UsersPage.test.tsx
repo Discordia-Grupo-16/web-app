@@ -7,12 +7,20 @@ import { UsersPage } from './UsersPage';
 
 const listUsers = vi.fn();
 const suspendUser = vi.fn();
+const reactivateUser = vi.fn();
 vi.mock('@/shared/api', () => ({
     adminUserService: {
         listUsers: (...args: unknown[]) => listUsers(...args),
         suspendUser: (...args: unknown[]) => suspendUser(...args),
+        reactivateUser: (...args: unknown[]) => reactivateUser(...args),
     },
 }));
+
+const httpError = (status: number, detail: string) =>
+    new AxiosError('failed', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status,
+        data: { detail },
+    } as never);
 
 const user = (id: string, overrides: Partial<AdminUser> = {}): AdminUser => ({
     id,
@@ -33,6 +41,7 @@ describe('UsersPage', () => {
     beforeEach(() => {
         listUsers.mockReset();
         suspendUser.mockReset();
+        reactivateUser.mockReset();
         listUsers.mockResolvedValue(page([user('ana'), user('bob', { status: 'suspended' })]));
     });
 
@@ -133,12 +142,6 @@ describe('UsersPage', () => {
 });
 
 describe('UsersPage suspension', () => {
-    const httpError = (status: number, detail: string) =>
-        new AxiosError('failed', 'ERR_BAD_REQUEST', undefined, undefined, {
-            status,
-            data: { detail },
-        } as never);
-
     const openDialog = async () => {
         render(<UsersPage />);
         await screen.findByText('ana@example.com');
@@ -276,5 +279,83 @@ describe('UsersPage suspension', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('No tenés permisos para suspender cuentas.');
         expect(listUsers).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+});
+
+describe('UsersPage reactivation', () => {
+    const openDialog = async () => {
+        render(<UsersPage />);
+        await screen.findByText('bob@example.com');
+        await userEvent.click(screen.getByRole('button', { name: 'Reactivar a Name bob' }));
+    };
+
+    beforeEach(() => {
+        suspendUser.mockReset();
+        reactivateUser.mockReset();
+        listUsers.mockReset();
+        listUsers.mockResolvedValue(page([user('ana'), user('bob', { status: 'suspended' })]));
+        reactivateUser.mockResolvedValue(user('bob'));
+    });
+
+    it('opens the dialog with the plan texts and does not call the API until confirmed', async () => {
+        await openDialog();
+
+        expect(screen.getByRole('dialog', { name: '¿Reactivar a Name bob?' })).toBeInTheDocument();
+        expect(
+            screen.getByText('Va a poder volver a iniciar sesión y su perfil vuelve a estar visible.'),
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Reactivar cuenta' })).toBeInTheDocument();
+        expect(reactivateUser).not.toHaveBeenCalled();
+        expect(suspendUser).not.toHaveBeenCalled();
+    });
+
+    it('confirming calls reactivateUser(id), closes the dialog, reloads and announces it', async () => {
+        await openDialog();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Reactivar cuenta' }));
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Cuenta reactivada.');
+        expect(reactivateUser).toHaveBeenCalledTimes(1);
+        expect(reactivateUser).toHaveBeenCalledWith('bob');
+        expect(suspendUser).not.toHaveBeenCalled();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(listUsers).toHaveBeenCalledTimes(2);
+    });
+
+    it('Cancelar and Escape do not call the API', async () => {
+        await openDialog();
+        await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Reactivar a Name bob' }));
+        await userEvent.keyboard('{Escape}');
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(reactivateUser).not.toHaveBeenCalled();
+    });
+
+    it('on a 409 closes the dialog, reloads, and shows the detail above the table without announcing a reactivation', async () => {
+        reactivateUser.mockRejectedValueOnce(httpError(409, 'La cuenta ya está activa.'));
+        await openDialog();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Reactivar cuenta' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('La cuenta ya está activa.');
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        await waitFor(() => expect(listUsers).toHaveBeenCalledTimes(2));
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.queryByText('Cuenta reactivada.')).not.toBeInTheDocument();
+    });
+
+    it('on a 403 keeps the dialog open with the detail and does not reload', async () => {
+        reactivateUser.mockRejectedValueOnce(httpError(403, 'No tenés permisos para reactivar cuentas.'));
+        await openDialog();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Reactivar cuenta' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('No tenés permisos para reactivar cuentas.');
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Reactivar cuenta' })).toBeEnabled();
+        expect(listUsers).toHaveBeenCalledTimes(1);
     });
 });

@@ -35,8 +35,8 @@ export const ConfirmDialog = ({
     const descriptionId = useId();
     const cancelRef = useRef<HTMLButtonElement>(null);
 
-    // The initial focus goes on Cancelar: the action is destructive, so an Enter pressed by
-    // reflex right after opening must not confirm it.
+    // The initial focus goes on Cancelar, whatever the tone: the action is always on another
+    // person's account, so an accidental Enter right after opening must never confirm it.
     useEffect(() => {
         if (open) cancelRef.current?.focus();
     }, [open]);
