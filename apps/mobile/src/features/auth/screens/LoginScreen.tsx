@@ -23,11 +23,12 @@ export function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Lazy initializer: consumed once on mount, so a later visit to the screen does not show it again.
-  const [notice] = useState(consumeLoginNotice);
+  const [notice, setNotice] = useState(consumeLoginNotice);
   const { signIn } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {
+    setNotice(null);
     const validation = validateLoginInput({ email, password });
     if (!validation.isValid) {
       setError(validation.error);

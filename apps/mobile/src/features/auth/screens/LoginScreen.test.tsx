@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import { LoginScreen } from './LoginScreen';
 import { setLoginNotice } from '@/shared/session/loginNotice';
 
@@ -24,6 +24,16 @@ describe('LoginScreen', () => {
     await first.unmount();
 
     await render(<LoginScreen />);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('hides the login notice as soon as the login is submitted', async () => {
+    setLoginNotice(NOTICE);
+    await render(<LoginScreen />);
+    expect(screen.getByRole('alert')).toBeTruthy();
+
+    await fireEvent.press(screen.getByText('Iniciar Sesión'));
+
     expect(screen.queryByRole('alert')).toBeNull();
   });
 

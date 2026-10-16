@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LoginRegisterPage } from './LoginRegisterPage';
 import { setLoginNotice } from '@/shared/session/loginNotice';
@@ -30,6 +31,16 @@ describe('LoginRegisterPage', () => {
         first.unmount();
 
         renderPage();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('hides the login notice as soon as the login form is submitted', async () => {
+        setLoginNotice('Tu cuenta fue suspendida por el equipo de Discordia.');
+        renderPage();
+        expect(screen.getByRole('alert')).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
+
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
