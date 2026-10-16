@@ -40,6 +40,7 @@ export const ChatPanel = ({ channelId, channelName, topic }: ChatPanelProps) => 
                 loadingMore={loadingMore}
                 loadMoreError={loadMoreError}
                 onLoadMore={loadMore}
+                onRetryLoadMore={loadMore}
             />
             <MessageComposer
                 channelName={channelName}

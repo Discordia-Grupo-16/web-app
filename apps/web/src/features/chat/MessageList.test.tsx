@@ -24,6 +24,7 @@ const renderList = (
         loadingMore?: boolean;
         loadMoreError?: boolean;
         onLoadMore?: () => void;
+        onRetryLoadMore?: () => void;
     } = {},
 ) => {
     const openProfile = vi.fn();
@@ -52,6 +53,7 @@ const renderList = (
                     loadingMore={overrides.loadingMore ?? false}
                     loadMoreError={overrides.loadMoreError ?? false}
                     onLoadMore={overrides.onLoadMore ?? vi.fn()}
+                    onRetryLoadMore={overrides.onRetryLoadMore ?? vi.fn()}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
@@ -139,9 +141,12 @@ describe('MessageList loading and error states', () => {
         expect(onRetryHistory).toHaveBeenCalledOnce();
     });
 
-    it('shows the load-more error banner when older messages fail to load', () => {
-        renderList([message('m1', 'me')], {}, undefined, { loadMoreError: true });
+    it('shows the load-more error banner with a retry button when older messages fail to load', () => {
+        const onRetryLoadMore = vi.fn();
+        renderList([message('m1', 'me')], {}, undefined, { loadMoreError: true, onRetryLoadMore });
         expect(screen.getByText('No se pudo cargar más mensajes.')).toBeInTheDocument();
+        screen.getByRole('button', { name: 'Reintentar' }).click();
+        expect(onRetryLoadMore).toHaveBeenCalledOnce();
     });
 });
 
@@ -164,6 +169,8 @@ describe('MessageList scroll behavior', () => {
     const makeTree = (props: {
         messages: ChatMessage[];
         hasMore?: boolean;
+        loadingMore?: boolean;
+        loadMoreError?: boolean;
         onLoadMore?: () => void;
     }) => (
         <PublicProfilesProvider source={{ getPublicProfiles: vi.fn(async () => new Map()), peekPublicProfile: () => undefined }}>
@@ -181,9 +188,10 @@ describe('MessageList scroll behavior', () => {
                     historyError={false}
                     onRetryHistory={vi.fn()}
                     hasMore={props.hasMore ?? false}
-                    loadingMore={false}
-                    loadMoreError={false}
+                    loadingMore={props.loadingMore ?? false}
+                    loadMoreError={props.loadMoreError ?? false}
                     onLoadMore={props.onLoadMore ?? vi.fn()}
+                    onRetryLoadMore={vi.fn()}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>
@@ -197,6 +205,26 @@ describe('MessageList scroll behavior', () => {
         fireEvent.scroll(document.querySelector('.py-2')!);
 
         expect(onLoadMore).toHaveBeenCalledOnce();
+    });
+
+    it('clears prevScrollHeightRef when loadMore fails so a later socket message does not misadjust scroll', () => {
+        const onLoadMore = vi.fn();
+        mockScrollHeight = 300;
+        const initial = [message('m1', 'me')];
+        const { rerender } = render(makeTree({ messages: initial, hasMore: true, onLoadMore }));
+
+        const el = document.querySelector('.py-2') as HTMLDivElement;
+        el.scrollTop = 40;
+        fireEvent.scroll(el); // saves prevScrollHeight=300, calls onLoadMore
+
+        rerender(makeTree({ messages: initial, hasMore: true, onLoadMore, loadingMore: true }));
+        rerender(makeTree({ messages: initial, hasMore: true, onLoadMore, loadMoreError: true }));
+
+        // A new message arrives via socket — scroll should NOT adjust using the stale height
+        mockScrollHeight = 340;
+        rerender(makeTree({ messages: [...initial, message('m2', 'me')], hasMore: true, onLoadMore }));
+
+        expect(el.scrollTop).toBe(40);
     });
 
     it('adjusts scrollTop to maintain position after messages are prepended', () => {

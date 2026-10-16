@@ -20,6 +20,7 @@ interface MessageListProps {
   loadingMore: boolean;
   loadMoreError: boolean;
   onLoadMore: () => void;
+  onRetryLoadMore: () => void;
 }
 
 // There is no tooltip on mobile: the correlationId (for searching the logs) is shown on long-press.
@@ -45,6 +46,7 @@ export const MessageList = ({
   loadingMore,
   loadMoreError,
   onLoadMore,
+  onRetryLoadMore,
 }: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
   const pendingCountRef = useRef(pending.length);
@@ -108,9 +110,14 @@ export const MessageList = ({
       onEndReached={hasMore ? onLoadMore : undefined}
       onEndReachedThreshold={0.2}
       ListFooterComponent={
-        loadingMore ? <ActivityIndicator size="small" color="#7289da" style={{ paddingVertical: 12 }} /> :
-        loadMoreError ? <Text className="text-xs text-center text-[#ed4245] py-2">No se pudo cargar más mensajes.</Text> :
-        null
+        loadingMore ? (
+          <ActivityIndicator size="small" color="#7289da" style={{ paddingVertical: 12 }} />
+        ) : loadMoreError ? (
+          <View className="items-center py-2 gap-1">
+            <Text className="text-xs text-center text-[#ed4245]">No se pudo cargar más mensajes.</Text>
+            <Text className="text-xs text-[#7289da]" onPress={onRetryLoadMore}>Reintentar</Text>
+          </View>
+        ) : null
       }
       renderItem={({ item }) =>
         item.kind === 'confirmed' ? (

@@ -22,6 +22,7 @@ interface MessageListProps {
     loadingMore: boolean;
     loadMoreError: boolean;
     onLoadMore: () => void;
+    onRetryLoadMore: () => void;
 }
 
 const STICK_TO_BOTTOM_PX = 100;
@@ -43,6 +44,7 @@ export const MessageList = ({
     loadingMore,
     loadMoreError,
     onLoadMore,
+    onRetryLoadMore,
 }: MessageListProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const nearBottomRef = useRef(true);
@@ -76,6 +78,12 @@ export const MessageList = ({
         el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
         prevScrollHeightRef.current = 0;
     }, [messages.length]);
+
+    // When loadMore finishes without new messages (error or empty page), clear the saved height so
+    // the next unrelated messages.length change doesn't apply a stale scroll adjustment.
+    useLayoutEffect(() => {
+        if (!loadingMore) prevScrollHeightRef.current = 0;
+    }, [loadingMore]);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -131,8 +139,11 @@ export const MessageList = ({
                         </div>
                     )}
                     {loadMoreError && (
-                        <div className="flex justify-center py-2 text-xs" style={{ color: '#ed4245' }}>
-                            No se pudo cargar más mensajes.
+                        <div className="flex flex-col items-center py-2 text-xs gap-1">
+                            <span style={{ color: '#ed4245' }}>No se pudo cargar más mensajes.</span>
+                            <button onClick={onRetryLoadMore} className="text-blurple hover:underline">
+                                Reintentar
+                            </button>
                         </div>
                     )}
                     {messages.map((message) => {

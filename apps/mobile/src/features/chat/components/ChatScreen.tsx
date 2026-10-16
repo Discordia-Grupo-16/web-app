@@ -41,6 +41,7 @@ export const ChatScreen = ({ channelId, channelName }: ChatScreenProps) => {
           loadingMore={loadingMore}
           loadMoreError={loadMoreError}
           onLoadMore={loadMore}
+          onRetryLoadMore={loadMore}
         />
         <MessageComposer
           channelName={channelName}
