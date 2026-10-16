@@ -330,4 +330,26 @@ describe('chatReducer — historial', () => {
         const after = chatReducer(before, { type: 'resyncLoaded', channelId: 'ch1', messages: [histMsg('m1')] });
         expect(after).toBe(before);
     });
+
+    it('created: evicts the oldest messageId from seenMessageIds when the cap is reached', () => {
+        const initial = Array.from({ length: MAX_MESSAGES_PER_CHANNEL }, (_, i) => created(`m${i}`));
+        const s = run(initial);
+        expect(s.seenMessageIds['m0']).toBe(true);
+
+        const s2 = chatReducer(s, created(`m${MAX_MESSAGES_PER_CHANNEL}`));
+        expect(s2.byChannel.ch1[0].messageId).toBe('m1');
+        expect(s2.seenMessageIds['m0']).toBeUndefined();
+        expect(s2.seenMessageIds['m1']).toBe(true);
+    });
+
+    it('resyncLoaded sorts correctly when createdAt has different fractional second precision (RFC3339Nano)', () => {
+        // .12Z is 0.12s; .123Z is 0.123s — string comparison gives wrong order since 'Z' > '3'
+        const m1 = { ...histMsg('m1'), createdAt: '2026-01-01T00:00:00.12Z' };
+        const m2 = { ...histMsg('m2'), createdAt: '2026-01-01T00:00:00.123Z' };
+        const s = run([
+            historyLoaded([m1]),
+            { type: 'resyncLoaded', channelId: 'ch1', messages: [m2] },
+        ]);
+        expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2']);
+    });
 });

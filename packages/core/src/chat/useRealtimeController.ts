@@ -109,7 +109,21 @@ export const useRealtimeController = ({
                 const abort = new AbortController();
                 syncAbortRef.current = abort;
                 for (const [channelId, hist] of Object.entries(stateRef.current.historyByChannel)) {
-                    if (!hist.loaded) continue;
+                    if (!hist.loaded) {
+                        // Channel was reset (stale anchor) or aborted mid-reload; reload it now.
+                        if (!hist.error && !historyFetching.current.has(channelId)) {
+                            historyFetching.current.add(channelId);
+                            (async () => {
+                                try {
+                                    const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
+                                    if (abort.signal.aborted) return;
+                                    dispatch({ type: 'historyLoaded', channelId, messages: data.data, hasMore: data.hasMore });
+                                } catch { /* keep existing state */ }
+                                finally { historyFetching.current.delete(channelId); }
+                            })();
+                        }
+                        continue;
+                    }
                     const messages = stateRef.current.byChannel[channelId] ?? [];
                     const lastMsg = messages[messages.length - 1];
                     if (!lastMsg) {
@@ -165,6 +179,7 @@ export const useRealtimeController = ({
                             if (!resp.hasMore || resp.data.length === 0) return;
                             afterId = resp.data[resp.data.length - 1].messageId;
                         }
+                        logger.error('resync reached max pages without exhausting messages', channelId, { maxPages: MAX_RESYNC_PAGES });
                     })();
                 }
             }
@@ -311,7 +326,18 @@ export const useRealtimeController = ({
                 params: { before: beforeId },
             });
             dispatch({ type: 'moreHistoryLoaded', channelId, messages: data.data, hasMore: data.hasMore });
-        } catch (err) {
+        } catch (err: unknown) {
+            const httpStatus = (err as { response?: { status?: number } })?.response?.status;
+            if (httpStatus === 404) {
+                dispatch({ type: 'historyReset', channelId });
+                try {
+                    const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
+                    dispatch({ type: 'historyLoaded', channelId, messages: data.data, hasMore: data.hasMore });
+                } catch (reloadErr) {
+                    logger.error('loadMoreHistory 404 reload failed', channelId, reloadErr);
+                }
+                return;
+            }
             logger.error('loadMoreHistory failed', channelId, err);
             dispatch({ type: 'loadMoreFailed', channelId });
         } finally {

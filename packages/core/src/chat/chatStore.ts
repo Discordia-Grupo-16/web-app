@@ -153,11 +153,19 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                 content: frame.content,
                 createdAt: frame.createdAt,
             };
-            const channelMessages = [...(state.byChannel[frame.channelId] ?? []), message].slice(-MAX_MESSAGES_PER_CHANNEL);
+            const prev = state.byChannel[frame.channelId] ?? [];
+            const appended = [...prev, message];
+            const channelMessages = appended.length > MAX_MESSAGES_PER_CHANNEL
+                ? appended.slice(-MAX_MESSAGES_PER_CHANNEL)
+                : appended;
+            const seen: Record<string, true> = { ...state.seenMessageIds, [frame.messageId]: true };
+            if (appended.length > MAX_MESSAGES_PER_CHANNEL) {
+                delete seen[appended[0].messageId];
+            }
             const next: ChatState = {
                 ...state,
                 byChannel: { ...state.byChannel, [frame.channelId]: channelMessages },
-                seenMessageIds: { ...state.seenMessageIds, [frame.messageId]: true },
+                seenMessageIds: seen,
             };
             if (!state.pending[frame.clientMessageId]) return next;
             return {
@@ -207,7 +215,12 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             const newMsgs = messages.filter((m) => !state.seenMessageIds[m.messageId]);
             const seen = { ...state.seenMessageIds };
             newMsgs.forEach((m) => { seen[m.messageId] = true; });
-            const merged = [...newMsgs, ...existing].slice(-MAX_MESSAGES_PER_CHANNEL);
+            const allMerged = [...newMsgs, ...existing];
+            const merged = allMerged.slice(-MAX_MESSAGES_PER_CHANNEL);
+            const dropped = allMerged.length - merged.length;
+            for (let i = 0; i < dropped; i++) {
+                delete seen[allMerged[i].messageId];
+            }
             return {
                 ...state,
                 byChannel: { ...state.byChannel, [channelId]: merged },
@@ -281,9 +294,15 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             if (newMsgs.length === 0) return state;
             const seen = { ...state.seenMessageIds };
             newMsgs.forEach((m) => { seen[m.messageId] = true; });
-            const merged = [...existing, ...newMsgs]
-                .sort((a, b) => a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.messageId < b.messageId ? -1 : 1)
-                .slice(-MAX_MESSAGES_PER_CHANNEL);
+            const sorted = [...existing, ...newMsgs].sort((a, b) => {
+                const diff = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+                return diff !== 0 ? diff : a.messageId < b.messageId ? -1 : 1;
+            });
+            const merged = sorted.slice(-MAX_MESSAGES_PER_CHANNEL);
+            const dropped = sorted.length - merged.length;
+            for (let i = 0; i < dropped; i++) {
+                delete seen[sorted[i].messageId];
+            }
             return {
                 ...state,
                 byChannel: { ...state.byChannel, [channelId]: merged },

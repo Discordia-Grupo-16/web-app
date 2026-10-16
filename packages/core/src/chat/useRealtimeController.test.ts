@@ -245,6 +245,76 @@ describe('useRealtimeController', () => {
         expect(result.current.value.state.historyByChannel[CHANNEL]?.loaded).toBe(true);
     });
 
+    it('loadMoreHistory fetches older messages and prepends them', async () => {
+        const initialMsg = { messageId: 'm-init', clientMessageId: 'c-init', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'initial', createdAt: '2026-01-01T00:00:01Z' };
+        const oldMsg = { messageId: 'm-old', clientMessageId: 'c-old', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'old', createdAt: '2026-01-01T00:00:00Z' };
+        const apiGet = vi.fn()
+            .mockResolvedValueOnce({ data: { data: [initialMsg], hasMore: true } })
+            .mockResolvedValueOnce({ data: { data: [oldMsg], hasMore: false } });
+        const { result } = render({ api: { get: apiGet } });
+
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            result.current.value.loadHistory(CHANNEL);
+            await Promise.resolve();
+        });
+
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.hasMore).toBe(true);
+
+        await act(async () => {
+            result.current.value.loadMoreHistory(CHANNEL, 'm-init');
+            await Promise.resolve();
+        });
+
+        expect(result.current.value.state.byChannel[CHANNEL]?.map((m) => m.messageId)).toEqual(['m-old', 'm-init']);
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.hasMore).toBe(false);
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.loadingMore).toBe(false);
+    });
+
+    it('loadMoreHistory sets loadMoreError on network failure', async () => {
+        const msg = { messageId: 'm1', clientMessageId: 'c1', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'x', createdAt: '2026-01-01T00:00:01Z' };
+        const apiGet = vi.fn()
+            .mockResolvedValueOnce({ data: { data: [msg], hasMore: true } })
+            .mockRejectedValueOnce(new Error('network error'));
+        const { result } = render({ api: { get: apiGet } });
+
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            result.current.value.loadHistory(CHANNEL);
+            await Promise.resolve();
+        });
+
+        await act(async () => {
+            result.current.value.loadMoreHistory(CHANNEL, 'm1');
+            await Promise.resolve();
+        });
+
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.loadMoreError).toBe(true);
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.loadingMore).toBe(false);
+        expect(result.current.value.state.historyByChannel[CHANNEL]?.hasMore).toBe(true);
+    });
+
+    it('loadMoreHistory with hasMore=false does nothing', async () => {
+        const msg = { messageId: 'm1', clientMessageId: 'c1', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'x', createdAt: '2026-01-01T00:00:01Z' };
+        const apiGet = vi.fn()
+            .mockResolvedValueOnce({ data: { data: [msg], hasMore: false } });
+        const { result } = render({ api: { get: apiGet } });
+
+        fake.emit('stateChange', 'open');
+        await act(async () => {
+            result.current.value.loadHistory(CHANNEL);
+            await Promise.resolve();
+        });
+
+        const callsBefore = apiGet.mock.calls.length;
+        await act(async () => {
+            result.current.value.loadMoreHistory(CHANNEL, 'm1');
+            await Promise.resolve();
+        });
+
+        expect(apiGet.mock.calls.length).toBe(callsBefore);
+    });
+
     it('stale ?after anchor (404) triggers historyReset and reloads', async () => {
         const msg = { messageId: 'm1', clientMessageId: 'c1', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'x', createdAt: '2026-01-01T00:00:00Z' };
         const freshMsg = { messageId: 'm2', clientMessageId: 'c2', channelId: CHANNEL, serverId: 's1', authorId: 'u1', content: 'y', createdAt: '2026-01-01T00:00:01Z' };
