@@ -256,6 +256,27 @@ describe('UsersPage suspension', () => {
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
+    it('goes back one page when the action removes the only row of the last page', async () => {
+        const firstPage = Array.from({ length: 20 }, (_, i) => user(`u${i}`));
+        let suspended = false;
+        listUsers.mockImplementation(async (params: { offset: number }) => {
+            if (params.offset === 0) return page(firstPage, suspended ? 20 : 21, 0);
+            return suspended ? page([], 20, 20) : page([user('zoe')], 21, 20);
+        });
+        render(<UsersPage />);
+        await screen.findByText('u0@example.com');
+        await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Estado' }), 'active');
+        await userEvent.click(await screen.findByRole('button', { name: 'Siguiente' }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Suspender a Name zoe' }));
+        suspended = true;
+
+        await userEvent.click(screen.getByRole('button', { name: 'Suspender cuenta' }));
+
+        expect(await screen.findByText('u0@example.com')).toBeInTheDocument();
+        expect(screen.queryByText('Ningún usuario coincide con la búsqueda.')).not.toBeInTheDocument();
+        expect(listUsers).toHaveBeenLastCalledWith({ status: 'active', limit: 20, offset: 0 }, expect.anything());
+    });
+
     it('opening another dialog clears an earlier conflict alert', async () => {
         suspendUser.mockRejectedValueOnce(httpError(409, 'La cuenta ya está suspendida.'));
         await openDialog();

@@ -49,6 +49,7 @@ export const UsersPage = () => {
         search,
         status: status || undefined,
         offset,
+        onPastEnd: (previousOffset) => setPage({ filterKey, offset: previousOffset }),
     });
 
     const action = useUserStatusAction({
