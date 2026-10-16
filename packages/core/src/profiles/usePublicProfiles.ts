@@ -42,7 +42,8 @@ export interface PublicProfileResult {
     retry: () => void;
 }
 
-// One profile with explicit loading and error states, for the profile view.
+// One profile with explicit loading and error states, for the profile view. It always asks the API:
+// the chat may show a cached profile, but opening one is an explicit action and must be current.
 export const usePublicProfile = (userId: string): PublicProfileResult => {
     const source = usePublicProfileSource();
     const [attempt, setAttempt] = useState(0);
@@ -51,7 +52,7 @@ export const usePublicProfile = (userId: string): PublicProfileResult => {
     useEffect(() => {
         let active = true;
         source
-            .getPublicProfiles([userId])
+            .getPublicProfiles([userId], { fresh: true })
             .then((profiles) => {
                 if (active) setLoaded({ userId, attempt, state: { status: 'ready', profile: profiles.get(userId) ?? null } });
             })

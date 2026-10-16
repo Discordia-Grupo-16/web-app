@@ -1,0 +1,23 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Open+Sans:wght@400;500;600&display=swap');
+@import 'tailwindcss';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+@theme inline {
+  --color-blurple: #7289da;
+  --color-blurple-dark: #5b6eae;
+  --color-discord-dark: #23272a;
+  --color-discord-card: #2c2f33;
+  --color-discord-muted: #99aab5;
+  --font-display: 'Nunito', sans-serif;
+  --font-body: 'Open Sans', sans-serif;
+}
+
+input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #2c2f33 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
