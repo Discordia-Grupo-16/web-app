@@ -182,4 +182,20 @@ describe('el rol por defecto (SCRUM-63)', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent(/por encima/);
         expect(onUpdated).not.toHaveBeenCalled();
     });
+
+    it('no manda a la lista los permisos que no se guardaron', async () => {
+        // `permissions` es el estado local del modal. Si se tilda algo y no se
+        // guarda, mandarlo haría que la lista los tome por reales: al reabrir,
+        // "Guardar" quedaría deshabilitado porque no hay diferencia, y el
+        // backend nunca los recibió.
+        vi.mocked(rolesService.setDefaultRole).mockResolvedValue();
+        const { user, onUpdated } = renderModal(VIEW_CHANNEL);
+
+        await user.click(screen.getByRole('checkbox', { name: 'Banear miembros' }));
+        await user.click(screen.getByText(PERMISSION_COPY.makeDefaultRole));
+
+        expect(onUpdated).toHaveBeenCalledWith(
+            expect.objectContaining({ permissions: VIEW_CHANNEL, is_default: true }),
+        );
+    });
 });

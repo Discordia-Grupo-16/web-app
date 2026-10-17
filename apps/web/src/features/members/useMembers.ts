@@ -2,6 +2,17 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Role, ServerMember } from '@discordia/api';
 import { membersService } from '@/shared/api';
 
+/**
+ * Los roles de un miembro, ordenados por `position` ascendente.
+ *
+ * `community` los devuelve así, y la lista nombra al miembro por su rol más
+ * alto, que es el último. Al asignar uno de menor posición, agregarlo al final
+ * lo haría aparecer como el más alto. Se ordena acá, donde se escribe el
+ * estado, para que ningún llamador pueda olvidarse.
+ */
+const byPosition = (roles: Role[]): Role[] =>
+    [...roles].sort((a, b) => a.position - b.position);
+
 export const useMembers = (serverId: string | undefined) => {
     const [members, setMembers] = useState<ServerMember[]>([]);
     const [loading, setLoading] = useState(false);
@@ -43,7 +54,11 @@ export const useMembers = (serverId: string | undefined) => {
     const setMemberRoles = useCallback(
         (userId: string, roles: Role[]) =>
             setMembers(prev =>
-                prev.map(member => (member.user_id === userId ? { ...member, roles } : member)),
+                prev.map(member =>
+                    member.user_id === userId
+                        ? { ...member, roles: byPosition(roles) }
+                        : member,
+                ),
             ),
         [],
     );

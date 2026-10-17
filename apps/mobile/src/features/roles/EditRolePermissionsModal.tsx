@@ -33,9 +33,10 @@ export function EditRolePermissionsModal({ visible, serverId, role, onClose, onU
     setError(null);
     try {
       await rolesService.setDefaultRole(serverId, role.id);
-      // El backend desmarca el anterior en la misma transacción, así que la
-      // lista se refresca con el rol entero y no con un flag aparte.
-      onUpdated({ ...role, permissions, is_default: true });
+      // Sin `permissions`: ese es el estado local del modal, y si hay tildes
+      // sin guardar la lista los tomaría por reales. El rol que viaja es el
+      // que el backend tiene, más el flag que acabó de cambiar.
+      onUpdated({ ...role, is_default: true });
     } catch (err) {
       setError(getErrorDetail(err) || PERMISSION_COPY.defaultRoleError);
     } finally {

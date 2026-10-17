@@ -190,4 +190,16 @@ describe('el rol por defecto (SCRUM-63)', () => {
     expect(await screen.findByText(/por encima/)).toBeOnTheScreen();
     expect(onUpdated).not.toHaveBeenCalled();
   });
+
+  it('no manda a la lista los permisos que no se guardaron', async () => {
+    jest.mocked(rolesService.setDefaultRole).mockResolvedValue();
+    const { user, onUpdated } = await renderModal(VIEW_CHANNEL);
+
+    await toggle('Banear miembros', true);
+    await user.press(screen.getByLabelText(PERMISSION_COPY.makeDefaultRole));
+
+    expect(onUpdated).toHaveBeenCalledWith(
+      expect.objectContaining({ permissions: VIEW_CHANNEL, is_default: true }),
+    );
+  });
 });
