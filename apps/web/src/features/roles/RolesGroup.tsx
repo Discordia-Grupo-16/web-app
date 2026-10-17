@@ -1,4 +1,4 @@
-import { Pencil, Plus, Shield } from 'lucide-react';
+import { Pencil, Plus, Shield, Users } from 'lucide-react';
 import { PERMISSION_COPY } from '@discordia/core';
 import type { Role } from '@discordia/api';
 
@@ -7,9 +7,16 @@ interface RolesGroupProps {
     canManage: boolean;
     onAdd: () => void;
     onEdit: (role: Role) => void;
+    onViewMembers: (role: Role) => void;
 }
 
-export const RolesGroup = ({ roles, canManage, onAdd, onEdit }: RolesGroupProps) => (
+export const RolesGroup = ({
+    roles,
+    canManage,
+    onAdd,
+    onEdit,
+    onViewMembers,
+}: RolesGroupProps) => (
     <div className="mb-4">
         <div className="flex items-center justify-between px-2 py-1 group">
             <span
@@ -49,6 +56,19 @@ export const RolesGroup = ({ roles, canManage, onAdd, onEdit }: RolesGroupProps)
                     </span>
                 )}
                 <span className="flex-1" />
+
+                {canManage && (
+                    <button
+                        onClick={() => onViewMembers(role)}
+                        className="opacity-0 group-hover/role:opacity-100 transition-opacity p-1 rounded shrink-0"
+                        style={{ color: '#8e9297' }}
+                        title={PERMISSION_COPY.viewRoleMembers(role.name)}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                    >
+                        <Users size={13} />
+                    </button>
+                )}
 
                 {canManage && (
                     <button
