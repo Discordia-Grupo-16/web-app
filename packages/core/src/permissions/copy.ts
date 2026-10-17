@@ -38,6 +38,9 @@ export const PERMISSION_COPY = {
     makeDefaultRole: 'Marcar como rol por defecto',
     defaultRoleError: 'No se pudo cambiar el rol por defecto',
 
+    /** Shown instead of the channel list to whoever lacks VIEW_CHANNEL. */
+    noViewChannel: 'No tenés permiso para ver los canales de este servidor.',
+
     /** Placeholder of the composer for whoever lacks SEND_MESSAGES. */
     sendMessage: (channelName: string) => `Enviar mensaje a #${channelName}`,
     cannotSendMessage: (channelName: string) =>

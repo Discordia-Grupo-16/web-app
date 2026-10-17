@@ -3,6 +3,8 @@ import {
     MANAGE_CHANNELS,
     MANAGE_ROLES,
     NONE,
+    PERMISSION_COPY,
+    VIEW_CHANNEL,
     hasPermission,
     useAuth,
 } from '@discordia/core';
@@ -37,22 +39,32 @@ export const ServerPanel = () => {
         >
             <ServerHeader
                 title={serverId ? (server?.name ?? '...') : 'Seleccioná un servidor'}
-                actions={serverId && <InviteButton serverId={serverId} />}
+                actions={serverId && isOwner && <InviteButton serverId={serverId} />}
             />
 
             <div className="flex-1 overflow-y-auto py-2">
                 {loading && (
                     <p className="text-xs px-4 py-2" style={{ color: '#99aab5' }}>Cargando...</p>
                 )}
+                {serverId && !loading && !hasPermission(permissions, VIEW_CHANNEL) && (
+                    // La lista llega vacía porque `community` no manda los
+                    // canales sin VIEW_CHANNEL. Sin este texto, la pantalla no
+                    // explica nada.
+                    <p className="text-xs px-4 py-2" style={{ color: '#99aab5' }}>
+                        {PERMISSION_COPY.noViewChannel}
+                    </p>
+                )}
                 {serverId && !loading && (
                     <>
-                        <ChannelList
-                            serverId={serverId}
-                            channels={server?.channels ?? []}
-                            activeChannelId={channelId}
-                            canManage={hasPermission(permissions, MANAGE_CHANNELS)}
-                            onChannelsChange={updateChannels}
-                        />
+                        {hasPermission(permissions, VIEW_CHANNEL) && (
+                            <ChannelList
+                                serverId={serverId}
+                                channels={server?.channels ?? []}
+                                activeChannelId={channelId}
+                                canManage={hasPermission(permissions, MANAGE_CHANNELS)}
+                                onChannelsChange={updateChannels}
+                            />
+                        )}
                         <RolesSection
                             serverId={serverId}
                             roles={roles}

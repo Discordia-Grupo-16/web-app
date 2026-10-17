@@ -1,7 +1,15 @@
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
-import { MANAGE_CHANNELS, MANAGE_ROLES, NONE, hasPermission, useAuth } from '@discordia/core';
+import {
+  MANAGE_CHANNELS,
+  MANAGE_ROLES,
+  NONE,
+  PERMISSION_COPY,
+  VIEW_CHANNEL,
+  hasPermission,
+  useAuth,
+} from '@discordia/core';
 import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
 import { MembersSection, useMembers } from '@/features/members';
@@ -35,12 +43,18 @@ export default function ServerScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#23272a]" edges={['bottom']}>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <ChannelSection
-          serverId={server.id}
-          channels={server.channels}
-          canManage={canManageChannels}
-          onChannelsChange={updateChannels}
-        />
+        {hasPermission(permissions, VIEW_CHANNEL) ? (
+          <ChannelSection
+            serverId={server.id}
+            channels={server.channels}
+            canManage={canManageChannels}
+            onChannelsChange={updateChannels}
+          />
+        ) : (
+          // `community` no manda los canales sin VIEW_CHANNEL, así que la
+          // sección quedaría vacía sin explicar nada.
+          <Text className="text-[#99aab5] text-xs px-1">{PERMISSION_COPY.noViewChannel}</Text>
+        )}
         <RolesSection
           serverId={server.id}
           roles={roles}
