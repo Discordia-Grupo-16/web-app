@@ -1,9 +1,16 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import { createRealtimeClient } from '@discordia/api';
-import { RealtimeContext, useAuth, useRealtimeController } from '@discordia/core';
+import {
+  ACCOUNT_SUSPENDED_NOTICE,
+  RealtimeContext,
+  useAuth,
+  useRealtimeController,
+  useSuspensionSignOut,
+} from '@discordia/core';
 import { WS_URL } from '@/shared/config/env';
 import { mobileAuthStorage } from '@/shared/session/authStorage';
+import { setLoginNotice } from '@/shared/session/loginNotice';
 import { newClientMessageId } from './clientMessageId';
 
 export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
@@ -16,6 +23,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
     return createRealtimeClient({ url: WS_URL, getToken: mobileAuthStorage.getToken });
   });
   const { value, suspend } = useRealtimeController({ client, token, newClientMessageId });
+  useSuspensionSignOut(client, () => setLoginNotice(ACCOUNT_SUSPENDED_NOTICE));
 
   // Android may freeze the process in the background and kill the socket without a clean close, and an
   // idle socket drains battery. Only 'background' closes it: 'inactive' also fires for system dialogs on iOS.
