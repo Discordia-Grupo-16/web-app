@@ -1,5 +1,6 @@
 import { useParams } from 'react-router-dom';
 import {
+    BAN_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
     NONE,
@@ -20,7 +21,7 @@ export const ServerPanel = () => {
     const { user } = useAuth();
     const { server, loading: loadingServer, updateChannels } = useServer(serverId, channelId);
     const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
-    const { members, loading: loadingMembers, setMemberRoles } = useMembers(serverId);
+    const { members, loading: loadingMembers, setMemberRoles, removeMember } = useMembers(serverId);
 
     const loading = loadingServer || loadingRoles || loadingMembers;
 
@@ -78,7 +79,9 @@ export const ServerPanel = () => {
                             roles={roles}
                             ownerId={server?.owner_id}
                             canManage={hasPermission(permissions, MANAGE_ROLES)}
+                            canBan={hasPermission(permissions, BAN_MEMBERS)}
                             onRolesChange={setMemberRoles}
+                            onMemberBanned={removeMember}
                         />
                     </>
                 )}
