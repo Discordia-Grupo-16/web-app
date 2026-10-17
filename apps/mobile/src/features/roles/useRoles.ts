@@ -32,5 +32,18 @@ export const useRoles = (serverId: string | undefined) => {
 
   const addRole = useCallback((role: Role) => setRoles(prev => [...prev, role]), []);
 
-  return { roles, loading, addRole };
+  const updateRole = useCallback(
+    (role: Role) =>
+      setRoles(prev =>
+        prev.map(r => {
+          if (r.id === role.id) return role;
+          // El backend desmarca el anterior en la misma transacción. Sin
+          // replicarlo acá quedan dos insignias "Por defecto" hasta recargar.
+          return role.is_default ? { ...r, is_default: false } : r;
+        }),
+      ),
+    [],
+  );
+
+  return { roles, loading, addRole, updateRole };
 };

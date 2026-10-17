@@ -21,6 +21,8 @@ const server: Server = {
     owner_id: 'owner',
     avatar_url: null,
     created_at: '2026-10-01T00:00:00Z',
+    my_permissions: 7,
+    my_permission_names: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'CONNECT'],
     channels: [
         { id: 'c1', server_id: 'srv', name: 'general', type: 'text', topic: null, position: 0, created_at: '2026-10-01T00:00:00Z' },
     ],
@@ -54,6 +56,24 @@ describe('useServer', () => {
         renderHook(() => useServer('srv', 'deleted'), { wrapper });
 
         await waitFor(() => expect(navigate).toHaveBeenCalledWith('/servers/srv'));
+    });
+
+    it('picks up a permission someone else revoked, on the next poll', async () => {
+        // This is how the panel finds out: nothing is pushed over the socket for permissions, so
+        // without this the user keeps seeing buttons the backend already refuses.
+        vi.mocked(serversService.getServer).mockResolvedValue(server);
+        const { result } = renderHook(() => useServer('srv', 'c1'), { wrapper });
+        await waitFor(() => expect(result.current.server).not.toBeNull());
+
+        vi.mocked(serversService.getServer).mockResolvedValue({
+            ...server,
+            my_permissions: 1,
+            my_permission_names: ['VIEW_CHANNEL'],
+        });
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        await waitFor(() => expect(result.current.server?.my_permissions).toBe(1));
+        expect(result.current.server?.my_permission_names).toEqual(['VIEW_CHANNEL']);
     });
 
     it('applies channel updates to the loaded server', async () => {

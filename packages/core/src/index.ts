@@ -1,5 +1,7 @@
 export * from './session/AuthProvider';
 export * from './validation/validations';
+export * from './permissions/permissions';
+export * from './permissions/copy';
 export * from './chat/chatStore';
 export * from './chat/realtimeContext';
 export * from './chat/useRealtime';
