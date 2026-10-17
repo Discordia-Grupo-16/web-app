@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
 import { NONE, SEND_MESSAGES, hasPermission } from '@discordia/core';
 import { serversService } from '@/shared/api';
+import { usePolling } from '@/shared/hooks/usePolling';
 import type { Server } from '@discordia/api';
 import { ChatPanel } from './ChatPanel';
 
@@ -18,6 +19,19 @@ export const ChannelView = () => {
             .then(setServer)
             .catch(console.error);
     }, [serverId, channelId]);
+
+    // Los permisos cambian sin que nadie los empuje por el socket, y el poll de
+    // `useServer` vive en el panel lateral: sin este, quitarle SEND_MESSAGES a
+    // alguien dejaba la caja como estaba hasta que cambiara de canal o
+    // recargara. El mobile ya lo refresca en ChannelScreen, así que sin esto
+    // las dos plataformas no hacen lo mismo.
+    usePolling(() => {
+        if (!serverId) return;
+        serversService.getServer(serverId)
+            .then(srv => setServer(prev => (prev && prev.id === srv.id ? srv : prev)))
+            // Un servidor que ya no está lo resuelve quien lo carga en el panel.
+            .catch(console.error);
+    }, !!serverId);
 
     const channel = server?.channels.find(c => c.id === channelId) ?? null;
 
