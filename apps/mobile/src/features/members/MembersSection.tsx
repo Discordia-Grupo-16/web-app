@@ -3,6 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
+import { BanMemberDialog } from './BanMemberDialog';
 import { MemberRolesModal } from './MemberRolesModal';
 
 interface MembersSectionProps {
@@ -11,7 +12,9 @@ interface MembersSectionProps {
   roles: Role[];
   ownerId: string | undefined;
   canManage: boolean;
+  canBan: boolean;
   onRolesChange: (userId: string, roles: Role[]) => void;
+  onMemberBanned: (userId: string) => void;
 }
 
 export function MembersSection({
@@ -20,11 +23,14 @@ export function MembersSection({
   roles,
   ownerId,
   canManage,
+  canBan,
   onRolesChange,
+  onMemberBanned,
 }: MembersSectionProps) {
   const { user } = useAuth();
   const router = useRouter();
   const [editing, setEditing] = useState<string | null>(null);
+  const [banning, setBanning] = useState<string | null>(null);
 
   // `community` only returns ids: the names are `identity`'s, resolved in one request.
   const profiles = usePublicProfiles(members.map(member => member.user_id));
@@ -86,6 +92,20 @@ export function MembersSection({
                 <Text className="text-[#8e9297] text-xs">Roles ›</Text>
               </TouchableOpacity>
             )}
+
+            {/* Tampoco uno mismo: el backend lo rechaza, porque nadie está
+                estrictamente por encima de sí mismo. */}
+            {canBan && !isOwner && user_id !== user?.id && (
+              <TouchableOpacity
+                onPress={() => setBanning(user_id)}
+                accessibilityLabel={PERMISSION_COPY.banMember(nameOf(user_id))}
+                className="pl-3"
+              >
+                {/* Con la flecha como "Roles ›": las dos acciones de la fila abren
+                    un modal, y el ícono de la web no tiene equivalente acá. */}
+                <Text className="text-[#ed4245] text-xs">Banear ›</Text>
+              </TouchableOpacity>
+            )}
           </View>
         );
       })}
@@ -99,6 +119,17 @@ export function MembersSection({
           roles={roles}
           onClose={() => setEditing(null)}
           onRolesChange={onRolesChange}
+        />
+      )}
+
+      {banning && (
+        <BanMemberDialog
+          visible
+          serverId={serverId}
+          userId={banning}
+          memberName={nameOf(banning)}
+          onClose={() => setBanning(null)}
+          onBanned={onMemberBanned}
         />
       )}
     </>
