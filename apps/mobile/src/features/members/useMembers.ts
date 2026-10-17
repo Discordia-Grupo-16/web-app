@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Role, ServerMember } from '@discordia/api';
 import { membersService } from '@/shared/api';
+import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
 
 /**
  * Los roles de un miembro, ordenados por `position` ascendente.
@@ -40,6 +41,17 @@ export const useMembers = (serverId: string | undefined) => {
       isMounted = false;
     };
   }, [serverId]);
+
+  // Quien entra al servidor después de que se cargó la lista no aparecía hasta
+  // recargar, así que no se le podía asignar un rol.
+  useFocusedPolling(() => {
+    if (!serverId) return;
+    membersService
+      .listMembers(serverId)
+      .then(setMembers)
+      // Un servidor que ya no está lo resuelve quien lo carga.
+      .catch(console.error);
+  });
 
   /**
    * Replaces the roles of one member in the list.

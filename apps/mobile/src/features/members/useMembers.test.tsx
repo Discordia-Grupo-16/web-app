@@ -5,6 +5,10 @@ import { membersService } from '@/shared/api';
 import { useMembers } from './useMembers';
 
 jest.mock('@/shared/api', () => ({ membersService: { listMembers: jest.fn() } }));
+// `useFocusedPolling` usa useFocusEffect, que pide un contenedor de navegación
+// que esta sonda no tiene. El poll no es lo que estos tests miran: lo que miran
+// es qué hace `setMemberRoles` con lo que ya está en memoria.
+jest.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 
 const role = (id: string, name: string, position: number): Role => ({
   id,
