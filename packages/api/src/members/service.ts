@@ -29,4 +29,13 @@ export const createMembersService = (apiClient: AxiosInstance) => ({
             .put(`/api/v1/servers/${serverId}/bans/${userId}`, form)
             .then(() => undefined);
     },
+
+    /**
+     * Kicks a member out of a server (SCRUM-68): they lose access, but any valid
+     * invitation brings them back. A DELETE without body: there is no reason to send.
+     */
+    kickMember: (serverId: string, userId: string): Promise<void> =>
+        apiClient
+            .delete(`/api/v1/servers/${serverId}/members/${userId}`)
+            .then(() => undefined),
 });

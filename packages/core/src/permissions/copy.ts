@@ -38,6 +38,20 @@ export const PERMISSION_COPY = {
     makeDefaultRole: 'Marcar como rol por defecto',
     defaultRoleError: 'No se pudo cambiar el rol por defecto',
 
+    /** Kicking a member (SCRUM-68). */
+    kickMember: (memberName: string) => `Expulsar a ${memberName}`,
+    kickMemberTitle: 'Expulsar miembro',
+    /**
+     * Says the half a moderator might get wrong: unlike a ban, an invitation does
+     * bring them back.
+     */
+    kickMemberWarning: (memberName: string) =>
+        `${memberName} va a perder el acceso al servidor y a sus canales. Puede volver a entrar con una nueva invitación.`,
+    kickConfirm: 'Expulsar',
+    kicking: 'Expulsando...',
+    kickCancel: 'Cancelar',
+    kickMemberError: 'No se pudo expulsar al miembro',
+
     /** Banning a member (SCRUM-69). */
     banMember: (memberName: string) => `Banear a ${memberName}`,
     banMemberTitle: 'Banear miembro',
