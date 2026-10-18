@@ -7,7 +7,7 @@ import { MembersSection } from './MembersSection';
 jest.useFakeTimers();
 jest.mock('@/shared/api', () => ({
   rolesService: { assignRole: jest.fn(), removeRole: jest.fn() },
-  membersService: { banMember: jest.fn() },
+  membersService: { banMember: jest.fn(), kickMember: jest.fn() },
 }));
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
@@ -45,6 +45,7 @@ interface Options {
   members?: ServerMember[];
   roles?: Role[];
   canManage?: boolean;
+  canKick?: boolean;
   canBan?: boolean;
 }
 
@@ -52,9 +53,11 @@ const renderSection = async ({
   members = [member('milton')],
   roles = [MODERADOR, ADMIN],
   canManage = true,
+  canKick = false,
   canBan = false,
 }: Options = {}) => {
   const onRolesChange = jest.fn();
+  const onMemberKicked = jest.fn();
   const onMemberBanned = jest.fn();
   const source: PublicProfileSource = {
     getPublicProfiles: async () => profiles,
@@ -69,13 +72,15 @@ const renderSection = async ({
         roles={roles}
         ownerId="owner"
         canManage={canManage}
+        canKick={canKick}
         canBan={canBan}
         onRolesChange={onRolesChange}
+        onMemberKicked={onMemberKicked}
         onMemberBanned={onMemberBanned}
       />
     </PublicProfilesProvider>,
   );
-  return { onRolesChange, onMemberBanned, user };
+  return { onRolesChange, onMemberKicked, onMemberBanned, user };
 };
 
 // A Switch reports through onValueChange, and act() is what flushes the re-render.
@@ -182,6 +187,79 @@ describe('MembersSection', () => {
 describe('MembersSection: el perfil público', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('no ofrece expulsar a quien no tiene KICK_MEMBERS', async () => {
+    await renderSection({ canKick: false });
+    await screen.findByText('Milton');
+
+    expect(screen.queryByLabelText(PERMISSION_COPY.kickMember('Milton'))).toBeNull();
+  });
+
+  it('nunca ofrece expulsar al dueño, que el backend rechaza', async () => {
+    // Mostrarlo sería un botón cuyo único resultado posible es un 403.
+    await renderSection({ members: [member('owner')], canKick: true });
+    await screen.findByText('Bruno');
+
+    expect(screen.queryByLabelText(PERMISSION_COPY.kickMember('Bruno'))).toBeNull();
+  });
+
+  it('nunca ofrece expulsarse a uno mismo', async () => {
+    await renderSection({ members: [member('me')], canKick: true });
+
+    expect(screen.queryByLabelText(/^Expulsar a /)).toBeNull();
+  });
+
+  it('avisa que puede volver con una invitación, igual que la web', async () => {
+    const { user } = await renderSection({ canKick: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.kickMember('Milton')));
+
+    expect(
+      screen.getByText(PERMISSION_COPY.kickMemberWarning('Milton')),
+    ).toBeOnTheScreen();
+  });
+
+  it('expulsa y saca al miembro de la lista', async () => {
+    (membersService.kickMember as jest.Mock).mockResolvedValue(undefined);
+    const { user, onMemberKicked } = await renderSection({ canKick: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.kickMember('Milton')));
+    await user.press(screen.getByText(PERMISSION_COPY.kickConfirm));
+
+    expect(membersService.kickMember).toHaveBeenCalledWith('srv', 'milton');
+    expect(onMemberKicked).toHaveBeenCalledWith('milton');
+  });
+
+  it('muestra por qué el backend se negó a expulsar y deja al miembro en la lista', async () => {
+    // La jerarquía es del backend: esta pantalla no conoce los roles de quien
+    // expulsa, así que lo único honesto que puede hacer es repetir la negativa.
+    (membersService.kickMember as jest.Mock).mockRejectedValue({
+      response: {
+        data: { detail: 'No podés moderar a un miembro con jerarquía igual o superior a la tuya' },
+      },
+    });
+    const { user, onMemberKicked } = await renderSection({ canKick: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.kickMember('Milton')));
+    await user.press(screen.getByText(PERMISSION_COPY.kickConfirm));
+
+    expect(await screen.findByText(/jerarquía igual o superior/)).toBeOnTheScreen();
+    expect(onMemberKicked).not.toHaveBeenCalled();
+  });
+
+  it('no expulsa si se cancela el diálogo', async () => {
+    const { user, onMemberKicked } = await renderSection({ canKick: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.kickMember('Milton')));
+    await user.press(screen.getByText(PERMISSION_COPY.kickCancel));
+
+    expect(membersService.kickMember).not.toHaveBeenCalled();
+    expect(onMemberKicked).not.toHaveBeenCalled();
   });
 
   it('no ofrece banear a quien no tiene BAN_MEMBERS', async () => {

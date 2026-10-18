@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 import { BanMemberDialog } from './BanMemberDialog';
+import { KickMemberDialog } from './KickMemberDialog';
 import { MemberRolesModal } from './MemberRolesModal';
 
 interface MembersSectionProps {
@@ -12,8 +13,10 @@ interface MembersSectionProps {
   roles: Role[];
   ownerId: string | undefined;
   canManage: boolean;
+  canKick: boolean;
   canBan: boolean;
   onRolesChange: (userId: string, roles: Role[]) => void;
+  onMemberKicked: (userId: string) => void;
   onMemberBanned: (userId: string) => void;
 }
 
@@ -23,13 +26,16 @@ export function MembersSection({
   roles,
   ownerId,
   canManage,
+  canKick,
   canBan,
   onRolesChange,
+  onMemberKicked,
   onMemberBanned,
 }: MembersSectionProps) {
   const { user } = useAuth();
   const router = useRouter();
   const [editing, setEditing] = useState<string | null>(null);
+  const [kicking, setKicking] = useState<string | null>(null);
   const [banning, setBanning] = useState<string | null>(null);
 
   // `community` only returns ids: the names are `identity`'s, resolved in one request.
@@ -95,6 +101,18 @@ export function MembersSection({
 
             {/* Tampoco uno mismo: el backend lo rechaza, porque nadie está
                 estrictamente por encima de sí mismo. */}
+            {canKick && !isOwner && user_id !== user?.id && (
+              <TouchableOpacity
+                onPress={() => setKicking(user_id)}
+                accessibilityLabel={PERMISSION_COPY.kickMember(nameOf(user_id))}
+                className="pl-3"
+              >
+                {/* Ámbar y no rojo: expulsar es menos grave que banear, y la web
+                    lo distingue igual. */}
+                <Text className="text-[#faa61a] text-xs">Expulsar ›</Text>
+              </TouchableOpacity>
+            )}
+
             {canBan && !isOwner && user_id !== user?.id && (
               <TouchableOpacity
                 onPress={() => setBanning(user_id)}
@@ -119,6 +137,17 @@ export function MembersSection({
           roles={roles}
           onClose={() => setEditing(null)}
           onRolesChange={onRolesChange}
+        />
+      )}
+
+      {kicking && (
+        <KickMemberDialog
+          visible
+          serverId={serverId}
+          userId={kicking}
+          memberName={nameOf(kicking)}
+          onClose={() => setKicking(null)}
+          onKicked={onMemberKicked}
         />
       )}
 
