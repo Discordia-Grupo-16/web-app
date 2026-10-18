@@ -69,6 +69,27 @@ export const PERMISSION_COPY = {
     banCancel: 'Cancelar',
     banMemberError: 'No se pudo banear al miembro',
 
+    /** The bans of a server and revoking one (SCRUM-70). */
+    bansTitle: (count: number) => `Baneados — ${count}`,
+    noBans: 'No hay usuarios baneados.',
+    /**
+     * Known debt: `community` returns dates without a time zone (it breaks
+     * `procesos/convenciones.md`), so they are read as local time and a ban made
+     * late at night shows the next day. The fix belongs in the backend (see the PR of SCRUM-70).
+     */
+    bannedOn: (moderatorName: string, isoDate: string) =>
+        `Baneado por ${moderatorName} el ${new Date(isoDate).toLocaleDateString('es-AR')}`,
+    banReason: (reason: string) => `Motivo: ${reason}`,
+    revokeBan: (memberName: string) => `Revocar el baneo de ${memberName}`,
+    revokeBanTitle: 'Revocar baneo',
+    revokeBanWarning: (memberName: string) =>
+        `${memberName} va a poder volver a entrar al servidor con una invitación válida. No vuelve solo: tiene que aceptar una.`,
+    revokeConfirm: 'Revocar baneo',
+    revoking: 'Revocando...',
+    revokeCancel: 'Cancelar',
+    revokeBanError: 'No se pudo revocar el baneo',
+    bansError: 'No se pudieron cargar los baneados',
+
     /** Shown instead of the channel list to whoever lacks VIEW_CHANNEL. */
     noViewChannel: 'No tenés permiso para ver los canales de este servidor.',
 
