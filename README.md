@@ -11,7 +11,8 @@ Monorepositorio para las aplicaciones cliente del ecosistema Discordia:
 - npm 10+
 - (Para Mobile) un celular Android o el emulador de Android Studio, con Expo Go o con la app de
   desarrollo (ver [Mobile Android](#mobile-android))
-- (Para compilar la app de desarrollo) Android Studio y Java 17
+- (Para compilar la app de desarrollo) Android Studio y Java 17 (ver
+  [Instalar la app de desarrollo](#instalar-la-app-de-desarrollo-una-vez))
 
 ## Setup
 
@@ -107,23 +108,21 @@ npm run dev:mobile -- -- --clear
 `expo start`.)
 
 #### Instalar la app de desarrollo (una vez)
-1. En el celular, activá las opciones de desarrollador (Ajustes → Acerca del teléfono → tocar 7 veces
-   "Número de compilación") y la **depuración por USB**. En Samsung, el **Bloqueador automático**
-   (Ajustes → Seguridad y privacidad) la bloquea: hay que desactivarlo mientras se instala.
-2. Conectá el celular por USB, aceptá el aviso de depuración y comprobá que aparezca con `device`:
-   ```bash
-   ~/Android/Sdk/platform-tools/adb devices
-   ```
-3. Compilá e instalá desde `apps/mobile`, con **Java 17**. Con una versión más nueva (por ejemplo,
-   la 25 que trae Android Studio) la compilación nativa falla con "A restricted method in
-   java.lang.System has been called":
+1. Instalá [Android Studio](https://developer.android.com/studio) y abrilo una vez: crea el SDK de
+   Android y acepta sus licencias. Lo que falte del SDK lo descarga Gradle en la
+   primera compilación.
+2. Instalá Java 17 (por ejemplo, `openjdk-17-jdk` en Ubuntu o Eclipse Temurin 17 en Windows), que es
+   la versión con la que compila React Native. Si tenés otra versión de Java como predeterminada,
+   `JAVA_HOME` tiene que apuntar a la 17.
+3. Definí la variable de entorno `ANDROID_HOME` con la carpeta del SDK de Android. La ruta está en
+   Android Studio, en Settings → Languages & Frameworks → Android SDK ("Android SDK Location").
+4. Activá la depuración por USB en el celular y conectalo a la computadora.
+5. Compilá e instalá la app desde `apps/mobile`:
    ```bash
    cd apps/mobile
-   export JAVA_HOME=<ruta a un JDK 17> ANDROID_HOME=~/Android/Sdk
    npx expo run:android
    ```
-   Si Gradle ya descargó un JDK 17, está en `~/.gradle/jdks/`. La primera compilación tarda varios
-   minutos.
+   La primera compilación tarda varios minutos, porque también descarga lo que falte del SDK.
 
 `expo run:android` reescribe los scripts `android` e `ios` de `apps/mobile/package.json` y genera
 `apps/mobile/android/` (ignorada por git). **No commitees ese cambio de los scripts**: descartalo con
