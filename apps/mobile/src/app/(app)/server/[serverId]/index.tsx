@@ -14,7 +14,7 @@ import {
 } from '@discordia/core';
 import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
-import { MembersSection, useMembers } from '@/features/members';
+import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { RolesSection, useRoles } from '@/features/roles';
 import { ServerActions, useServerDetails } from '@/features/servers';
 
@@ -29,6 +29,11 @@ export default function ServerScreen() {
     setMemberRoles,
     removeMember,
   } = useMembers(serverId);
+
+  // Up here and not with the other permissions because a hook cannot go after the early return.
+  // The same bit bans and revokes (ADR-0011); without it the hook does not even ask.
+  const canBan = hasPermission(server?.my_permissions ?? NONE, BAN_MEMBERS);
+  const { bans, loading: loadingBans, removeBan, reload: reloadBans } = useBans(serverId, canBan);
 
   if (loadingServer || loadingRoles || loadingMembers || !server) {
     return (
@@ -76,11 +81,21 @@ export default function ServerScreen() {
           ownerId={server.owner_id}
           canManage={canManageRoles}
           canKick={hasPermission(permissions, KICK_MEMBERS)}
-          canBan={hasPermission(permissions, BAN_MEMBERS)}
+          canBan={canBan}
           onRolesChange={setMemberRoles}
           onMemberKicked={removeMember}
-          onMemberBanned={removeMember}
+          onMemberBanned={userId => {
+            removeMember(userId);
+            // Without this the new ban would only show up with the next poll.
+            reloadBans();
+          }}
         />
+        {/* Not part of the spinner above: the bans only start loading once the server says
+            the caller has the bit, and showing the spinner a second time would blink the
+            screen. The section waits on its own instead. */}
+        {canBan && !loadingBans && (
+          <BansSection serverId={server.id} bans={bans} onBanRevoked={removeBan} />
+        )}
         <InvitationsSection serverId={server.id} canManage={isOwner} />
         <ServerActions server={server} isOwner={isOwner} onLeavingChange={setLeaving} />
       </ScrollView>
