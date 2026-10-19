@@ -6,7 +6,7 @@ import { ServerActions } from './ServerActions';
 
 const mockBack = jest.fn();
 
-jest.mock('@/shared/api', () => ({ serversService: { leaveServer: jest.fn(), deleteServer: jest.fn() } }));
+jest.mock('@/shared/api', () => ({ serversService: { leaveServer: jest.fn() } }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack }) }));
 
 const server: Server = {
@@ -40,7 +40,7 @@ describe('ServerActions', () => {
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   });
 
-  it('lets a member leave, but not delete', async () => {
+  it('lets a member leave', async () => {
     jest.mocked(serversService.leaveServer).mockResolvedValue();
     const { user, onLeavingChange } = await renderActions(false);
     expect(screen.queryByText('Eliminar servidor')).not.toBeOnTheScreen();
@@ -53,16 +53,11 @@ describe('ServerActions', () => {
     expect(mockBack).toHaveBeenCalled();
   });
 
-  it('lets the owner delete, but not leave', async () => {
-    jest.mocked(serversService.deleteServer).mockResolvedValue();
-    const { user } = await renderActions(true);
+  it('shows the owner no actions: no leave and no delete', async () => {
+    await renderActions(true);
+
     expect(screen.queryByText('Abandonar servidor')).not.toBeOnTheScreen();
-
-    await user.press(screen.getByText('Eliminar servidor'));
-    await pressAlertButton('Eliminar');
-
-    expect(serversService.deleteServer).toHaveBeenCalledWith('srv');
-    expect(mockBack).toHaveBeenCalled();
+    expect(screen.queryByText('Eliminar servidor')).not.toBeOnTheScreen();
   });
 
   it('does nothing when the user cancels', async () => {

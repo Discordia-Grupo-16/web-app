@@ -22,7 +22,7 @@ export const ServerPanel = () => {
         >
             <ServerHeader
                 title={serverId ? (server?.name ?? '...') : 'Seleccioná un servidor'}
-                actions={serverId && <InviteButton serverId={serverId} />}
+                actions={serverId && isOwner && <InviteButton serverId={serverId} />}
             />
 
             <div className="flex-1 overflow-y-auto py-2">
