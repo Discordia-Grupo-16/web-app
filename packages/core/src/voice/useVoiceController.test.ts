@@ -33,6 +33,7 @@ const createFakeAdapter = () => {
     const disconnected = new Set<(info: RoomDisconnectInfo) => void>();
     const participants = new Set<(snapshot: VoiceParticipant[]) => void>();
     const playback = new Set<(blocked: boolean) => void>();
+    const reconnecting = new Set<(value: boolean) => void>();
     const subscribe = <T>(set: Set<T>) => (listener: T) => {
         set.add(listener);
         return () => set.delete(listener);
@@ -44,6 +45,7 @@ const createFakeAdapter = () => {
         enableMicrophone: vi.fn(async () => mic),
         onDisconnected: subscribe(disconnected),
         onParticipantsChanged: subscribe(participants),
+        onReconnectingChanged: subscribe(reconnecting),
         onAudioPlaybackBlocked: subscribe(playback),
         startAudio: vi.fn(async () => undefined),
     } satisfies VoiceRoomAdapter;
@@ -55,6 +57,7 @@ const createFakeAdapter = () => {
         emitDisconnected: (info: RoomDisconnectInfo) => act(() => disconnected.forEach((l) => l(info))),
         emitParticipants: (snapshot: VoiceParticipant[]) => act(() => participants.forEach((l) => l(snapshot))),
         emitPlaybackBlocked: (blocked: boolean) => act(() => playback.forEach((l) => l(blocked))),
+        emitReconnecting: (value: boolean) => act(() => reconnecting.forEach((l) => l(value))),
     };
 };
 
@@ -96,6 +99,7 @@ describe('useVoiceController', () => {
             micAvailable: true,
             micBlocked: false,
             muted: false,
+            reconnecting: false,
             participants: [ana, me],
         });
 

@@ -37,6 +37,7 @@ export type VoiceCall =
           micAvailable: boolean;
           micBlocked: boolean;
           muted: boolean;
+          reconnecting: boolean; // true while LiveKit is reconnecting; false when it connects
           participants: VoiceParticipant[];
       }
     | { status: 'disconnected'; channel: VoiceChannelRef; reason: VoiceDisconnectReason };
@@ -61,10 +62,13 @@ export type RoomConnectFailure = 'unavailable' | 'network';
 
 export interface VoiceRoomAdapter {
     connect(url: string, token: string): Promise<void>; // rejects with { kind: RoomConnectFailure }
-    disconnect(): Promise<void>;
-    enableMicrophone(): Promise<MicResult>;
+    disconnect(): Promise<void>; // also aborts a reconnection in progress
+    enableMicrophone(): Promise<MicResult>; // 'no-device' if the room stopped being the current one
     onDisconnected(listener: (info: RoomDisconnectInfo) => void): () => void;
     onParticipantsChanged(listener: (snapshot: VoiceParticipant[]) => void): () => void;
+    // true on SignalReconnecting or Reconnecting, false on Reconnected. A failed reconnection
+    // is reported by onDisconnected, not here.
+    onReconnectingChanged(listener: (reconnecting: boolean) => void): () => void;
     onAudioPlaybackBlocked?: (listener: (blocked: boolean) => void) => () => void; // web only
     startAudio?: () => Promise<void>; // web only
 }
@@ -91,7 +95,10 @@ export interface VoiceContextValue {
     attempt: VoiceJoinAttempt | null;
     available: boolean; // false when the adapter is null
     audioBlocked: boolean; // web: the browser blocked playback
-    join: (channel: VoiceChannelRef) => void;
+    join: (channel: VoiceChannelRef) => void; // also from 'disconnected': rejoins
+    // Ends a connected call and leaves it idle. Never shows an error and never calls the backend.
+    // Does nothing without a connected call or while a join is in progress.
+    leave: () => void;
     retry: () => void; // retries a retryable failed attempt
     dismiss: () => void; // clears a failed attempt or a disconnected call
     startAudio: () => void;
@@ -99,5 +106,7 @@ export interface VoiceContextValue {
 
 export interface VoiceController {
     value: VoiceContextValue;
+    // Also stops a join in progress. With only a join in progress, the call ends
+    // 'disconnected' with the joined channel and this reason.
     disconnectWithReason: (reason: VoiceClientReason) => void;
 }

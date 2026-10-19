@@ -63,6 +63,8 @@ export const requestMicrophonePermission = async (): Promise<Exclude<MicResult, 
 export const createLivekitAdapter = (): VoiceRoomAdapter => {
   const disconnectedListeners = new Set<(info: RoomDisconnectInfo) => void>();
   const participantListeners = new Set<(snapshot: VoiceParticipant[]) => void>();
+  // Provisional: registered, never notified yet.
+  const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
   let room: Room | null = null;
 
   const subscribe =
@@ -136,5 +138,6 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
 
     onDisconnected: subscribe(disconnectedListeners),
     onParticipantsChanged: subscribe(participantListeners),
+    onReconnectingChanged: subscribe(reconnectingListeners),
   };
 };

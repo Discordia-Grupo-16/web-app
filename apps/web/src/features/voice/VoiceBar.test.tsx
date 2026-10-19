@@ -30,7 +30,7 @@ describe('VoiceBar', () => {
 
     it('links to the channel of the call', () => {
         vi.mocked(useVoice).mockReturnValue(
-            voiceValue({ call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, participants: [] } }),
+            voiceValue({ call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, reconnecting: false, participants: [] } }),
         );
         renderBar();
 

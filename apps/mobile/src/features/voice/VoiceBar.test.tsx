@@ -27,7 +27,7 @@ describe('VoiceBar', () => {
   it('takes you back to the call screen', async () => {
     jest.mocked(useVoice).mockReturnValue(
       voiceValue({
-        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, participants: [] },
+        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, reconnecting: false, participants: [] },
       }),
     );
     await render(<VoiceBar />);

@@ -21,6 +21,7 @@ const makeAdapter = () =>
     enableMicrophone: jest.fn<ReturnType<VoiceRoomAdapter['enableMicrophone']>, []>(async () => 'ok'),
     onDisconnected: () => () => undefined,
     onParticipantsChanged: () => () => undefined,
+    onReconnectingChanged: () => () => undefined,
   }) satisfies VoiceRoomAdapter;
 
 const Status = () => {

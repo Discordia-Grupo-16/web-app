@@ -9,6 +9,10 @@ export const VOICE_TEXTS = {
     micBlockedMobile: 'El permiso del micrófono está bloqueado. Habilitalo desde la configuración de la app.',
     micBlockedMobileInCall: 'Abrir la configuración corta la llamada.',
     openSettings: 'Abrir configuración',
+    leave: 'Salir de la llamada',
+    reconnecting: 'Reconectando…',
+    rejoin: 'Volver a unirse',
+    connectedTo: 'Conectado a',
 } as const;
 
 export const VOICE_JOIN_ERROR_TEXTS: Record<VoiceJoinError, string> = {
@@ -32,3 +36,10 @@ export const VOICE_DISCONNECT_TEXTS: Record<VoiceDisconnectReason, string> = {
 };
 
 export const isRetryableJoinError = (error: VoiceJoinError): boolean => error === 'unavailable' || error === 'network';
+
+// Involuntary exits that offer "Volver a unirse": connection_lost and app_backgrounded.
+// Provisional body: never offers it.
+export const canRejoin = (reason: VoiceDisconnectReason): boolean => {
+    void reason;
+    return false;
+};
