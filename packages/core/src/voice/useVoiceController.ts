@@ -56,6 +56,9 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
     const switchingRef = useRef(false);
     // A disconnection hidden by the switch, shown after all if the switch fails before leaving the room.
     const hiddenDisconnectRef = useRef<RoomDisconnectInfo | null>(null);
+    // Each join takes a number. Leaving the session or the app bumps it, and a join that sees another
+    // number after an await stops without touching the state.
+    const joinIdRef = useRef(0);
 
     const updateCall = useCallback((next: VoiceCall) => {
         callRef.current = next;
@@ -84,14 +87,21 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                 participantsRef.current = [];
                 updateCall({ status: 'disconnected', channel: current.channel, reason: disconnectReason(info) });
             }),
+            adapter.onReconnectingChanged((reconnecting) => {
+                const current = callRef.current;
+                if (current.status === 'connected' && current.reconnecting !== reconnecting) {
+                    updateCall({ ...current, reconnecting });
+                }
+            }),
         ];
         if (adapter.onAudioPlaybackBlocked) unsubscribers.push(adapter.onAudioPlaybackBlocked(setAudioBlocked));
         return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
     }, [adapter, updateCall]);
 
-    // Leaving the session (logout) closes the room.
+    // Leaving the session (logout) closes the room and stops a join in progress.
     useEffect(
         () => () => {
+            joinIdRef.current += 1;
             if (adapter && callRef.current.status === 'connected') void adapter.disconnect();
         },
         [adapter],
@@ -103,6 +113,8 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
             const previous = callRef.current;
             if (previous.status === 'connected' && previous.channel.id === channel.id) return;
 
+            const joinId = ++joinIdRef.current;
+            const stopped = () => joinIdRef.current !== joinId;
             updateAttempt({ status: 'connecting', channel });
             // chat removes the user from the previous room as soon as it signs the new token.
             switchingRef.current = previous.status === 'connected';
@@ -112,6 +124,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                 try {
                     token = await requestToken(channel.id);
                 } catch (error) {
+                    if (stopped()) return;
                     switchingRef.current = false;
                     const hidden = hiddenDisconnectRef.current;
                     const current = callRef.current;
@@ -122,19 +135,27 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                     updateAttempt({ status: 'failed', channel, error: tokenError(error) });
                     return;
                 }
+                if (stopped()) return;
 
                 try {
                     if (callRef.current.status === 'connected') {
                         await adapter.disconnect();
                         participantsRef.current = [];
+                        if (stopped()) return;
                     }
                     await adapter.connect(token.url, token.token);
                 } catch (error) {
+                    if (stopped()) return;
                     updateCall({ status: 'idle' });
                     updateAttempt({ status: 'failed', channel, error: connectError(error) });
                     return;
                 } finally {
-                    switchingRef.current = false;
+                    if (!stopped()) switchingRef.current = false;
+                }
+                // The room opened after the join was stopped: nobody is going to use it.
+                if (stopped()) {
+                    void adapter.disconnect();
+                    return;
                 }
 
                 // The call is in the new room from here on, even while the system asks for the
@@ -180,16 +201,28 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
     const disconnectWithReason = useCallback(
         (reason: VoiceClientReason) => {
             const current = callRef.current;
-            if (!adapter || current.status !== 'connected') return;
+            const joining = attemptRef.current?.status === 'connecting' ? attemptRef.current : null;
+            const channel = current.status === 'connected' ? current.channel : joining?.channel;
+            if (!adapter || !channel) return;
+            joinIdRef.current += 1;
+            switchingRef.current = false;
+            if (joining) updateAttempt(null);
             participantsRef.current = [];
-            updateCall({ status: 'disconnected', channel: current.channel, reason });
-            void adapter.disconnect();
+            updateCall({ status: 'disconnected', channel, reason });
+            if (current.status === 'connected') void adapter.disconnect();
         },
-        [adapter, updateCall],
+        [adapter, updateAttempt, updateCall],
     );
 
-    // Provisional body: it does not end the call yet.
-    const leave = useCallback(() => undefined, []);
+    // The state goes first, so the client-initiated disconnection finds the call idle and is not shown
+    // as a cut. A join in progress is not cancelled.
+    const leave = useCallback(() => {
+        const current = callRef.current;
+        if (!adapter || current.status !== 'connected' || attemptRef.current?.status === 'connecting') return;
+        participantsRef.current = [];
+        updateCall({ status: 'idle' });
+        void adapter.disconnect();
+    }, [adapter, updateCall]);
 
     const value = useMemo(
         () => ({ call, attempt, available: adapter !== null, audioBlocked, join, leave, retry, dismiss, startAudio }),

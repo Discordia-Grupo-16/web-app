@@ -38,8 +38,5 @@ export const VOICE_DISCONNECT_TEXTS: Record<VoiceDisconnectReason, string> = {
 export const isRetryableJoinError = (error: VoiceJoinError): boolean => error === 'unavailable' || error === 'network';
 
 // Involuntary exits that offer "Volver a unirse": connection_lost and app_backgrounded.
-// Provisional body: never offers it.
-export const canRejoin = (reason: VoiceDisconnectReason): boolean => {
-    void reason;
-    return false;
-};
+export const canRejoin = (reason: VoiceDisconnectReason): boolean =>
+    reason === 'connection_lost' || reason === 'app_backgrounded';
