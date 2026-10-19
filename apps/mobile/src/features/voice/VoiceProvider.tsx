@@ -36,7 +36,9 @@ export const VoiceProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const cut = useCallback(() => disconnectWithReason('app_backgrounded'), [disconnectWithReason]);
-  const { runWithPermissionPrompt } = useBackgroundCut({ active: value.call.status === 'connected', cut });
+  // A join in progress also counts: otherwise it would open the room and the microphone behind the user.
+  const active = value.call.status === 'connected' || value.attempt?.status === 'connecting';
+  const { runWithPermissionPrompt } = useBackgroundCut({ active, cut });
   useEffect(() => {
     promptGate.set(runWithPermissionPrompt);
   }, [promptGate, runWithPermissionPrompt]);
