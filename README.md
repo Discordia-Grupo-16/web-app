@@ -128,18 +128,14 @@ actualiza un paquete con código nativo, se tocan plugins o permisos en `app.jso
 versión de Expo. Si después de un `git pull` solo cambió código de `src/`, alcanza con
 `npm run dev:mobile`.
 
-#### Voz en mobile: qué esperar
-- **Solo Android.** No hay configuración de iOS.
-- **Solo con la app en primer plano.** Volver al inicio, cambiar de app, bloquear el teléfono o que se
-  apague la pantalla corta la llamada ("La llamada se cortó porque saliste de la app.") y al volver no
-  reconecta. Para la demo, subí el tiempo de apagado de la pantalla. El diálogo del permiso del
-  micrófono no corta la llamada.
-- **Permiso bloqueado.** Si se eligió "No volver a preguntar", la app entra sin micrófono y ofrece
-  "Abrir configuración", que corta la llamada porque saca a la app de primer plano.
-- **LiveKit local.** Con el stack local, `LIVEKIT_URL` del `.env` de `chat-and-real-time` tiene que
-  usar la IP de la computadora en la red (no `localhost`), y la key y el secret van con la misma URL:
-  `devkey` / `secret` para el LiveKit local, o las del proyecto para LiveKit Cloud. Si se mezclan, la
-  app muestra "La voz no está disponible en este momento.".
+#### Voz con el stack local
+Para que el celular se conecte al LiveKit local, el `.env` de `chat-and-real-time` tiene que tener:
+
+- `LIVEKIT_URL` con la IP de tu computadora en la red, por ejemplo `ws://192.168.0.10:7880`. Con
+  `localhost` no anda, porque para el celular `localhost` es el propio celular.
+- `LIVEKIT_API_KEY=devkey` y `LIVEKIT_API_SECRET=secret`, que son las claves fijas del LiveKit local.
+
+Para usar LiveKit Cloud, cambiá las tres variables juntas por la URL y las claves del proyecto.
 
 Correr los tests de mobile (Jest + React Native Testing Library):
 
