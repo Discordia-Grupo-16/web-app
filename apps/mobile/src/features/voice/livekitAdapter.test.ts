@@ -63,6 +63,8 @@ jest.mock('livekit-client', () => ({
   RoomEvent: {
     Connected: 'connected',
     Reconnected: 'reconnected',
+    Reconnecting: 'reconnecting',
+    SignalReconnecting: 'signalReconnecting',
     Disconnected: 'disconnected',
     ParticipantConnected: 'participantConnected',
     ParticipantDisconnected: 'participantDisconnected',
@@ -157,6 +159,66 @@ describe('createLivekitAdapter', () => {
 
     expect(lastRoom().disconnect).toHaveBeenCalled();
     expect(mockAudioSession.stopAudioSession).toHaveBeenCalled();
+  });
+
+  it.each(['reconnecting', 'signalReconnecting'])('reports the reconnection on %s and its end', async (event) => {
+    const adapter = createLivekitAdapter();
+    const states: boolean[] = [];
+    adapter.onReconnectingChanged((reconnecting) => states.push(reconnecting));
+    await adapter.connect('wss://lk', 'jwt');
+
+    lastRoom().emit(event);
+    lastRoom().emit('reconnected');
+
+    expect(states).toEqual([true, false]);
+  });
+
+  it('ignores the reconnection of a room that was already left', async () => {
+    const adapter = createLivekitAdapter();
+    const states: boolean[] = [];
+    adapter.onReconnectingChanged((reconnecting) => states.push(reconnecting));
+    await adapter.connect('wss://lk', 'jwt');
+    const left = lastRoom();
+    await adapter.disconnect();
+
+    left.emit('reconnecting');
+
+    expect(states).toEqual([]);
+  });
+
+  it('stops the microphone that arrives after leaving the call', async () => {
+    const adapter = createLivekitAdapter();
+    await adapter.connect('wss://lk', 'jwt');
+    const track = { stop: jest.fn() };
+    let grant: () => void = () => undefined;
+    lastRoom().localParticipant.setMicrophoneEnabled.mockImplementationOnce(
+      () => new Promise((resolve) => (grant = () => resolve({ track } as never))),
+    );
+
+    const result = adapter.enableMicrophone();
+    await new Promise<void>((resolve) => setImmediate(() => resolve()));
+    await adapter.disconnect();
+    grant();
+
+    await expect(result).resolves.toBe('no-device');
+    expect(track.stop).toHaveBeenCalled();
+  });
+
+  it('does not turn the microphone on when the call was left during the permission dialog', async () => {
+    const adapter = createLivekitAdapter();
+    await adapter.connect('wss://lk', 'jwt');
+    let answer: () => void = () => undefined;
+    requestPermission.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = () => resolve(PermissionsAndroid.RESULTS.GRANTED))),
+    );
+    const room = lastRoom();
+
+    const result = adapter.enableMicrophone();
+    await adapter.disconnect();
+    answer();
+
+    await expect(result).resolves.toBe('no-device');
+    expect(room.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
   });
 
   it('turns the microphone on once the permission is granted', async () => {

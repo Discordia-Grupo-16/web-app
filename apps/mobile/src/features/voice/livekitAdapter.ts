@@ -63,7 +63,6 @@ export const requestMicrophonePermission = async (): Promise<Exclude<MicResult, 
 export const createLivekitAdapter = (): VoiceRoomAdapter => {
   const disconnectedListeners = new Set<(info: RoomDisconnectInfo) => void>();
   const participantListeners = new Set<(snapshot: VoiceParticipant[]) => void>();
-  // Provisional: registered, never notified yet.
   const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
   let room: Room | null = null;
 
@@ -84,6 +83,13 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
       participantListeners.forEach((l) => l(snapshot));
     };
     SNAPSHOT_EVENTS.forEach((event) => next.on(event, emitSnapshot));
+    // Only the current room counts: a room already left keeps no listener in the call.
+    const emitReconnecting = (reconnecting: boolean) => {
+      if (room === next) reconnectingListeners.forEach((l) => l(reconnecting));
+    };
+    next.on(RoomEvent.SignalReconnecting, () => emitReconnecting(true));
+    next.on(RoomEvent.Reconnecting, () => emitReconnecting(true));
+    next.on(RoomEvent.Reconnected, () => emitReconnecting(false));
     next.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
       if (room === next) {
         room = null;
@@ -125,11 +131,18 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     },
 
     async enableMicrophone(): Promise<MicResult> {
-      if (!room) return 'no-device';
+      const current = room;
+      if (!current) return 'no-device';
       const permission = await requestMicrophonePermission();
+      // The call may have been left while Android was asking.
+      if (room !== current) return 'no-device';
       if (permission !== 'ok') return permission;
       try {
-        await room.localParticipant.setMicrophoneEnabled(true);
+        const publication = await current.localParticipant.setMicrophoneEnabled(true);
+        if (room !== current) {
+          publication?.track?.stop();
+          return 'no-device';
+        }
         return 'ok';
       } catch {
         return 'no-device';
