@@ -322,4 +322,193 @@ describe('useVoiceController', () => {
         act(() => result.current.value.join(A));
         expect(requestToken).not.toHaveBeenCalled();
     });
+
+    describe('leaving (SCRUM-52, Salir de canal de voz)', () => {
+        const deferred = <T,>() => {
+            let resolve: (value: T) => void = () => undefined;
+            const promise = new Promise<T>((r) => (resolve = r));
+            return { promise, resolve };
+        };
+
+        it('leaves a connected call without showing an error (CA1 de SCRUM-52, Salir de canal de voz)', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+
+            act(() => result.current.value.leave());
+
+            expect(result.current.value.call.status).toBe('idle');
+            expect(fake.adapter.disconnect).toHaveBeenCalledTimes(1);
+            fake.emitDisconnected({ cause: 'client_initiated', serverReason: null });
+            expect(result.current.value.call).toEqual({ status: 'idle' });
+        });
+
+        it('stays out when the microphone answer arrives after leaving', async () => {
+            const { result } = render();
+            const mic = deferred<MicResult>();
+            fake.adapter.enableMicrophone.mockImplementationOnce(() => mic.promise);
+            await joinAndWait(result, A);
+
+            act(() => result.current.value.leave());
+            await act(async () => mic.resolve('ok'));
+
+            expect(result.current.value.call).toEqual({ status: 'idle' });
+        });
+
+        it.each([
+            ['alone', false],
+            ['while switching from A to B', true],
+        ])('does nothing with a join in progress, %s', async (_label, switching) => {
+            const { result } = render();
+            if (switching) await joinAndWait(result, A);
+            const callBefore = result.current.value.call;
+            const token = deferred<VoiceToken>();
+            requestToken.mockImplementationOnce(() => token.promise);
+            act(() => result.current.value.join(B));
+
+            act(() => result.current.value.leave());
+
+            expect(result.current.value.call).toBe(callBefore);
+            expect(result.current.value.attempt).toEqual({ status: 'connecting', channel: B });
+            expect(fake.adapter.disconnect).not.toHaveBeenCalled();
+        });
+
+        it('never calls the backend to leave', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+
+            act(() => result.current.value.leave());
+
+            expect(requestToken).toHaveBeenCalledTimes(1);
+        });
+
+        it('joins again like the first time after leaving (CA2 de SCRUM-52, Salir de canal de voz)', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitParticipants([ana, me]);
+            act(() => result.current.value.leave());
+
+            await joinAndWait(result, A);
+
+            expect(result.current.value.call).toMatchObject({ status: 'connected', channel: A, participants: [] });
+            fake.emitParticipants([me]);
+            expect(result.current.value.call).toMatchObject({ participants: [me] });
+        });
+
+        it('rejoins from a lost connection', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+            expect(result.current.value.call).toMatchObject({ status: 'disconnected', reason: 'connection_lost' });
+
+            await joinAndWait(result, A);
+
+            expect(fake.adapter.connect).toHaveBeenCalledTimes(2);
+        });
+
+        it('shows the reconnection without touching the microphone state', async () => {
+            fake.setMic('denied');
+            const { result } = render();
+            await joinAndWait(result, A);
+            await waitFor(() => expect(result.current.value.call).toMatchObject({ micAvailable: false }));
+
+            fake.emitReconnecting(true);
+            expect(result.current.value.call).toMatchObject({
+                reconnecting: true,
+                micAvailable: false,
+                micBlocked: false,
+                muted: true,
+            });
+
+            fake.emitReconnecting(false);
+            expect(result.current.value.call).toMatchObject({ reconnecting: false, micAvailable: false, muted: true });
+        });
+
+        it('leaves while reconnecting', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitReconnecting(true);
+
+            act(() => result.current.value.leave());
+
+            expect(result.current.value.call).toEqual({ status: 'idle' });
+            expect(fake.adapter.disconnect).toHaveBeenCalledTimes(1);
+        });
+
+        it('ends with a lost connection when the reconnection fails', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitReconnecting(true);
+
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+
+            expect(result.current.value.call).toEqual({ status: 'disconnected', channel: A, reason: 'connection_lost' });
+        });
+
+        it('stops a join waiting for the token when unmounted', async () => {
+            const { result, unmount } = render();
+            const token = deferred<VoiceToken>();
+            requestToken.mockImplementationOnce(() => token.promise);
+            act(() => result.current.value.join(A));
+
+            unmount();
+            await act(async () => token.resolve(tokenFor(A.id)));
+
+            expect(fake.adapter.connect).not.toHaveBeenCalled();
+        });
+
+        it('closes the room of a join that connects after being unmounted', async () => {
+            const { result, unmount } = render();
+            const connected = deferred<undefined>();
+            fake.adapter.connect.mockImplementationOnce(() => connected.promise);
+            act(() => result.current.value.join(A));
+            await waitFor(() => expect(fake.adapter.connect).toHaveBeenCalled());
+
+            unmount();
+            await act(async () => connected.resolve(undefined));
+
+            expect(fake.adapter.disconnect).toHaveBeenCalledTimes(1);
+            expect(fake.adapter.enableMicrophone).not.toHaveBeenCalled();
+        });
+
+        it('closes the room when unmounted while the microphone is being asked', async () => {
+            const { result, unmount } = render();
+            const mic = deferred<MicResult>();
+            fake.adapter.enableMicrophone.mockImplementationOnce(() => mic.promise);
+            await joinAndWait(result, A);
+
+            unmount();
+            await act(async () => mic.resolve('ok'));
+
+            expect(fake.adapter.disconnect).toHaveBeenCalledTimes(1);
+        });
+
+        it('cuts a join in progress when the app goes to the background', async () => {
+            const { result } = render();
+            const token = deferred<VoiceToken>();
+            requestToken.mockImplementationOnce(() => token.promise);
+            act(() => result.current.value.join(A));
+
+            act(() => result.current.disconnectWithReason('app_backgrounded'));
+            await act(async () => token.resolve(tokenFor(A.id)));
+
+            expect(result.current.value.call).toEqual({ status: 'disconnected', channel: A, reason: 'app_backgrounded' });
+            expect(result.current.value.attempt).toBeNull();
+            expect(fake.adapter.connect).not.toHaveBeenCalled();
+        });
+
+        it('cuts the call in A and stops the switch to B when the app goes to the background', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            const token = deferred<VoiceToken>();
+            requestToken.mockImplementationOnce(() => token.promise);
+            act(() => result.current.value.join(B));
+
+            act(() => result.current.disconnectWithReason('app_backgrounded'));
+            await act(async () => token.resolve(tokenFor(B.id)));
+
+            expect(result.current.value.call).toEqual({ status: 'disconnected', channel: A, reason: 'app_backgrounded' });
+            expect(result.current.value.attempt).toBeNull();
+            expect(fake.adapter.connect).toHaveBeenCalledTimes(1);
+        });
+    });
 });
