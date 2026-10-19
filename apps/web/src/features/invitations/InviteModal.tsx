@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Copy, X } from 'lucide-react';
+import { buildInviteUrl } from '@discordia/core';
+import { getErrorDetail, type Invitation } from '@discordia/api';
 import { invitationsService } from '@/shared/api';
-import type { Invitation } from '@discordia/api';
+import { ConfirmModal } from '@/shared/ui/ConfirmModal';
 
 interface Props {
     serverId: string;
@@ -23,10 +25,28 @@ export const InviteModal = ({ serverId, onClose }: Props) => {
     const [error, setError] = useState<string | null>(null);
     const [invitation, setInvitation] = useState<Invitation | null>(null);
     const [copied, setCopied] = useState(false);
+    const [invitations, setInvitations] = useState<Invitation[]>([]);
+    const [listStatus, setListStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+    const [copiedCode, setCopiedCode] = useState<string | null>(null);
+    const [codeToRevoke, setCodeToRevoke] = useState<string | null>(null);
+    const [revokeError, setRevokeError] = useState<string | null>(null);
 
-    const inviteLink = invitation
-        ? `${window.location.origin}/invite/${invitation.code}`
-        : '';
+    const linkFor = (code: string) => buildInviteUrl(window.location.origin, code);
+    const inviteLink = invitation ? linkFor(invitation.code) : '';
+
+    useEffect(() => {
+        let cancelled = false;
+        invitationsService.listInvitations(serverId)
+            .then(list => {
+                if (cancelled) return;
+                setInvitations(list);
+                setListStatus('ready');
+            })
+            .catch(() => {
+                if (!cancelled) setListStatus('error');
+            });
+        return () => { cancelled = true; };
+    }, [serverId]);
 
     const handleGenerate = async () => {
         setLoading(true);
@@ -36,6 +56,7 @@ export const InviteModal = ({ serverId, onClose }: Props) => {
             const maxUsesNum = maxUses ? parseInt(maxUses) : undefined;
             const inv = await invitationsService.createInvitation(serverId, expiresInHours, maxUsesNum);
             setInvitation(inv);
+            setInvitations(prev => [...prev, inv]);
         } catch (err) {
             const error = err as { response?: { data?: { detail?: string } } };
             const detail = error.response?.data?.detail;
@@ -51,6 +72,25 @@ export const InviteModal = ({ serverId, onClose }: Props) => {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const handleCopyInvitation = (code: string) => {
+        navigator.clipboard.writeText(linkFor(code));
+        setCopiedCode(code);
+        setTimeout(() => setCopiedCode(null), 2000);
+    };
+
+    const handleRevoke = async () => {
+        if (!codeToRevoke) return;
+        const code = codeToRevoke;
+        setCodeToRevoke(null);
+        setRevokeError(null);
+        try {
+            await invitationsService.revokeInvitation(serverId, code);
+            setInvitations(prev => prev.filter(inv => inv.code !== code));
+        } catch (err) {
+            setRevokeError(getErrorDetail(err) || 'No se pudo revocar la invitación.');
+        }
+    };
+
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center"
@@ -58,7 +98,7 @@ export const InviteModal = ({ serverId, onClose }: Props) => {
             onClick={onClose}
         >
             <div
-                className="relative w-full max-w-md rounded-2xl p-8 shadow-2xl"
+                className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-8 shadow-2xl"
                 style={{ background: '#36393f' }}
                 onClick={e => e.stopPropagation()}
             >
@@ -182,7 +222,84 @@ export const InviteModal = ({ serverId, onClose }: Props) => {
                         </button>
                     </div>
                 )}
+
+                <div className="mt-6 pt-6" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                    <h3
+                        className="text-xs font-semibold uppercase tracking-wider mb-3"
+                        style={{ color: '#99aab5' }}
+                    >
+                        Invitaciones activas
+                    </h3>
+
+                    {listStatus === 'loading' && (
+                        <p className="text-sm text-center py-2" style={{ color: '#99aab5' }}>Cargando...</p>
+                    )}
+                    {listStatus === 'error' && (
+                        <p className="text-sm text-center py-2" style={{ color: '#ed4245' }}>
+                            No se pudieron cargar las invitaciones.
+                        </p>
+                    )}
+                    {listStatus === 'ready' && invitations.length === 0 && (
+                        <p className="text-sm text-center py-2" style={{ color: '#99aab5' }}>
+                            No hay invitaciones activas
+                        </p>
+                    )}
+                    {revokeError && (
+                        <p className="text-sm mb-2" style={{ color: '#ed4245' }}>{revokeError}</p>
+                    )}
+
+                    <ul className="space-y-2">
+                        {invitations.map(inv => (
+                            <li
+                                key={inv.id}
+                                className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg"
+                                style={{ background: '#2c2f33' }}
+                            >
+                                <div className="min-w-0">
+                                    <p className="text-sm text-white font-mono truncate">{inv.code}</p>
+                                    <p className="text-xs mt-0.5" style={{ color: '#72767d' }}>
+                                        Usos: {inv.uses}{inv.max_uses ? `/${inv.max_uses}` : ''}
+                                        {inv.expires_at ? `  ·  Expira: ${new Date(inv.expires_at).toLocaleDateString()}` : ''}
+                                    </p>
+                                </div>
+                                <div className="flex gap-2 shrink-0">
+                                    <button
+                                        onClick={() => handleCopyInvitation(inv.code)}
+                                        aria-label={`Copiar link de ${inv.code}`}
+                                        className="flex items-center gap-1 px-3 py-1.5 rounded text-xs font-semibold text-white transition-colors"
+                                        style={{ background: copiedCode === inv.code ? '#43b581' : '#7289da' }}
+                                    >
+                                        {copiedCode === inv.code ? <Check size={14} /> : <Copy size={14} />}
+                                        {copiedCode === inv.code ? 'Copiado' : 'Copiar'}
+                                    </button>
+                                    <button
+                                        onClick={() => setCodeToRevoke(inv.code)}
+                                        aria-label={`Revocar ${inv.code}`}
+                                        className="px-3 py-1.5 rounded text-xs font-semibold"
+                                        style={{ background: 'rgba(237,66,69,0.2)', color: '#ed4245' }}
+                                    >
+                                        Revocar
+                                    </button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             </div>
+
+            {codeToRevoke && (
+                // The overlay closes InviteModal on click: keep the confirm's clicks from bubbling up to it.
+                <div onClick={e => e.stopPropagation()}>
+                    <ConfirmModal
+                        title="Revocar invitación"
+                        message={`¿Revocar el código "${codeToRevoke}"?`}
+                        confirmLabel="Revocar"
+                        danger
+                        onConfirm={handleRevoke}
+                        onCancel={() => setCodeToRevoke(null)}
+                    />
+                </div>
+            )}
         </div>
     );
 };
