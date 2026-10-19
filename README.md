@@ -117,18 +117,13 @@ npm run dev:mobile -- -- --clear
 3. Definí la variable de entorno `ANDROID_HOME` con la carpeta del SDK de Android. La ruta está en
    Android Studio, en Settings → Languages & Frameworks → Android SDK ("Android SDK Location").
 4. Activá la depuración por USB en el celular y conectalo a la computadora.
-5. Compilá e instalá la app desde `apps/mobile`:
+5. Compilá e instalá la app:
    ```bash
-   cd apps/mobile
-   npx expo run:android
+   npm run android
    ```
    La primera compilación tarda varios minutos, porque también descarga lo que falte del SDK.
 
-`expo run:android` reescribe los scripts `android` e `ios` de `apps/mobile/package.json` y genera
-`apps/mobile/android/` (ignorada por git). **No commitees ese cambio de los scripts**: descartalo con
-`git checkout -- apps/mobile/package.json`.
-
-Hay que volver a correr `npx expo run:android` solo cuando cambia algo nativo: se agrega o se
+Hay que volver a correr `npm run android` solo cuando cambia algo nativo: se agrega o se
 actualiza un paquete con código nativo, se tocan plugins o permisos en `app.json`, o se sube la
 versión de Expo. Si después de un `git pull` solo cambió código de `src/`, alcanza con
 `npm run dev:mobile`.
