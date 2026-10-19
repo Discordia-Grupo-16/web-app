@@ -90,10 +90,10 @@ tiene que estar en **la misma red Wi-Fi** que la computadora:
 npm run dev:mobile
 ```
 
-Como el proyecto tiene `expo-dev-client`, el bundler arranca en modo app de desarrollo (la terminal
-dice "Using development build"). **Para usar Expo Go, apretá `s`** en la terminal hasta que diga
-"Using Expo Go" y recién ahí escaneá el QR. Con la app de desarrollo, abrí la app "Discordia" (no
-Expo Go) y elegí tu computadora en la lista, o escaneá el QR desde esa app.
+El bundler arranca en modo Expo Go (la terminal dice "Using Expo Go"): escaneá el QR con Expo Go.
+**Para usar la app de desarrollo, apretá `s`** en la terminal hasta que diga "Using development
+build", abrí la app "Discordia" (no Expo Go) y elegí tu computadora en la lista, o escaneá el QR
+desde esa app.
 
 Los cambios de código aparecen solos en el celular. Los del `.env` tampoco piden reinstalar nada,
 pero hay que cortar el bundler y volver a levantarlo limpiando su caché, porque las variables
