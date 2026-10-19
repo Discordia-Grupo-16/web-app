@@ -9,7 +9,9 @@ Monorepositorio para las aplicaciones cliente del ecosistema Discordia:
 
 - Node.js 20+
 - npm 10+
-- (Para Mobile) Expo Go en dispositivo Android o emulador de Android Studio
+- (Para Mobile) un celular Android o el emulador de Android Studio, con Expo Go o con la app de
+  desarrollo (ver [Mobile Android](#mobile-android))
+- (Para compilar la app de desarrollo) Android Studio y Java 17
 
 ## Setup
 
@@ -69,17 +71,81 @@ guardada. Ojo: ocultar pantallas en el front es solo UX; la autorización real e
 endpoints de staff en el backend.
 
 ### Mobile Android
-Iniciar el bundler de Expo para Mobile:
+La app se puede abrir de dos maneras:
+
+| | Expo Go | App de desarrollo |
+| --- | --- | --- |
+| Qué es | La app "Expo Go" de la Play Store | Una app "Discordia" propia, compilada con `expo-dev-client` |
+| Canales de voz | No: muestran "La voz necesita la app de desarrollo." | Sí |
+| Todo lo demás | Sí | Sí |
+| Instalación | Ninguna | Una vez, con el celular por USB |
+
+La voz necesita los módulos nativos de WebRTC de LiveKit, que Expo Go no trae. El resto de la app
+sigue andando en Expo Go, así que quien no trabaje con la voz no necesita instalar nada.
+
+Para el día a día, en las dos maneras, se levanta el bundler y se abre la app en el celular, que
+tiene que estar en **la misma red Wi-Fi** que la computadora:
 
 ```bash
 npm run dev:mobile
 ```
 
-O directamente en modo Android:
+Como el proyecto tiene `expo-dev-client`, el bundler arranca en modo app de desarrollo (la terminal
+dice "Using development build"). **Para usar Expo Go, apretá `s`** en la terminal hasta que diga
+"Using Expo Go" y recién ahí escaneá el QR. Con la app de desarrollo, abrí la app "Discordia" (no
+Expo Go) y elegí tu computadora en la lista, o escaneá el QR desde esa app.
+
+Los cambios de código aparecen solos en el celular. Los del `.env` tampoco piden reinstalar nada,
+pero hay que cortar el bundler y volver a levantarlo limpiando su caché, porque las variables
+`EXPO_PUBLIC_*` quedan copiadas adentro del código que ya armó:
 
 ```bash
-npm run android
+npm run dev:mobile -- -- --clear
 ```
+
+(Van dos `--`: el primero se lo come `npm run dev:mobile` y el segundo hace que `--clear` llegue a
+`expo start`.)
+
+#### Instalar la app de desarrollo (una vez)
+1. En el celular, activá las opciones de desarrollador (Ajustes → Acerca del teléfono → tocar 7 veces
+   "Número de compilación") y la **depuración por USB**. En Samsung, el **Bloqueador automático**
+   (Ajustes → Seguridad y privacidad) la bloquea: hay que desactivarlo mientras se instala.
+2. Conectá el celular por USB, aceptá el aviso de depuración y comprobá que aparezca con `device`:
+   ```bash
+   ~/Android/Sdk/platform-tools/adb devices
+   ```
+3. Compilá e instalá desde `apps/mobile`, con **Java 17**. Con una versión más nueva (por ejemplo,
+   la 25 que trae Android Studio) la compilación nativa falla con "A restricted method in
+   java.lang.System has been called":
+   ```bash
+   cd apps/mobile
+   export JAVA_HOME=<ruta a un JDK 17> ANDROID_HOME=~/Android/Sdk
+   npx expo run:android
+   ```
+   Si Gradle ya descargó un JDK 17, está en `~/.gradle/jdks/`. La primera compilación tarda varios
+   minutos.
+
+`expo run:android` reescribe los scripts `android` e `ios` de `apps/mobile/package.json` y genera
+`apps/mobile/android/` (ignorada por git). **No commitees ese cambio de los scripts**: descartalo con
+`git checkout -- apps/mobile/package.json`.
+
+Hay que volver a correr `npx expo run:android` solo cuando cambia algo nativo: se agrega o se
+actualiza un paquete con código nativo, se tocan plugins o permisos en `app.json`, o se sube la
+versión de Expo. Si después de un `git pull` solo cambió código de `src/`, alcanza con
+`npm run dev:mobile`.
+
+#### Voz en mobile: qué esperar
+- **Solo Android.** No hay configuración de iOS.
+- **Solo con la app en primer plano.** Volver al inicio, cambiar de app, bloquear el teléfono o que se
+  apague la pantalla corta la llamada ("La llamada se cortó porque saliste de la app.") y al volver no
+  reconecta. Para la demo, subí el tiempo de apagado de la pantalla. El diálogo del permiso del
+  micrófono no corta la llamada.
+- **Permiso bloqueado.** Si se eligió "No volver a preguntar", la app entra sin micrófono y ofrece
+  "Abrir configuración", que corta la llamada porque saca a la app de primer plano.
+- **LiveKit local.** Con el stack local, `LIVEKIT_URL` del `.env` de `chat-and-real-time` tiene que
+  usar la IP de la computadora en la red (no `localhost`), y la key y el secret van con la misma URL:
+  `devkey` / `secret` para el LiveKit local, o las del proyecto para LiveKit Cloud. Si se mezclan, la
+  app muestra "La voz no está disponible en este momento.".
 
 Correr los tests de mobile (Jest + React Native Testing Library):
 
@@ -155,8 +221,8 @@ Los packages se parten por capa:
 
 | Package | Qué tiene | Depende de |
 | --- | --- | --- |
-| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
-| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios y el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) | `@discordia/api`, `react` |
+| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`, `voice/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
+| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios, el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) y la voz (`useVoiceController`, la lista de la llamada y sus textos) | `@discordia/api`, `react` |
 | `@discordia/ui` | Componentes con variante web y `.native` (marca, íconos) | `react` |
 
 Cada package expone solo lo de su `src/index.ts` y tiene su propio typecheck (`npm run build`
@@ -190,7 +256,7 @@ ESLint hace cumplir estas reglas con `import-x/no-restricted-paths`. Las zonas s
 │   │   └── src/
 │   │       ├── main.tsx
 │   │       ├── app/                  # router, layouts (AppLayout, ServerPanel, RealtimeOutlet)
-│   │       ├── features/             # auth, servers, channels, roles, invitations, profile, chat
+│   │       ├── features/             # auth, servers, channels, roles, invitations, profile, chat, voice
 │   │       ├── shared/               # api, session, config, hooks, ui
 │   │       └── test/setup.ts
 │   ├── backoffice/                   # Backoffice de staff (Vite + React 19), puerto 5174
@@ -205,7 +271,7 @@ ESLint hace cumplir estas reglas con `import-x/no-restricted-paths`. Las zonas s
 │           ├── app/                  # Expo Router: solo rutas, layouts y guards
 │           │   ├── (auth)/           # login y registro
 │           │   └── (app)/            # rutas protegidas
-│           ├── features/             # auth, servers, channels, roles, invitations, profile, chat
+│           ├── features/             # auth, servers, channels, roles, invitations, profile, chat, voice
 │           ├── shared/               # api, session, config, hooks, ui
 │           └── global.css            # estilos globales NativeWind
 ├── packages/
