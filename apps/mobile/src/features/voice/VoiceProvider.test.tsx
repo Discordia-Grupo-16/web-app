@@ -1,6 +1,8 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { AppState, Pressable, Text, type AppStateStatus } from 'react-native';
+import type { VoiceToken } from '@discordia/api';
 import { useVoice, type VoiceRoomAdapter } from '@discordia/core';
+import { voiceService } from '@/shared/api';
 import { loadVoice } from './loadVoice';
 import { VoiceProvider } from './VoiceProvider';
 
@@ -29,6 +31,7 @@ const Status = () => {
   return (
     <>
       <Text>{available ? 'available' : 'unavailable'}</Text>
+      <Text testID="call-status">{call.status}</Text>
       <Text>{call.status === 'idle' ? 'idle' : `${call.channel.id} ${call.status === 'disconnected' ? call.reason : call.status}`}</Text>
       <Pressable onPress={() => join({ id: 'c1', serverId: 's1', name: 'General' })}>
         <Text>Unirse</Text>
@@ -95,5 +98,23 @@ describe('VoiceProvider', () => {
     expect(await screen.findByText('c2 connected')).toBeTruthy();
     // Only the switch itself leaves the previous room: the new one is never cut.
     expect(adapter.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('cuts a join still waiting for its token when the app goes to the background', async () => {
+    const adapter = makeAdapter();
+    jest.mocked(loadVoice).mockReturnValue(adapter);
+    let deliver: (token: VoiceToken) => void = () => undefined;
+    jest
+      .mocked(voiceService.createVoiceToken)
+      .mockImplementationOnce(() => new Promise<VoiceToken>((resolve) => (deliver = resolve)));
+    await renderProvider();
+    await userEvent.setup().press(screen.getByText('Unirse'));
+
+    await changeAppState('background');
+    await act(async () => deliver({ token: 't', url: 'wss://x', roomName: 'c1', expiresAt: '' }));
+
+    expect(screen.getByTestId('call-status')).toHaveTextContent('disconnected');
+    expect(screen.getByText('c1 app_backgrounded')).toBeTruthy();
+    expect(adapter.connect).not.toHaveBeenCalled();
   });
 });
