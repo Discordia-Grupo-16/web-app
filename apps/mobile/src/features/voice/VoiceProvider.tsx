@@ -36,7 +36,7 @@ export const VoiceProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const cut = useCallback(() => disconnectWithReason('app_backgrounded'), [disconnectWithReason]);
-  const { runWithPermissionPrompt } = useBackgroundCut({ inCall: value.call.status === 'connected', cut });
+  const { runWithPermissionPrompt } = useBackgroundCut({ active: value.call.status === 'connected', cut });
   useEffect(() => {
     promptGate.set(runWithPermissionPrompt);
   }, [promptGate, runWithPermissionPrompt]);
