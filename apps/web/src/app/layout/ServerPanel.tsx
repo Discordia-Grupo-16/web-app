@@ -33,7 +33,13 @@ export const ServerPanel = () => {
     // The same bit bans and revokes (ADR-0011). Without it the hook does not even ask: the list of
     // bans is moderation data and the backend answers 403.
     const canBan = hasPermission(permissions, BAN_MEMBERS);
-    const { bans, loading: loadingBans, removeBan, reload: reloadBans } = useBans(serverId, canBan);
+    const {
+        bans,
+        loading: loadingBans,
+        error: bansError,
+        removeBan,
+        reload: reloadBans,
+    } = useBans(serverId, canBan);
 
     // Leaving is not a permission but a condition: the owner cannot leave their own server, they
     // delete it. That is why this is still an ownership check and not a bit.
@@ -102,6 +108,7 @@ export const ServerPanel = () => {
                             <BansSection
                                 serverId={serverId}
                                 bans={bans}
+                                error={bansError}
                                 onBanRevoked={removeBan}
                             />
                         )}

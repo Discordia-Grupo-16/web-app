@@ -25,7 +25,7 @@ const profiles: PublicProfiles = new Map([
     ['owner', { id: 'owner', name: 'Bruno', avatarUrl: null, bio: null }],
 ]);
 
-const renderSection = (bans: ServerBan[] = [ban('milton', 'spam')]) => {
+const renderSection = (bans: ServerBan[] = [ban('milton', 'spam')], error = false) => {
     const onBanRevoked = vi.fn();
     const source: PublicProfileSource = {
         getPublicProfiles: async () => profiles,
@@ -33,7 +33,7 @@ const renderSection = (bans: ServerBan[] = [ban('milton', 'spam')]) => {
     };
     render(
         <PublicProfilesProvider source={source}>
-            <BansSection serverId="srv" bans={bans} onBanRevoked={onBanRevoked} />
+            <BansSection serverId="srv" bans={bans} error={error} onBanRevoked={onBanRevoked} />
         </PublicProfilesProvider>,
     );
     return { onBanRevoked, user: userEvent.setup() };
@@ -70,6 +70,13 @@ describe('BansSection', () => {
         renderSection([]);
 
         expect(screen.getByText('No hay usuarios baneados.')).toBeInTheDocument();
+    });
+
+    it('says the list could not be loaded instead of saying nobody is banned', () => {
+        renderSection([], true);
+
+        expect(screen.getByRole('alert')).toHaveTextContent('No se pudieron cargar los baneados');
+        expect(screen.queryByText('No hay usuarios baneados.')).not.toBeInTheDocument();
     });
 
     it('warns that revoking does not bring them back by itself', async () => {

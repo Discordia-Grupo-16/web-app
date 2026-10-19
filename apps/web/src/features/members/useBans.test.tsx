@@ -92,4 +92,24 @@ describe('useBans', () => {
 
         expect(result.current.bans.map(b => b.user_id)).toEqual(['de-b']);
     });
+
+    it('si falla la carga del servidor nuevo, no deja los baneos del anterior', async () => {
+        // Con la lista vieja en pantalla, revocar le pegaría al servidor nuevo con un usuario
+        // del viejo, y el DELETE idempotente respondería 204 sin haber hecho nada.
+        const silenced = vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.mocked(membersService.listBans).mockResolvedValueOnce([ban('de-a')]);
+        const { result, rerender } = renderHook(({ serverId }) => useBans(serverId, true), {
+            initialProps: { serverId: 'srv-a' },
+        });
+        await waitFor(() => expect(result.current.bans).toHaveLength(1));
+        expect(result.current.error).toBe(false);
+
+        vi.mocked(membersService.listBans).mockRejectedValueOnce(new Error('500'));
+        rerender({ serverId: 'srv-b' });
+
+        await waitFor(() => expect(result.current.error).toBe(true));
+        expect(result.current.bans).toEqual([]);
+        expect(result.current.loading).toBe(false);
+        silenced.mockRestore();
+    });
 });

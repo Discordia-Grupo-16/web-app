@@ -7,6 +7,8 @@ import { RevokeBanDialog } from './RevokeBanDialog';
 interface BansSectionProps {
     serverId: string;
     bans: ServerBan[];
+    /** The list could not be loaded: says so instead of "nobody is banned". */
+    error?: boolean;
     onBanRevoked: (userId: string) => void;
 }
 
@@ -16,7 +18,7 @@ interface BansSectionProps {
  * Only rendered for whoever has BAN_MEMBERS: the list is moderation data and
  * the backend refuses it to everyone else.
  */
-export const BansSection = ({ serverId, bans, onBanRevoked }: BansSectionProps) => {
+export const BansSection = ({ serverId, bans, error = false, onBanRevoked }: BansSectionProps) => {
     const { user } = useAuth();
     const [revoking, setRevoking] = useState<string | null>(null);
 
@@ -37,7 +39,13 @@ export const BansSection = ({ serverId, bans, onBanRevoked }: BansSectionProps) 
                 </span>
             </div>
 
-            {bans.length === 0 && (
+            {error && (
+                <p role="alert" className="text-xs px-3 py-1" style={{ color: '#ed4245' }}>
+                    {PERMISSION_COPY.bansError}
+                </p>
+            )}
+
+            {!error && bans.length === 0 && (
                 <p className="text-xs px-3 py-1" style={{ color: '#72767d' }}>
                     {PERMISSION_COPY.noBans}
                 </p>
@@ -67,7 +75,7 @@ export const BansSection = ({ serverId, bans, onBanRevoked }: BansSectionProps) 
 
                     <button
                         onClick={() => setRevoking(user_id)}
-                        className="opacity-0 group-hover/ban:opacity-100 transition-opacity p-1 rounded shrink-0"
+                        className="opacity-0 group-hover/ban:opacity-100 focus-visible:opacity-100 transition-opacity p-1 rounded shrink-0"
                         style={{ color: '#8e9297' }}
                         title={PERMISSION_COPY.revokeBan(nameOf(user_id))}
                         onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
