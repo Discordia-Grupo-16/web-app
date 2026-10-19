@@ -12,6 +12,8 @@ import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
 export const useBans = (serverId: string | undefined, enabled: boolean) => {
   const [bans, setBans] = useState<ServerBan[]>([]);
   const [loading, setLoading] = useState(false);
+  // Whether the last load failed. Without it a failure would read as "nobody is banned".
+  const [error, setError] = useState(false);
 
   // What the list belongs to right now. The initial load is protected by `isMounted`, but
   // `reload` and the poll are not tied to an effect: their answer is compared against this
@@ -25,18 +27,19 @@ export const useBans = (serverId: string | undefined, enabled: boolean) => {
     let isMounted = true;
 
     const load = async () => {
-      if (!serverId || !enabled) {
-        setBans([]);
-        return;
-      }
+      // Emptied before asking: if this load fails, the previous server's bans must not stay
+      // on screen, where revoking one would hit this server and answer 204 doing nothing.
+      setBans([]);
+      setError(false);
+      if (!serverId || !enabled) return;
 
       setLoading(true);
       try {
         const list = await membersService.listBans(serverId);
         if (isMounted) setBans(list);
       } catch (err) {
-        // A server that cannot be loaded is handled by whoever loads the server.
         console.error(err);
+        if (isMounted) setError(true);
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -52,6 +55,7 @@ export const useBans = (serverId: string | undefined, enabled: boolean) => {
   /**
    * Asks for the list again without flagging `loading`: the screen shows a
    * spinner while something loads, and a reload after a ban must not blink it.
+   * A failed reload keeps the list it had, which is still this server's.
    */
   const reload = useCallback(() => {
     if (!serverId || !enabled) return;
@@ -59,7 +63,10 @@ export const useBans = (serverId: string | undefined, enabled: boolean) => {
       .listBans(serverId)
       .then(list => {
         const now = current.current;
-        if (now.serverId === serverId && now.enabled) setBans(list);
+        if (now.serverId === serverId && now.enabled) {
+          setBans(list);
+          setError(false);
+        }
       })
       .catch(console.error);
   }, [serverId, enabled]);
@@ -78,5 +85,5 @@ export const useBans = (serverId: string | undefined, enabled: boolean) => {
     [],
   );
 
-  return { bans, loading, removeBan, reload };
+  return { bans, loading, error, removeBan, reload };
 };

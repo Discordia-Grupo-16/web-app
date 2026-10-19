@@ -7,6 +7,8 @@ import { RevokeBanDialog } from './RevokeBanDialog';
 interface BansSectionProps {
   serverId: string;
   bans: ServerBan[];
+  /** The list could not be loaded: says so instead of "nobody is banned". */
+  error?: boolean;
   onBanRevoked: (userId: string) => void;
 }
 
@@ -16,7 +18,7 @@ interface BansSectionProps {
  * Only rendered for whoever has BAN_MEMBERS: the list is moderation data and the backend
  * refuses it to everyone else.
  */
-export function BansSection({ serverId, bans, onBanRevoked }: BansSectionProps) {
+export function BansSection({ serverId, bans, error = false, onBanRevoked }: BansSectionProps) {
   const { user } = useAuth();
   const [revoking, setRevoking] = useState<string | null>(null);
 
@@ -34,7 +36,13 @@ export function BansSection({ serverId, bans, onBanRevoked }: BansSectionProps) 
         </Text>
       </View>
 
-      {bans.length === 0 && (
+      {error && (
+        <Text accessibilityRole="alert" className="text-[#ed4245] text-xs px-1">
+          {PERMISSION_COPY.bansError}
+        </Text>
+      )}
+
+      {!error && bans.length === 0 && (
         <Text className="text-[#72767d] text-xs px-1">{PERMISSION_COPY.noBans}</Text>
       )}
 
@@ -60,6 +68,7 @@ export function BansSection({ serverId, bans, onBanRevoked }: BansSectionProps) 
 
           <TouchableOpacity
             onPress={() => setRevoking(user_id)}
+            accessibilityRole="button"
             accessibilityLabel={PERMISSION_COPY.revokeBan(nameOf(user_id))}
             className="pl-3"
           >

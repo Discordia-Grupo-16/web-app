@@ -30,6 +30,7 @@ function Probe({
   return (
     <>
       <Text>{`baneos:${api.bans.map(b => b.user_id).join(',')}`}</Text>
+      <Text>{`error:${api.error} cargando:${api.loading}`}</Text>
       <Pressable accessibilityLabel="disparar" onPress={() => action(api)}>
         <Text>disparar</Text>
       </Pressable>
@@ -113,5 +114,22 @@ describe('useBans', () => {
     await act(async () => answerOld([ban('de-a')]));
 
     expect(screen.getByText('baneos:de-b')).toBeOnTheScreen();
+  });
+
+  it('si falla la carga del servidor nuevo, no deja los baneos del anterior', async () => {
+    // Con la lista vieja en pantalla, revocar le pegaría al servidor nuevo con un usuario
+    // del viejo, y el DELETE idempotente respondería 204 sin haber hecho nada.
+    const silenced = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    jest.mocked(membersService.listBans).mockResolvedValueOnce([ban('de-a')]);
+    await render(<Probe serverId="srv-a" enabled />);
+    await screen.findByText('baneos:de-a');
+    expect(screen.getByText('error:false cargando:false')).toBeOnTheScreen();
+
+    jest.mocked(membersService.listBans).mockRejectedValueOnce(new Error('500'));
+    await screen.rerender(<Probe serverId="srv-b" enabled />);
+
+    expect(await screen.findByText('error:true cargando:false')).toBeOnTheScreen();
+    expect(screen.getByText('baneos:')).toBeOnTheScreen();
+    silenced.mockRestore();
   });
 });

@@ -24,7 +24,7 @@ const profiles: PublicProfiles = new Map([
   ['owner', { id: 'owner', name: 'Bruno', avatarUrl: null, bio: null }],
 ]);
 
-const renderSection = async (bans: ServerBan[] = [ban('milton', 'spam')]) => {
+const renderSection = async (bans: ServerBan[] = [ban('milton', 'spam')], error = false) => {
   const onBanRevoked = jest.fn();
   const source: PublicProfileSource = {
     getPublicProfiles: async () => profiles,
@@ -33,7 +33,7 @@ const renderSection = async (bans: ServerBan[] = [ban('milton', 'spam')]) => {
   const user = userEvent.setup();
   await render(
     <PublicProfilesProvider source={source}>
-      <BansSection serverId="srv" bans={bans} onBanRevoked={onBanRevoked} />
+      <BansSection serverId="srv" bans={bans} error={error} onBanRevoked={onBanRevoked} />
     </PublicProfilesProvider>,
   );
   return { onBanRevoked, user };
@@ -70,6 +70,13 @@ describe('BansSection', () => {
     await renderSection([]);
 
     expect(screen.getByText(PERMISSION_COPY.noBans)).toBeOnTheScreen();
+  });
+
+  it('avisa que no se pudo cargar en vez de decir que no hay nadie baneado', async () => {
+    await renderSection([], true);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(PERMISSION_COPY.bansError);
+    expect(screen.queryByText(PERMISSION_COPY.noBans)).not.toBeOnTheScreen();
   });
 
   it('avisa que revocar no lo trae de vuelta solo, igual que la web', async () => {

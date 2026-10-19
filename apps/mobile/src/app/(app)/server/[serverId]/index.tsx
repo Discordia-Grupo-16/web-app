@@ -33,7 +33,13 @@ export default function ServerScreen() {
   // Up here and not with the other permissions because a hook cannot go after the early return.
   // The same bit bans and revokes (ADR-0011); without it the hook does not even ask.
   const canBan = hasPermission(server?.my_permissions ?? NONE, BAN_MEMBERS);
-  const { bans, loading: loadingBans, removeBan, reload: reloadBans } = useBans(serverId, canBan);
+  const {
+    bans,
+    loading: loadingBans,
+    error: bansError,
+    removeBan,
+    reload: reloadBans,
+  } = useBans(serverId, canBan);
 
   if (loadingServer || loadingRoles || loadingMembers || !server) {
     return (
@@ -94,7 +100,12 @@ export default function ServerScreen() {
             the caller has the bit, and showing the spinner a second time would blink the
             screen. The section waits on its own instead. */}
         {canBan && !loadingBans && (
-          <BansSection serverId={server.id} bans={bans} onBanRevoked={removeBan} />
+          <BansSection
+            serverId={server.id}
+            bans={bans}
+            error={bansError}
+            onBanRevoked={removeBan}
+          />
         )}
         <InvitationsSection serverId={server.id} canManage={isOwner} />
         <ServerActions server={server} isOwner={isOwner} onLeavingChange={setLeaving} />

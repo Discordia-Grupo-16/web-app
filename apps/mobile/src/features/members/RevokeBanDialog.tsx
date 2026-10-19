@@ -56,10 +56,19 @@ export function RevokeBanDialog({
             {PERMISSION_COPY.revokeBanWarning(memberName)}
           </Text>
 
-          {error ? <Text className="text-[#ed4245] text-sm mt-3">{error}</Text> : null}
+          {error ? (
+            <Text accessibilityRole="alert" className="text-[#ed4245] text-sm mt-3">
+              {error}
+            </Text>
+          ) : null}
 
           <View className="flex-row justify-end items-center gap-4 mt-6">
-            <TouchableOpacity onPress={onClose} disabled={revoking} className="py-2 px-3">
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={onClose}
+              disabled={revoking}
+              className="py-2 px-3"
+            >
               <Text className="text-[#b9bbbe] text-sm">{PERMISSION_COPY.revokeCancel}</Text>
             </TouchableOpacity>
             {/* El azul de la marca y no rojo: revocar devuelve el acceso, no es destructivo.
