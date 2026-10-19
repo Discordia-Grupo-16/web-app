@@ -68,6 +68,8 @@ vi.mock('livekit-client', () => ({
     RoomEvent: {
         Connected: 'connected',
         Reconnected: 'reconnected',
+        Reconnecting: 'reconnecting',
+        SignalReconnecting: 'signalReconnecting',
         Disconnected: 'disconnected',
         ParticipantConnected: 'participantConnected',
         ParticipantDisconnected: 'participantDisconnected',
@@ -208,6 +210,44 @@ describe('createLivekitAdapter', () => {
         const adapter = createLivekitAdapter();
 
         await expect(adapter.connect('wss://voice.example.com', 'jwt')).rejects.toEqual({ kind });
+    });
+
+    it.each(['reconnecting', 'signalReconnecting'])('reports the reconnection on %s and its end', async (event) => {
+        const { adapter, room } = await connected();
+        const states: boolean[] = [];
+        adapter.onReconnectingChanged((reconnecting) => states.push(reconnecting));
+
+        room.emit(event);
+        room.emit('reconnected');
+
+        expect(states).toEqual([true, false]);
+    });
+
+    it('ignores the reconnection of a room that was already left', async () => {
+        const { adapter, room } = await connected();
+        const states: boolean[] = [];
+        adapter.onReconnectingChanged((reconnecting) => states.push(reconnecting));
+        await adapter.disconnect();
+
+        room.emit('reconnecting');
+
+        expect(states).toEqual([]);
+    });
+
+    it('stops the microphone that arrives after leaving the call', async () => {
+        const { adapter, room } = await connected();
+        const track = { stop: vi.fn() };
+        let grant: () => void = () => undefined;
+        room.localParticipant.setMicrophoneEnabled.mockImplementationOnce(
+            () => new Promise((resolve) => (grant = () => resolve({ track } as never))),
+        );
+
+        const result = adapter.enableMicrophone();
+        await adapter.disconnect();
+        grant();
+
+        expect(await result).toBe('no-device');
+        expect(track.stop).toHaveBeenCalled();
     });
 
     it('disconnects the current room', async () => {
