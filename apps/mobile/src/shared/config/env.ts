@@ -8,3 +8,6 @@ export const API_TIMEOUT_MS = process.env.EXPO_PUBLIC_API_TIMEOUT_MS
   : undefined;
 
 export const WS_URL = process.env.EXPO_PUBLIC_WS_URL ?? '';
+
+// Public base URL of the web app, used to build shareable invite links.
+export const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL ?? '';

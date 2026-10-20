@@ -4,8 +4,10 @@ import {
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import type { Invitation } from '@discordia/api';
+import { buildInviteUrl } from '@discordia/core';
 import { invitationsService } from '@/shared/api';
 import { getErrorDetail } from '@discordia/api';
+import { WEB_URL } from '@/shared/config/env';
 
 const EXPIRY_OPTIONS: { label: string; value: number | undefined }[] = [
   { label: 'Sin exp.', value: undefined },
@@ -76,6 +78,9 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
               <View key={inv.id} className="bg-[#2c2f33] rounded-lg px-4 py-3 mb-2 flex-row items-center justify-between">
                 <View className="flex-1 mr-3">
                   <Text className="text-white font-mono text-sm">{inv.code}</Text>
+                  <Text className="text-[#99aab5] text-xs mt-0.5" selectable>
+                    {buildInviteUrl(WEB_URL, inv.code)}
+                  </Text>
                   <Text className="text-[#72767d] text-xs mt-0.5">
                     Usos: {inv.uses}{inv.max_uses ? `/${inv.max_uses}` : ''}
                     {inv.expires_at ? `  ·  Expira: ${new Date(inv.expires_at).toLocaleDateString()}` : ''}
@@ -83,7 +88,7 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
                 </View>
                 <View className="flex-row gap-2">
                   <TouchableOpacity
-                    onPress={async () => { await Clipboard.setStringAsync(inv.code); Alert.alert('Copiado', `Código ${inv.code} copiado.`); }}
+                    onPress={async () => { await Clipboard.setStringAsync(buildInviteUrl(WEB_URL, inv.code)); Alert.alert('Copiado', 'Link copiado.'); }}
                     className="bg-[#7289da] px-3 py-1.5 rounded-lg"
                   >
                     <Text className="text-white text-xs font-semibold">Copiar</Text>
