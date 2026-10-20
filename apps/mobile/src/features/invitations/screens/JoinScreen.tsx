@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { invitationsService } from '@/shared/api';
-import { getErrorDetail } from '@discordia/api';
+import { invitationErrorMessage, parseInviteCode } from '@discordia/core';
 
 export function JoinScreen() {
   const router = useRouter();
@@ -11,15 +11,18 @@ export function JoinScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleJoin = async () => {
-    const trimmed = code.trim();
-    if (!trimmed) return;
+    const parsed = parseInviteCode(code);
+    if (!parsed) {
+      Alert.alert('Error', 'Ingresá un link o código de invitación válido.');
+      return;
+    }
     setLoading(true);
     try {
-      const member = await invitationsService.joinServer(trimmed);
+      const member = await invitationsService.joinServer(parsed);
       router.replace(`/server/${member.server_id}`);
     } catch (err) {
-      const detail = getErrorDetail(err) || 'Código inválido o expirado.';
-      Alert.alert('Error', detail);
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      Alert.alert('Error', invitationErrorMessage(status));
     } finally {
       setLoading(false);
     }
@@ -30,7 +33,7 @@ export function JoinScreen() {
       <View className="flex-1 px-6 pt-8">
         <Text className="text-white font-black text-xl mb-1">Unirse a un servidor</Text>
         <Text className="text-[#99aab5] text-sm mb-6">
-          Ingresá el código de invitación que te compartieron.
+          Pegá el link o el código de invitación que te compartieron.
         </Text>
 
         <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-2">
