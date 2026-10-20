@@ -2,16 +2,24 @@ import '@/global.css';
 import { Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from '@discordia/core';
+import { AuthProvider, PublicProfilesProvider } from '@discordia/core';
 import { mobileAuthStorage } from '@/shared/session/authStorage';
-import { authService } from '@/shared/api';
+import { authService, userService } from '@/shared/api';
 import { sessionExpiry } from '@/shared/session/sessionExpiry';
+
+// The public profile cache is per session: drop it before logging out.
+const signOut = async () => {
+  userService.clearPublicProfiles();
+  await authService.logout();
+};
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider storage={mobileAuthStorage} onSignOut={authService.logout} sessionExpiry={sessionExpiry}>
-        <Slot />
+      <AuthProvider storage={mobileAuthStorage} onSignOut={signOut} sessionExpiry={sessionExpiry}>
+        <PublicProfilesProvider source={userService}>
+          <Slot />
+        </PublicProfilesProvider>
         <StatusBar style="auto" />
       </AuthProvider>
     </SafeAreaProvider>

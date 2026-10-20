@@ -2,6 +2,7 @@
 
 Monorepositorio para las aplicaciones cliente del ecosistema Discordia:
 - **Web App**: `apps/web` (React 19 + Vite + Tailwind CSS v4)
+- **Backoffice**: `apps/backoffice` (app web separada para el staff, mismo stack que la web)
 - **Mobile Android**: `apps/mobile` (React Native + Expo SDK 57 + Expo Router + NativeWind)
 
 ## Requisitos
@@ -43,6 +44,29 @@ npm run test --workspace=web-app -- --coverage
 
 Los tests viven junto al archivo que prueban (`LoginForm.tsx` → `LoginForm.test.tsx`).
 La configuración está en `apps/web/vite.config.ts` y el setup en `apps/web/src/test/setup.ts`.
+
+### Backoffice
+Panel para el staff. Es una app aparte de la web, con su propia sesión: las claves de `localStorage`
+son `discordia_backoffice_*`, así que loguearse en uno no loguea en el otro.
+
+```bash
+npm run dev:backoffice                       # http://localhost:5174 (puerto fijo)
+npm run build --workspace=backoffice
+npm run test --workspace=backoffice
+```
+
+Creá `apps/backoffice/.env.local` (hay un `.env.example`) con la URL del gateway, **sin** `/api/v1`
+porque los servicios de `@discordia/api` ya lo agregan:
+
+```
+VITE_API_URL=http://localhost:8080
+```
+
+Para entrar necesitás un usuario staff: ver el README de `identity` ("Dar el rol de staff"). El
+gateway tiene que tener `http://localhost:5174` en `CORS_ALLOWED_ORIGINS`. Una cuenta sin rol staff
+con la contraseña correcta ve "Esta cuenta no tiene acceso al backoffice" y no queda ninguna sesión
+guardada. Ojo: ocultar pantallas en el front es solo UX; la autorización real es el 403 de los
+endpoints de staff en el backend.
 
 ### Mobile Android
 Iniciar el bundler de Expo para Mobile:
@@ -169,6 +193,12 @@ ESLint hace cumplir estas reglas con `import-x/no-restricted-paths`. Las zonas s
 │   │       ├── features/             # auth, servers, channels, roles, invitations, profile, chat
 │   │       ├── shared/               # api, session, config, hooks, ui
 │   │       └── test/setup.ts
+│   ├── backoffice/                   # Backoffice de staff (Vite + React 19), puerto 5174
+│   │   └── src/
+│   │       ├── main.tsx
+│   │       ├── app/                  # router, StaffLayout
+│   │       ├── features/             # auth (login y StaffRoute), dashboard
+│   │       └── shared/               # api, session (claves discordia_backoffice_*), config
 │   └── mobile/                       # Mobile Android (Expo + React Native)
 │       ├── app.json, metro.config.js, tailwind.config.js
 │       └── src/
