@@ -24,6 +24,8 @@ const makeAdapter = () =>
     onDisconnected: () => () => undefined,
     onParticipantsChanged: () => () => undefined,
     onReconnectingChanged: () => () => undefined,
+    muteMicrophone: jest.fn(async () => undefined),
+    onMicrophoneLost: () => () => undefined,
   }) satisfies VoiceRoomAdapter;
 
 const Status = () => {

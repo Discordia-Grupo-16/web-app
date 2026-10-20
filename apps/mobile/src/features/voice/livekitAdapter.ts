@@ -4,6 +4,8 @@ import { ConnectionError, ConnectionErrorReason, DisconnectReason, Room, RoomEve
 import {
   buildParticipantSnapshot,
   readServerReason,
+  type EnableMicrophoneOptions,
+  type MicLossCause,
   type MicResult,
   type RoomConnectFailure,
   type RoomDisconnectCause,
@@ -73,6 +75,8 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
   const disconnectedListeners = new Set<(info: RoomDisconnectInfo) => void>();
   const participantListeners = new Set<(snapshot: VoiceParticipant[]) => void>();
   const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
+  // Provisional: registered, never notified yet.
+  const micLostListeners = new Set<(cause: MicLossCause) => void>();
   let room: Room | null = null;
   let audioStarted = false;
   let pendingAudioStop: ReturnType<typeof setTimeout> | null = null;
@@ -165,7 +169,9 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
       if (current) stopAudioSoon();
     },
 
-    async enableMicrophone(): Promise<MicResult> {
+    // Provisional: the options are not used yet.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async enableMicrophone(_options?: EnableMicrophoneOptions): Promise<MicResult> {
       const current = room;
       if (!current) return 'no-device';
       const permission = await requestMicrophonePermission();
@@ -187,5 +193,9 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     onDisconnected: subscribe(disconnectedListeners),
     onParticipantsChanged: subscribe(participantListeners),
     onReconnectingChanged: subscribe(reconnectingListeners),
+    onMicrophoneLost: subscribe(micLostListeners),
+
+    // Provisional: it does not mute yet.
+    async muteMicrophone() {},
   };
 };

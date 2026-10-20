@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VoiceToken } from '@discordia/api';
 import { useVoiceController } from './useVoiceController';
 import type {
+    MicLossCause,
     MicResult,
     RoomDisconnectInfo,
     VoiceChannelRef,
@@ -34,6 +35,7 @@ const createFakeAdapter = () => {
     const participants = new Set<(snapshot: VoiceParticipant[]) => void>();
     const playback = new Set<(blocked: boolean) => void>();
     const reconnecting = new Set<(value: boolean) => void>();
+    const micLost = new Set<(cause: MicLossCause) => void>();
     const subscribe = <T>(set: Set<T>) => (listener: T) => {
         set.add(listener);
         return () => set.delete(listener);
@@ -46,6 +48,8 @@ const createFakeAdapter = () => {
         onDisconnected: subscribe(disconnected),
         onParticipantsChanged: subscribe(participants),
         onReconnectingChanged: subscribe(reconnecting),
+        muteMicrophone: vi.fn(async () => undefined),
+        onMicrophoneLost: subscribe(micLost),
         onAudioPlaybackBlocked: subscribe(playback),
         startAudio: vi.fn(async () => undefined),
     } satisfies VoiceRoomAdapter;
@@ -58,6 +62,7 @@ const createFakeAdapter = () => {
         emitParticipants: (snapshot: VoiceParticipant[]) => act(() => participants.forEach((l) => l(snapshot))),
         emitPlaybackBlocked: (blocked: boolean) => act(() => playback.forEach((l) => l(blocked))),
         emitReconnecting: (value: boolean) => act(() => reconnecting.forEach((l) => l(value))),
+        emitMicrophoneLost: (cause: MicLossCause) => act(() => micLost.forEach((l) => l(cause))),
     };
 };
 
@@ -99,6 +104,7 @@ describe('useVoiceController', () => {
             micAvailable: true,
             micBlocked: false,
             muted: false,
+            micPending: false,
             reconnecting: false,
             participants: [ana, me],
         });

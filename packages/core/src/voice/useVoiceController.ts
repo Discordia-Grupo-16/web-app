@@ -166,6 +166,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                     micAvailable: true,
                     micBlocked: false,
                     muted: true,
+                    micPending: false,
                     reconnecting: false,
                     participants: participantsRef.current,
                 });
@@ -224,9 +225,25 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
         void adapter.disconnect();
     }, [adapter, updateCall]);
 
+    // Provisional bodies: they do nothing yet.
+    const rejoin = useCallback(() => undefined, []);
+    const toggleMute = useCallback(() => undefined, []);
+
     const value = useMemo(
-        () => ({ call, attempt, available: adapter !== null, audioBlocked, join, leave, retry, dismiss, startAudio }),
-        [call, attempt, adapter, audioBlocked, join, leave, retry, dismiss, startAudio],
+        () => ({
+            call,
+            attempt,
+            available: adapter !== null,
+            audioBlocked,
+            join,
+            rejoin,
+            leave,
+            toggleMute,
+            retry,
+            dismiss,
+            startAudio,
+        }),
+        [call, attempt, adapter, audioBlocked, join, rejoin, leave, toggleMute, retry, dismiss, startAudio],
     );
 
     return { value, disconnectWithReason };

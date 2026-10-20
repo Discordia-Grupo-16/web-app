@@ -20,6 +20,7 @@ const connected = (extra: { reconnecting?: boolean } = {}) => ({
   micAvailable: true,
   micBlocked: false,
   muted: false,
+  micPending: false,
   reconnecting: extra.reconnecting ?? false,
   participants: [],
 });
@@ -38,7 +39,7 @@ describe('VoiceBar', () => {
   it('takes you back to the call screen', async () => {
     jest.mocked(useVoice).mockReturnValue(
       voiceValue({
-        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, reconnecting: false, participants: [] },
+        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, participants: [] },
       }),
     );
     await render(<VoiceBar />);

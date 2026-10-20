@@ -10,6 +10,8 @@ import {
 import {
     buildParticipantSnapshot,
     readServerReason,
+    type EnableMicrophoneOptions,
+    type MicLossCause,
     type MicResult,
     type RoomConnectFailure,
     type RoomDisconnectCause,
@@ -74,6 +76,8 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     const participantListeners = new Set<(snapshot: VoiceParticipant[]) => void>();
     const playbackListeners = new Set<(blocked: boolean) => void>();
     const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
+    // Provisional: registered, never notified yet.
+    const micLostListeners = new Set<(cause: MicLossCause) => void>();
     let room: Room | null = null;
 
     const subscribe =
@@ -147,7 +151,9 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
             await current?.disconnect();
         },
 
-        async enableMicrophone(): Promise<MicResult> {
+        // Provisional: the options are not used yet.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        async enableMicrophone(_options?: EnableMicrophoneOptions): Promise<MicResult> {
             const current = room;
             if (!current) return 'no-device';
             try {
@@ -169,6 +175,10 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
         onDisconnected: subscribe(disconnectedListeners),
         onParticipantsChanged: subscribe(participantListeners),
         onReconnectingChanged: subscribe(reconnectingListeners),
+        onMicrophoneLost: subscribe(micLostListeners),
+
+        // Provisional: it does not mute yet.
+        async muteMicrophone() {},
         onAudioPlaybackBlocked: subscribe(playbackListeners),
 
         async startAudio() {

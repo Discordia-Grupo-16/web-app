@@ -5,7 +5,7 @@ export const VOICE_TEXTS = {
     connecting: 'Conectando…',
     noMic: 'Estás conectado sin micrófono: los demás no te escuchan.',
     micBlockedWeb:
-        'El navegador tiene bloqueado el micrófono para este sitio. Habilitalo desde el ícono del candado en la barra de direcciones y volvé a unirte.',
+        'El navegador tiene bloqueado el micrófono para este sitio. Habilitalo desde el ícono del candado en la barra de direcciones y volvé a activar el micrófono.',
     micBlockedMobile: 'El permiso del micrófono está bloqueado. Habilitalo desde la configuración de la app.',
     micBlockedMobileInCall: 'Abrir la configuración corta la llamada.',
     openSettings: 'Abrir configuración',
@@ -13,6 +13,8 @@ export const VOICE_TEXTS = {
     reconnecting: 'Reconectando…',
     rejoin: 'Volver a unirse',
     connectedTo: 'Conectado a',
+    mute: 'Silenciar micrófono',
+    unmute: 'Activar micrófono',
 } as const;
 
 export const VOICE_JOIN_ERROR_TEXTS: Record<VoiceJoinError, string> = {

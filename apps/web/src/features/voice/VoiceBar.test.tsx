@@ -20,6 +20,7 @@ const connected = (extra: { reconnecting?: boolean } = {}) => ({
     micAvailable: true,
     micBlocked: false,
     muted: false,
+    micPending: false,
     reconnecting: extra.reconnecting ?? false,
     participants: [],
 });
@@ -41,7 +42,7 @@ describe('VoiceBar', () => {
 
     it('links to the channel of the call', () => {
         vi.mocked(useVoice).mockReturnValue(
-            voiceValue({ call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, reconnecting: false, participants: [] } }),
+            voiceValue({ call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, participants: [] } }),
         );
         renderBar();
 
