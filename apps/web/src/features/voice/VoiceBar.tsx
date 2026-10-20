@@ -1,5 +1,6 @@
+import { useId } from 'react';
 import { Link } from 'react-router-dom';
-import { PhoneOff, Signal, X } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Signal, X } from 'lucide-react';
 import { canRejoin, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS } from '@discordia/core';
 
 const channelPath = (serverId: string, channelId: string) => `/servers/${serverId}/channels/${channelId}`;
@@ -8,7 +9,8 @@ const barStyle = { background: '#292b2f', borderTop: '1px solid #202225' };
 
 // The way back to the call, and out of it, from any screen, including another server.
 export const VoiceBar = () => {
-    const { call, attempt, join, leave, dismiss } = useVoice();
+    const { call, attempt, rejoin, leave, toggleMute, dismiss } = useVoice();
+    const noMicId = useId();
     if (call.status === 'idle') return null;
 
     if (call.status === 'disconnected') {
@@ -18,7 +20,7 @@ export const VoiceBar = () => {
                     <p>{VOICE_DISCONNECT_TEXTS[call.reason]}</p>
                     {canRejoin(call.reason) && (
                         <button
-                            onClick={() => join(call.channel)}
+                            onClick={rejoin}
                             className="mt-1.5 px-2.5 py-1 rounded text-xs font-semibold text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-white"
                             style={{ background: '#3ba55d' }}
                         >
@@ -40,6 +42,8 @@ export const VoiceBar = () => {
 
     // Leaving does not cancel a join in progress: the button waits until it ends.
     const joining = attempt?.status === 'connecting';
+    const noMic = !call.micAvailable;
+    const micColor = noMic ? '#faa61a' : call.muted ? '#ed4245' : '#b9bbbe';
 
     return (
         <div className="flex items-center gap-2 px-3 py-2" style={barStyle}>
@@ -60,6 +64,24 @@ export const VoiceBar = () => {
                     {call.channel.name}
                 </Link>
             </div>
+            <button
+                onClick={toggleMute}
+                disabled={call.micPending || joining}
+                aria-label={call.muted ? VOICE_TEXTS.unmute : VOICE_TEXTS.mute}
+                aria-pressed={call.muted}
+                aria-busy={call.micPending || undefined}
+                aria-describedby={noMic ? noMicId : undefined}
+                title={noMic ? VOICE_TEXTS.noMic : call.muted ? VOICE_TEXTS.unmute : VOICE_TEXTS.mute}
+                className="p-1.5 rounded shrink-0 transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
+                style={{ color: micColor }}
+            >
+                {call.muted ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
+            {noMic && (
+                <span id={noMicId} hidden>
+                    {VOICE_TEXTS.noMic}
+                </span>
+            )}
             <button
                 onClick={leave}
                 disabled={joining}
