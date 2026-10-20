@@ -1,6 +1,11 @@
 import { PermissionsAndroid } from 'react-native';
 import type { RoomDisconnectInfo, VoiceParticipant } from '@discordia/core';
-import { createLivekitAdapter, requestMicrophonePermission } from './livekitAdapter';
+import {
+  AUDIO_RESTART_GAP_MS,
+  AUDIO_STOP_DELAY_MS,
+  createLivekitAdapter,
+  requestMicrophonePermission,
+} from './livekitAdapter';
 
 type Handler = (...args: unknown[]) => void;
 
@@ -95,11 +100,14 @@ const requestPermission = jest.spyOn(PermissionsAndroid, 'request');
 
 describe('createLivekitAdapter', () => {
   beforeEach(() => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
     jest.clearAllMocks();
     MockRoom.instances = [];
     MockRoom.connectError = null;
     requestPermission.mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
   });
+
+  afterEach(() => jest.useRealTimers());
 
   it('configures the audio session for communication before connecting', async () => {
     const adapter = createLivekitAdapter();
@@ -121,7 +129,8 @@ describe('createLivekitAdapter', () => {
 
     MockRoom.connectError = new MockConnectionError(1);
     await expect(adapter.connect('wss://lk', 'jwt')).rejects.toEqual({ kind: 'unavailable' });
-    expect(mockAudioSession.stopAudioSession).toHaveBeenCalledTimes(2);
+    jest.advanceTimersByTime(AUDIO_STOP_DELAY_MS);
+    expect(mockAudioSession.stopAudioSession).toHaveBeenCalledTimes(1);
   });
 
   it('sends the participant snapshot when the room changes', async () => {
@@ -148,6 +157,7 @@ describe('createLivekitAdapter', () => {
 
     expect(infos).toEqual([{ cause: 'participant_removed', serverReason: 'kicked' }]);
     expect(snapshots).toEqual([[]]);
+    jest.advanceTimersByTime(AUDIO_STOP_DELAY_MS);
     expect(mockAudioSession.stopAudioSession).toHaveBeenCalled();
   });
 
@@ -158,7 +168,37 @@ describe('createLivekitAdapter', () => {
     await adapter.disconnect();
 
     expect(lastRoom().disconnect).toHaveBeenCalled();
-    expect(mockAudioSession.stopAudioSession).toHaveBeenCalled();
+    expect(mockAudioSession.stopAudioSession).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(AUDIO_STOP_DELAY_MS);
+    expect(mockAudioSession.stopAudioSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the audio session open when switching rooms', async () => {
+    const adapter = createLivekitAdapter();
+    await adapter.connect('wss://lk', 'room-a');
+
+    await adapter.disconnect();
+    await adapter.connect('wss://lk', 'room-b');
+    jest.advanceTimersByTime(AUDIO_STOP_DELAY_MS);
+
+    expect(mockAudioSession.stopAudioSession).not.toHaveBeenCalled();
+    expect(mockAudioSession.startAudioSession).toHaveBeenCalledTimes(1);
+    expect(lastRoom().connect).toHaveBeenCalledWith('wss://lk', 'room-b', { autoSubscribe: true });
+  });
+
+  it('waits a moment after stopping the audio session before starting it again', async () => {
+    const adapter = createLivekitAdapter();
+    await adapter.connect('wss://lk', 'room-a');
+    await adapter.disconnect();
+    jest.advanceTimersByTime(AUDIO_STOP_DELAY_MS);
+
+    const connecting = adapter.connect('wss://lk', 'room-b');
+    await Promise.resolve();
+    expect(mockAudioSession.startAudioSession).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(AUDIO_RESTART_GAP_MS);
+    await connecting;
+
+    expect(mockAudioSession.startAudioSession).toHaveBeenCalledTimes(2);
   });
 
   it.each(['reconnecting', 'signalReconnecting'])('reports the reconnection on %s and its end', async (event) => {
