@@ -84,6 +84,20 @@ describe('createPublicProfileCache', () => {
         expect(fetchBatch).toHaveBeenCalledTimes(2);
     });
 
+    it('asks again for a cached id when the lookup is fresh, and keeps the new profile', async () => {
+        const { cache, fetchBatch } = setup();
+        await cache.get(['a']);
+        fetchBatch.mockResolvedValueOnce([{ ...profile('a'), bio: 'new bio' }]);
+
+        const profiles = await cache.get(['a'], { fresh: true });
+
+        expect(fetchBatch).toHaveBeenCalledTimes(2);
+        expect(profiles.get('a')?.bio).toBe('new bio');
+        expect(cache.peek('a')?.bio).toBe('new bio');
+        expect((await cache.get(['a'])).get('a')?.bio).toBe('new bio');
+        expect(fetchBatch).toHaveBeenCalledTimes(2);
+    });
+
     it('marks ids missing from the response as not available and caches that too', async () => {
         const { cache, fetchBatch } = setup();
         fetchBatch.mockResolvedValueOnce([profile('a')]);

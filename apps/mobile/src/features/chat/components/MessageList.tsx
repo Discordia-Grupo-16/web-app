@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Alert, FlatList, View, Text } from 'react-native';
+import { useRouter } from 'expo-router';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
-import { displayName, ERROR_TEXTS, isRetryable } from '@discordia/core';
+import { authorView, ERROR_TEXTS, isRetryable, usePublicProfiles } from '@discordia/core';
 import { MessageItem } from './MessageItem';
 
 interface MessageListProps {
@@ -50,6 +51,14 @@ export const MessageList = ({
 }: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
   const pendingCountRef = useRef(pending.length);
+  const router = useRouter();
+
+  // Own messages come from the session, so only the other authors need their public profile.
+  const authorIds = useMemo(
+    () => [...new Set(messages.map((message) => message.authorId))].filter((id) => id !== currentUser?.id),
+    [messages, currentUser?.id],
+  );
+  const profiles = usePublicProfiles(authorIds);
 
   // Inverted list: index 0 is the bottom, so newest first and pending ones (always newer) before confirmed.
   const data = useMemo<ListItem[]>(
@@ -119,18 +128,26 @@ export const MessageList = ({
           </View>
         ) : null
       }
-      renderItem={({ item }) =>
-        item.kind === 'confirmed' ? (
-          <MessageItem
-            authorId={item.message.authorId}
-            authorName={displayName(item.message.authorId, currentUser)}
-            content={item.message.content}
-            createdAt={item.message.createdAt}
-          />
-        ) : (
+      renderItem={({ item }) => {
+        if (item.kind === 'confirmed') {
+          const { authorId } = item.message;
+          const author = authorView(authorId, currentUser, profiles.get(authorId));
+          return (
+            <MessageItem
+              authorId={authorId}
+              authorName={author.name}
+              authorAvatarUrl={author.avatarUrl}
+              content={item.message.content}
+              createdAt={item.message.createdAt}
+              onSelectAuthor={() => router.push({ pathname: '/user/[userId]', params: { userId: authorId } })}
+            />
+          );
+        }
+        return (
           <MessageItem
             authorId={currentUser?.id ?? ''}
             authorName={currentUser?.name || 'Vos'}
+            authorAvatarUrl={currentUser?.avatarUrl ?? null}
             content={item.message.content}
             sending={item.message.status === 'sending'}
             failed={item.message.status === 'failed'}
@@ -144,8 +161,8 @@ export const MessageList = ({
             retryDisabled={!canRetry}
             onDiscard={() => onDiscard(item.message.clientMessageId)}
           />
-        )
-      }
+        );
+      }}
     />
   );
 };
