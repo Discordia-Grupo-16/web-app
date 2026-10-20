@@ -20,7 +20,9 @@ const makeAdapter = () =>
   ({
     connect: jest.fn(async () => undefined),
     disconnect: jest.fn(async () => undefined),
-    enableMicrophone: jest.fn<ReturnType<VoiceRoomAdapter['enableMicrophone']>, []>(async () => 'ok'),
+    enableMicrophone: jest.fn<ReturnType<VoiceRoomAdapter['enableMicrophone']>, Parameters<VoiceRoomAdapter['enableMicrophone']>>(
+      async () => 'ok',
+    ),
     onDisconnected: () => () => undefined,
     onParticipantsChanged: () => () => undefined,
     onReconnectingChanged: () => () => undefined,
@@ -29,7 +31,7 @@ const makeAdapter = () =>
   }) satisfies VoiceRoomAdapter;
 
 const Status = () => {
-  const { call, available, join } = useVoice();
+  const { call, available, join, toggleMute } = useVoice();
   return (
     <>
       <Text>{available ? 'available' : 'unavailable'}</Text>
@@ -40,6 +42,9 @@ const Status = () => {
       </Pressable>
       <Pressable onPress={() => join({ id: 'c2', serverId: 's1', name: 'Juegos' })}>
         <Text>Cambiar</Text>
+      </Pressable>
+      <Pressable onPress={toggleMute}>
+        <Text>Silenciar</Text>
       </Pressable>
     </>
   );
@@ -118,5 +123,39 @@ describe('VoiceProvider', () => {
     expect(screen.getByTestId('call-status')).toHaveTextContent('disconnected');
     expect(screen.getByText('c1 app_backgrounded')).toBeTruthy();
     expect(adapter.connect).not.toHaveBeenCalled();
+  });
+
+  it('passes the muted option on to the adapter when switching rooms muted', async () => {
+    const adapter = makeAdapter();
+    jest.mocked(loadVoice).mockReturnValue(adapter);
+    await renderProvider();
+    const user = userEvent.setup();
+    await user.press(screen.getByText('Unirse'));
+    expect(await screen.findByText('c1 connected')).toBeTruthy();
+    await user.press(screen.getByText('Silenciar'));
+
+    await user.press(screen.getByText('Cambiar'));
+
+    expect(await screen.findByText('c2 connected')).toBeTruthy();
+    expect(adapter.enableMicrophone).toHaveBeenLastCalledWith({ muted: true });
+  });
+
+  it('does not cut the call while the muted microphone is being turned on', async () => {
+    const adapter = makeAdapter();
+    let answer: (result: 'ok') => void = () => undefined;
+    jest.mocked(loadVoice).mockReturnValue(adapter);
+    await renderProvider();
+    const user = userEvent.setup();
+    await user.press(screen.getByText('Unirse'));
+    expect(await screen.findByText('c1 connected')).toBeTruthy();
+    await user.press(screen.getByText('Silenciar'));
+    adapter.enableMicrophone.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+
+    await user.press(screen.getByText('Cambiar'));
+    await changeAppState('background');
+    await act(async () => answer('ok'));
+
+    expect(await screen.findByText('c2 connected')).toBeTruthy();
+    expect(adapter.disconnect).toHaveBeenCalledTimes(1);
   });
 });
