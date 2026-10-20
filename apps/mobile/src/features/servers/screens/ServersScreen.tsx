@@ -5,7 +5,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import type { Server } from '@discordia/api';
 import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
@@ -13,7 +12,6 @@ import { getErrorDetail } from '@discordia/api';
 
 export function ServersScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -40,9 +38,6 @@ export function ServersScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 bg-[#2f3136] border-b border-[#202225]">
         <Text className="text-white font-black text-lg">Mis servidores</Text>
-        <TouchableOpacity onPress={signOut}>
-          <Text className="text-[#ed4245] text-sm font-semibold">Salir</Text>
-        </TouchableOpacity>
       </View>
 
       {loading ? (
