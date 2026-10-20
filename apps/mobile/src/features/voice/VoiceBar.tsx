@@ -2,11 +2,13 @@ import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { canRejoin, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS } from '@discordia/core';
+import { MicIcon } from './MicIcon';
+import { MicOffIcon } from './MicOffIcon';
 import { PhoneOffIcon } from './PhoneOffIcon';
 
 // The way back to the call, and out of it, from any screen, including another server.
 export const VoiceBar = () => {
-  const { call, attempt, join, leave, dismiss } = useVoice();
+  const { call, attempt, rejoin, leave, toggleMute, dismiss } = useVoice();
   const router = useRouter();
   const { bottom } = useSafeAreaInsets();
   if (call.status === 'idle') return null;
@@ -26,7 +28,7 @@ export const VoiceBar = () => {
           {canRejoin(call.reason) && (
             <Pressable
               accessibilityRole="button"
-              onPress={() => join(call.channel)}
+              onPress={rejoin}
               className="rounded bg-[#3ba55d] px-3 py-1.5"
               style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}
             >
@@ -44,6 +46,9 @@ export const VoiceBar = () => {
   const { channel } = call;
   // Leaving does not cancel a join in progress: the button waits until it ends.
   const joining = attempt?.status === 'connecting';
+  const noMic = !call.micAvailable;
+  const micDisabled = call.micPending || joining;
+  const micColor = noMic ? '#faa61a' : call.muted ? '#ed4245' : '#b9bbbe';
 
   return (
     <View
@@ -68,6 +73,19 @@ export const VoiceBar = () => {
         <Text numberOfLines={1} className="text-xs text-[#b9bbbe]">
           {channel.name}
         </Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={call.muted ? VOICE_TEXTS.unmute : VOICE_TEXTS.mute}
+        accessibilityHint={noMic ? VOICE_TEXTS.noMic : undefined}
+        accessibilityState={{ selected: call.muted, disabled: micDisabled, busy: call.micPending }}
+        disabled={micDisabled}
+        onPress={toggleMute}
+        hitSlop={8}
+        className="rounded-full p-2"
+        style={({ pressed }) => ({ opacity: micDisabled ? 0.4 : 1, backgroundColor: pressed ? '#ffffff1a' : 'transparent' })}
+      >
+        {call.muted ? <MicOffIcon size={20} color={micColor} /> : <MicIcon color={micColor} />}
       </Pressable>
       <Pressable
         accessibilityRole="button"
