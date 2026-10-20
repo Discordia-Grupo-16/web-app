@@ -17,8 +17,35 @@ class MockParticipant {
     public identity: string,
     public joinedAt?: Date,
   ) {}
-  setMicrophoneEnabled = jest.fn(async () => undefined);
+  setMicrophoneEnabled = jest.fn<Promise<unknown>, [boolean]>(async () => undefined);
+  createTracks = jest.fn<Promise<unknown[]>, [{ audio: boolean }]>(async () => [new MockTrack()]);
+  publishTrack = jest.fn<Promise<unknown>, [unknown]>(async () => undefined);
+  getTrackPublication = jest.fn<unknown, [string]>(() => undefined);
 }
+
+// A local microphone track: records mute calls and lets each test emit its events.
+class MockTrack {
+  handlers = new Map<string, Handler[]>();
+  isMuted = false;
+  mediaStreamTrack = { readyState: 'live' as 'live' | 'ended' };
+  mute = jest.fn(async () => {
+    this.isMuted = true;
+  });
+  stop = jest.fn();
+  on(event: string, handler: Handler) {
+    this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
+    return this;
+  }
+  off(event: string, handler: Handler) {
+    this.handlers.set(event, (this.handlers.get(event) ?? []).filter((h) => h !== handler));
+    return this;
+  }
+  emit(event: string, ...args: unknown[]) {
+    this.handlers.get(event)?.forEach((h) => h(...args));
+  }
+}
+
+const mockGetLocalDevices = jest.fn<Promise<unknown[]>, [string, boolean?]>(async () => [{ deviceId: 'default' }]);
 
 class MockRoom {
   static instances: MockRoom[] = [];
@@ -49,7 +76,12 @@ class MockConnectionError extends Error {
 }
 
 jest.mock('livekit-client', () => ({
-  Room: jest.fn(() => new MockRoom()),
+  Room: Object.assign(
+    jest.fn(() => new MockRoom()),
+    { getLocalDevices: (kind: string, requestPermissions?: boolean) => mockGetLocalDevices(kind, requestPermissions) },
+  ),
+  Track: { Source: { Microphone: 'microphone', Camera: 'camera' } },
+  TrackEvent: { Muted: 'muted', Ended: 'ended', Restarted: 'restarted' },
   get ConnectionError() {
     return MockConnectionError;
   },
@@ -284,6 +316,159 @@ describe('createLivekitAdapter', () => {
     lastRoom().localParticipant.setMicrophoneEnabled.mockRejectedValue(new Error('no input'));
 
     await expect(adapter.enableMicrophone()).resolves.toBe('no-device');
+  });
+
+  describe('microphone (SCRUM-53, Silenciar micrófono propio)', () => {
+    const flush = async () => {
+      for (let i = 0; i < 5; i++) await new Promise<void>((resolve) => setImmediate(() => resolve()));
+    };
+    const connected = async () => {
+      const adapter = createLivekitAdapter();
+      await adapter.connect('wss://lk', 'jwt');
+      return { adapter, room: lastRoom() };
+    };
+    const publishMic = (room: MockRoom, track: MockTrack) =>
+      room.emit('localTrackPublished', { source: 'microphone', track });
+    const listen = (adapter: ReturnType<typeof createLivekitAdapter>) => {
+      const causes: string[] = [];
+      adapter.onMicrophoneLost((cause) => causes.push(cause));
+      return causes;
+    };
+
+    beforeEach(() => mockGetLocalDevices.mockResolvedValue([{ deviceId: 'default' }]));
+
+    it('asks for the permission and publishes the new track already muted', async () => {
+      const { adapter, room } = await connected();
+      const track = new MockTrack();
+      const order: string[] = [];
+      requestPermission.mockImplementationOnce(async () => {
+        order.push('permission');
+        return PermissionsAndroid.RESULTS.GRANTED;
+      });
+      track.mute.mockImplementationOnce(async () => {
+        order.push('mute');
+        track.isMuted = true;
+      });
+      room.localParticipant.createTracks.mockResolvedValueOnce([track]);
+      room.localParticipant.publishTrack.mockImplementationOnce(async () => {
+        order.push('publish');
+        return undefined;
+      });
+
+      await expect(adapter.enableMicrophone({ muted: true })).resolves.toBe('ok');
+
+      expect(room.localParticipant.createTracks).toHaveBeenCalledWith({ audio: true });
+      expect(order).toEqual(['permission', 'mute', 'publish']);
+      expect(room.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [PermissionsAndroid.RESULTS.DENIED, 'denied'],
+      [PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN, 'blocked'],
+    ])('does not create the muted track without the permission (%s)', async (answer, expected) => {
+      const { adapter, room } = await connected();
+      requestPermission.mockResolvedValueOnce(answer);
+
+      await expect(adapter.enableMicrophone({ muted: true })).resolves.toBe(expected);
+      expect(room.localParticipant.createTracks).not.toHaveBeenCalled();
+    });
+
+    it('mutes the published microphone', async () => {
+      const { adapter, room } = await connected();
+
+      await adapter.muteMicrophone();
+
+      expect(room.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(false);
+    });
+
+    it('does nothing when muting without a room', async () => {
+      await expect(createLivekitAdapter().muteMicrophone()).resolves.toBeUndefined();
+    });
+
+    it('reports the microphone lost when LiveKit mutes an ended track', async () => {
+      const { adapter, room } = await connected();
+      const causes = listen(adapter);
+      const track = new MockTrack();
+      publishMic(room, track);
+
+      track.mediaStreamTrack.readyState = 'ended';
+      track.emit('muted', track);
+      await flush();
+
+      expect(causes).toEqual(['no-device']);
+    });
+
+    it('does not report the mute asked by the user', async () => {
+      const { adapter, room } = await connected();
+      const causes = listen(adapter);
+      const track = new MockTrack();
+      publishMic(room, track);
+      room.localParticipant.setMicrophoneEnabled.mockImplementationOnce(async () => {
+        track.emit('muted', track);
+        return undefined;
+      });
+
+      await adapter.muteMicrophone();
+      await flush();
+
+      expect(causes).toEqual([]);
+    });
+
+    it('reports the microphone lost when a muted track ends and no microphone is left', async () => {
+      mockGetLocalDevices.mockResolvedValue([]);
+      const { adapter, room } = await connected();
+      const causes = listen(adapter);
+      const track = new MockTrack();
+      track.isMuted = true;
+      publishMic(room, track);
+
+      track.emit('ended', track);
+      await flush();
+
+      expect(causes).toEqual(['no-device']);
+    });
+
+    it('does not report a muted track that ends while another microphone is left', async () => {
+      const { adapter, room } = await connected();
+      const causes = listen(adapter);
+      const track = new MockTrack();
+      track.isMuted = true;
+      publishMic(room, track);
+
+      track.emit('ended', track);
+      await flush();
+
+      expect(causes).toEqual([]);
+    });
+
+    it('does not report a track that LiveKit restarts with another microphone', async () => {
+      mockGetLocalDevices.mockResolvedValue([]);
+      const { adapter, room } = await connected();
+      const causes = listen(adapter);
+      const track = new MockTrack();
+      track.isMuted = true;
+      publishMic(room, track);
+
+      track.emit('ended', track);
+      track.emit('restarted', track);
+      await flush();
+
+      expect(causes).toEqual([]);
+    });
+
+    it('ignores the microphone of a room that was already left', async () => {
+      const { adapter, room } = await connected();
+      const causes = listen(adapter);
+      const track = new MockTrack();
+      publishMic(room, track);
+      await adapter.disconnect();
+
+      track.mediaStreamTrack.readyState = 'ended';
+      track.emit('muted', track);
+      await flush();
+
+      expect(causes).toEqual([]);
+    });
   });
 });
 
