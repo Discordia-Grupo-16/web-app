@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { invitationErrorMessage } from '@discordia/core';
+import { invitationErrorMessage, parseInviteCode } from '@discordia/core';
 import { invitationsService } from '@/shared/api';
+
+const INVALID_CODE_MESSAGE = 'El link de invitación no es válido.';
 
 /**
  * Landing of the `discordia://invite/<code>` deep link. Like the web `InvitePage`, it joins the
@@ -12,25 +14,40 @@ import { invitationsService } from '@/shared/api';
  */
 export function InviteScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
-  const inviteCode = Array.isArray(code) ? code[0] : code;
   const router = useRouter();
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // The route param comes from a link anyone can craft: it must look like a code before it is sent.
+  const inviteCode = parseInviteCode((Array.isArray(code) ? code[0] : code) ?? '');
+  const [errorMsg, setErrorMsg] = useState<string | null>(inviteCode ? null : INVALID_CODE_MESSAGE);
+  // The router object is not guaranteed to be stable: joining must not depend on it.
+  const routerRef = useRef(router);
+  const joinedCode = useRef<string | null>(null);
+  // A join already sent stays done in the backend: if the user left meanwhile, the answer must not
+  // pull them out of the screen they went to.
+  const mounted = useRef(false);
 
   useEffect(() => {
-    if (!inviteCode) return;
-    let active = true;
+    routerRef.current = router;
+  }, [router]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!inviteCode || joinedCode.current === inviteCode) return;
+    joinedCode.current = inviteCode;
     invitationsService
       .joinServer(inviteCode)
       .then((member) => {
-        if (active) router.replace(`/server/${member.server_id}`);
+        if (mounted.current) routerRef.current.replace(`/server/${member.server_id}`);
       })
       .catch((err) => {
-        if (active) setErrorMsg(invitationErrorMessage(err?.response?.status));
+        if (mounted.current) setErrorMsg(invitationErrorMessage(err?.response?.status));
       });
-    return () => {
-      active = false;
-    };
-  }, [inviteCode, router]);
+  }, [inviteCode]);
 
   return (
     <SafeAreaView className="flex-1 bg-[#23272a] items-center justify-center px-6" edges={['bottom']}>
@@ -47,7 +64,7 @@ export function InviteScreen() {
           <Text className="text-white font-black text-xl mb-2">Invitación inválida</Text>
           <Text className="text-[#99aab5] text-sm text-center mb-6">{errorMsg}</Text>
           <TouchableOpacity
-            onPress={() => router.replace('/')}
+            onPress={() => routerRef.current.replace('/')}
             className="bg-[#4f545c] px-6 py-3 rounded-xl"
           >
             <Text className="text-[#dcddde] font-bold">Ir al inicio</Text>
