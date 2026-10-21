@@ -4,6 +4,7 @@ import { DiscordiaMark } from "@discordia/ui";
 import { useAuth, validateRegisterInput } from "@discordia/core";
 import { getApiErrorMessage } from "@discordia/api";
 import { authService } from '@/shared/api';
+import { useReturnTo } from './returnTo';
 
 export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
     const [form, setForm] = useState({ email: '', name: '', password: '' })
@@ -12,6 +13,7 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
 
     const { signIn } = useAuth()
     const navigate = useNavigate()
+    const returnTo = useReturnTo()
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -32,7 +34,7 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
                 password: form.password,
             })
             await signIn(token, user)
-            navigate('/')
+            navigate(returnTo, { replace: true })
         } catch (err: unknown) {
             setError(getApiErrorMessage(err, 'Ocurrió un error al crear la cuenta. Intente nuevamente.'))
         } finally {

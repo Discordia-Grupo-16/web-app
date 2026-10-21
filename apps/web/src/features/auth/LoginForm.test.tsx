@@ -57,7 +57,7 @@ describe('LoginForm', () => {
 
         expect(login).toHaveBeenCalledWith({ email: 'milton@correo.com', password: 'secret123' });
         expect(signIn).toHaveBeenCalledWith('t', { id: '1', name: 'Milton' }, 'r');
-        expect(navigate).toHaveBeenCalledWith('/');
+        expect(navigate).toHaveBeenCalledWith('/', { replace: true });
     });
 
     it('shows the error message when the login fails', async () => {
