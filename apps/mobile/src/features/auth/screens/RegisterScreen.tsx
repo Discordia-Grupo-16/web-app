@@ -9,11 +9,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Link, useRouter } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import { useAuth, validateRegisterInput } from '@discordia/core';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { getApiErrorMessage } from '@discordia/api';
 import { authService } from '@/shared/api';
+import { buildAuthHref, HOME_ROUTE, LOGIN_ROUTE, useReturnTo } from '../returnTo';
 
 export function RegisterScreen() {
   const [name, setName] = useState('');
@@ -24,6 +25,7 @@ export function RegisterScreen() {
   const [error, setError] = useState<string | null>(null);
   const { signIn } = useAuth();
   const router = useRouter();
+  const returnTo = useReturnTo();
 
   const handleRegister = async () => {
     const validation = validateRegisterInput({ name, email, password });
@@ -41,7 +43,7 @@ export function RegisterScreen() {
         password,
       });
       await signIn(token, user);
-      router.replace('/(app)');
+      router.replace((returnTo ?? HOME_ROUTE) as Href);
     } catch (err: unknown) {
       setError(
         getApiErrorMessage(err, 'Ocurrió un error al crear la cuenta. Intente nuevamente.')
@@ -171,7 +173,7 @@ export function RegisterScreen() {
 
             {/* Enlace Login */}
             <View className="mt-4 flex-row items-center">
-              <Link href="/(auth)/login" asChild>
+              <Link href={buildAuthHref(LOGIN_ROUTE, returnTo)} asChild>
                 <TouchableOpacity>
                   <Text className="text-xs font-semibold text-[#7289da]">
                     ¿Ya tienes una cuenta?
