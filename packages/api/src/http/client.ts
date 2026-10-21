@@ -111,9 +111,13 @@ export function createApiClient({ baseURL, timeout, storage, onSessionExpired }:
                 return api(originalRequest);
             } catch (refreshError) {
                 refreshSubscribers = [];
-                // Without an answer from the server (offline, timeout) the refresh token may still be
-                // good: keep the session and let the next request try again.
-                if (axios.isAxiosError(refreshError) && refreshError.response) {
+                // Only the server refusing the refresh token ends the session. Without an answer
+                // (offline, timeout) or with a server error (5xx, 429) the token may still be good:
+                // keep the session and let the next request try again.
+                if (
+                    axios.isAxiosError(refreshError) &&
+                    (refreshError.response?.status === 401 || refreshError.response?.status === 403)
+                ) {
                     await storage.clearSession();
                     onSessionExpired?.();
                 }

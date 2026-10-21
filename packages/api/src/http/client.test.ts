@@ -86,6 +86,45 @@ describe('createApiClient session expiry (login CA 4)', () => {
         expect(onSessionExpired).not.toHaveBeenCalled();
     });
 
+    it.each([401, 403])('drops the session when the refresh token is refused with %s', async (status) => {
+        refresh.mockRejectedValue(
+            new AxiosError('Refused', 'ERR_BAD_REQUEST', undefined, null, {
+                status,
+                statusText: 'Refused',
+                data: {},
+                headers: {},
+                config: {} as InternalAxiosRequestConfig,
+            }),
+        );
+        const { api, storage, onSessionExpired } = setup();
+
+        await expect(api.get('/api/v1/servers')).rejects.toBeDefined();
+
+        expect(storage.clearSession).toHaveBeenCalled();
+        expect(onSessionExpired).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([429, 500, 502, 503])(
+        'keeps the session when the refresh fails with a server error (%s)',
+        async (status) => {
+            refresh.mockRejectedValue(
+                new AxiosError('Server error', 'ERR_BAD_RESPONSE', undefined, null, {
+                    status,
+                    statusText: 'Server error',
+                    data: {},
+                    headers: {},
+                    config: {} as InternalAxiosRequestConfig,
+                }),
+            );
+            const { api, storage, onSessionExpired } = setup();
+
+            await expect(api.get('/api/v1/servers')).rejects.toMatchObject({ response: { status } });
+
+            expect(storage.clearSession).not.toHaveBeenCalled();
+            expect(onSessionExpired).not.toHaveBeenCalled();
+        },
+    );
+
     it('reports the expiry when the access token is rejected and there is no refresh token', async () => {
         const { api, onSessionExpired } = setup({ refreshToken: null });
 
