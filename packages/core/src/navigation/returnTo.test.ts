@@ -19,6 +19,9 @@ describe('sanitizeReturnTo', () => {
         ['custom scheme', 'discordia://invite/abc'],
         ['absolute after a slash', '/redirect?to=https://evil.com'],
         ['backslash trick', '/\\evil.com'],
+        ['tab after the slash', '/\t/evil.com'],
+        ['line break in the path', '/invite/abc\nSet-Cookie: x'],
+        ['delete character', '/invite/\u007fabc'],
     ])('rejects a %s destination', (_label, value) => {
         expect(sanitizeReturnTo(value)).toBeNull();
     });

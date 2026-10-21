@@ -17,6 +17,7 @@ describe('sanitizeReturnTo', () => {
         ['absolute', 'https://evil.com'],
         ['absolute after a slash', '/redirect?to=https://evil.com'],
         ['backslash trick', '/\\evil.com'],
+        ['tab after the slash', '/\t/evil.com'],
     ])('rejects a %s destination', (_label, value) => {
         expect(sanitizeReturnTo(value)).toBeNull();
     });
