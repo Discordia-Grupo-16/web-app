@@ -5,9 +5,9 @@ import { useRouter } from 'expo-router';
 import { invitationsService } from '@/shared/api';
 import { getErrorDetail } from '@discordia/api';
 
-export function JoinScreen() {
+export function JoinScreen({ initialCode = '' }: { initialCode?: string }) {
   const router = useRouter();
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(initialCode);
   const [loading, setLoading] = useState(false);
 
   const handleJoin = async () => {
