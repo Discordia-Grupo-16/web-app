@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth, validateLoginInput } from "@discordia/core";
 import { getApiErrorMessage } from "@discordia/api";
 import { authService } from '@/shared/api';
+import { useReturnTo } from './returnTo';
 
 export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
     const [email, setEmail] = useState('')
@@ -14,6 +15,7 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
 
     const { signIn } = useAuth()
     const navigate = useNavigate()
+    const returnTo = useReturnTo()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -33,7 +35,7 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
                 password,
             })
             await signIn(token, user, refreshToken)
-            navigate('/')
+            navigate(returnTo, { replace: true })
         } catch (err: unknown) {
             setError(getApiErrorMessage(err, 'Credenciales inválidas o error al iniciar sesión.'))
         } finally {
