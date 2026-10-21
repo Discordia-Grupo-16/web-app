@@ -70,3 +70,25 @@ describe('useRoles updateRole', () => {
     expect(screen.getByText('everyone=true|Moderador=false')).toBeOnTheScreen();
   });
 });
+
+describe('useRoles addRole', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('relee la lista en vez de agregar el rol nuevo al final', async () => {
+    // Crear un rol lo pone abajo de la jerarquía y empuja un lugar a los demás
+    // (ADR-0001 de community), así que las posiciones que tiene el cliente
+    // quedan viejas. Agregarlo al arreglo mostraría el orden mal.
+    const nuevo = role('r2', 'Moderador');
+    const user = await mounted([role('r1', 'everyone', true)], api => api.addRole());
+    jest
+      .mocked(rolesService.listRoles)
+      .mockResolvedValue([role('r1', 'everyone', true), nuevo]);
+
+    await user.press(screen.getByLabelText('disparar'));
+
+    await waitFor(() => expect(rolesService.listRoles).toHaveBeenCalledTimes(2));
+    expect(screen.getByText('everyone=true|Moderador=false')).toBeOnTheScreen();
+  });
+});
