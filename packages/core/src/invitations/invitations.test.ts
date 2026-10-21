@@ -20,6 +20,7 @@ describe('parseInviteCode', () => {
         ['a link with surrounding spaces', '  https://discordia.app/invite/abc123  ', 'abc123'],
         ['a link with a query string', 'https://discordia.app/invite/abc123?ref=x', 'abc123'],
         ['a deep link', 'discordia://invite/abc123', 'abc123'],
+        ['a code with dashes and underscores', 'Ab_c-123', 'Ab_c-123'],
     ])('extracts the code from %s', (_label, input, code) => {
         expect(parseInviteCode(input)).toBe(code);
     });
@@ -31,6 +32,14 @@ describe('parseInviteCode', () => {
         ['a link to another path', 'https://discordia.app/servers/abc123'],
         ['a deep link without code', 'discordia://invite/'],
         ['text with spaces inside', 'hola que tal'],
+        ['a dot', '.'],
+        ['a parent directory', '..'],
+        ['a deep link to a parent directory', 'discordia://invite/..'],
+        ['an encoded separator', '..%2F'],
+        ['a percent sign', 'abc%20def'],
+        ['a semicolon', 'abc;def'],
+        ['a backslash', 'abc\\def'],
+        ['a link with an unsafe code', 'https://discordia.app/invite/a%2Fb'],
     ])('returns null for %s', (_label, input) => {
         expect(parseInviteCode(input)).toBeNull();
     });

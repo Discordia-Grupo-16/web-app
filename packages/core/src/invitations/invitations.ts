@@ -4,14 +4,15 @@ export const buildInviteUrl = (webBaseUrl: string, code: string): string =>
     `${webBaseUrl.replace(/\/+$/, '')}/invite/${code}`;
 
 const INVITE_LINK = /^(?:https?:\/\/[^/\s]+\/|discordia:\/\/)invite\/([^/?#\s]+)\/?(?:[?#].*)?$/i;
-const BARE_CODE = /^[^/?#:\s]+$/;
+// The alphabet of the codes `community` generates (token_urlsafe): anything else is not a code, and
+// keeping it out stops `..` or encoded separators from reaching the request path.
+const CODE = /^[A-Za-z0-9_-]+$/;
 
 // Accepts a bare code, an http(s) link ending in /invite/<code> or discordia://invite/<code>.
 export const parseInviteCode = (input: string): string | null => {
     const text = input.trim();
-    const link = INVITE_LINK.exec(text);
-    if (link) return link[1];
-    return BARE_CODE.test(text) ? text : null;
+    const candidate = INVITE_LINK.exec(text)?.[1] ?? text;
+    return CODE.test(candidate) ? candidate : null;
 };
 
 const ERROR_MESSAGES: Record<number, string> = {
