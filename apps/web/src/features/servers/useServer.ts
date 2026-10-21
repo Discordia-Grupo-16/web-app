@@ -39,7 +39,8 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
         };
     }, [serverId, navigate]);
 
-    // Channels created or deleted from another client show up on the next poll.
+    // Channels created or deleted from another client, and permissions changed by someone else,
+    // show up on the next poll.
     const currentServerIdRef = useRef(serverId);
     useEffect(() => {
         currentServerIdRef.current = serverId;
@@ -49,7 +50,14 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
         if (!serverId) return;
         serversService.getServer(serverId)
             .then(srv => {
-                setServer(prev => prev && prev.id === srv.id ? { ...prev, channels: srv.channels } : prev);
+                // Only the fields that change behind our back: replacing the whole server would
+                // throw away a channel the user just created but the poll has not seen yet.
+                setServer(prev => prev && prev.id === srv.id ? {
+                    ...prev,
+                    channels: srv.channels,
+                    my_permissions: srv.my_permissions,
+                    my_permission_names: srv.my_permission_names,
+                } : prev);
             })
             .catch(err => {
                 if (isGoneError(err) && currentServerIdRef.current === serverId) navigate('/');

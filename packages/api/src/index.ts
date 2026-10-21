@@ -19,6 +19,9 @@ export type * from './channels/types';
 export * from './roles/service';
 export type * from './roles/types';
 
+export * from './members/service';
+export type * from './members/types';
+
 export * from './invitations/service';
 export type * from './invitations/types';
 
