@@ -112,7 +112,7 @@ describe('return to the pending destination after authenticating', () => {
     await waitFor(() => expect(app.pathname()).toBe('/register'));
     expect(app.params()).toEqual({ returnTo: '/invite/abc123' });
 
-    await user.type(screen.getByPlaceholderText('Tu apodo o nombre'), 'Felipe');
+    await user.type(screen.getByPlaceholderText('ej. Jane Doe'), 'Felipe');
     await user.type(screen.getByPlaceholderText('tu@correo.com'), credentials.email);
     await user.type(screen.getByPlaceholderText('••••••••'), credentials.password);
     await user.press(screen.getByText('Continuar'));
