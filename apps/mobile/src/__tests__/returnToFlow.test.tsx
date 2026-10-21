@@ -1,5 +1,5 @@
 import { Text } from 'react-native';
-import { Slot } from 'expo-router';
+import { Slot, router } from 'expo-router';
 import { act, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { userEvent } from '@testing-library/react-native';
 import { AuthProvider, useAuth } from '@discordia/core';
@@ -170,5 +170,23 @@ describe('return to the pending destination after authenticating', () => {
 
     await waitFor(() => expect(screen.getByText('Iniciar Sesión')).toBeOnTheScreen());
     expect(app.params()).toEqual({});
+  });
+
+  it('keeps the invitation of a link opened after the user closed the session on purpose', async () => {
+    const user = userEvent.setup();
+    const app = await renderApp('/', { sessionOpen: true });
+
+    await waitFor(() => expect(screen.getByText('Cerrar sesión')).toBeOnTheScreen());
+    await user.press(screen.getByText('Cerrar sesión'));
+    await waitFor(() => expect(screen.getByText('Iniciar Sesión')).toBeOnTheScreen());
+
+    // The app is still in memory when the link arrives.
+    await act(async () => router.push('/invite/abc123'));
+
+    await waitFor(() => expect(app.params()).toEqual({ returnTo: '/invite/abc123' }));
+    await fillCredentials(user);
+    await user.press(screen.getByText('Iniciar Sesión'));
+
+    await waitFor(() => expect(app.pathname()).toBe('/invite/abc123'));
   });
 });

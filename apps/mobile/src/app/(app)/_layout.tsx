@@ -15,6 +15,9 @@ export default function AppLayout() {
   // replace it.
   const [destination, setDestination] = useState(pathname);
   if (token && destination !== pathname) setDestination(pathname);
+  // The layout unmounts when the session ends, so a link opened later mounts it again with the flag
+  // still set: only a session closed while this layout was on screen drops the destination.
+  const [arrivedSignedOut] = useState(signedOutByUser);
 
   if (isLoading) {
     return (
@@ -27,7 +30,7 @@ export default function AppLayout() {
   if (!token) {
     // An invitation opened from a link, or a session that expired, comes back here after the login.
     // Closing the session on purpose does not leave a pending destination for the next login.
-    const pending = signedOutByUser ? null : destination;
+    const pending = signedOutByUser && !arrivedSignedOut ? null : destination;
     return <Redirect href={buildAuthHref(LOGIN_ROUTE, pending)} />;
   }
 
