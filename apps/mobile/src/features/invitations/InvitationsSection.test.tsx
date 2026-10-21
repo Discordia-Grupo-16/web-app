@@ -9,7 +9,12 @@ jest.mock('@/shared/api', () => ({
   invitationsService: { listInvitations: jest.fn(), createInvitation: jest.fn(), revokeInvitation: jest.fn() },
 }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
-jest.mock('@/shared/config/env', () => ({ WEB_URL: 'https://discordia.test/' }));
+let mockWebUrl = 'https://discordia.test/';
+jest.mock('@/shared/config/env', () => ({
+  get WEB_URL() {
+    return mockWebUrl;
+  },
+}));
 
 const invitation = (code: string): Invitation => ({
   id: `inv-${code}`,
@@ -40,6 +45,7 @@ const openModal = async () => {
 describe('InvitationsSection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockWebUrl = 'https://discordia.test/';
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   });
 
@@ -90,5 +96,17 @@ describe('InvitationsSection', () => {
 
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith('https://discordia.test/invite/abc123');
     expect(Alert.alert).toHaveBeenCalledWith('Copiado', 'Link copiado.');
+  });
+
+  it('shows and copies only the code when the web url is not configured', async () => {
+    mockWebUrl = '';
+    jest.mocked(invitationsService.listInvitations).mockResolvedValue([invitation('abc123')]);
+    const user = await openModal();
+
+    expect(screen.queryByText('/invite/abc123')).not.toBeOnTheScreen();
+    await user.press(screen.getByText('Copiar'));
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith('abc123');
+    expect(Alert.alert).toHaveBeenCalledWith('Copiado', 'Código copiado.');
   });
 });

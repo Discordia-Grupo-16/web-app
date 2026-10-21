@@ -40,6 +40,13 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
     }
   };
 
+  // Without the web URL a link would be a relative path nobody can open: share the bare code instead.
+  const handleCopy = async (code: string) => {
+    const shareLink = WEB_URL !== '';
+    await Clipboard.setStringAsync(shareLink ? buildInviteUrl(WEB_URL, code) : code);
+    Alert.alert('Copiado', shareLink ? 'Link copiado.' : 'Código copiado.');
+  };
+
   const handleRevoke = (code: string) => {
     Alert.alert('Revocar invitación', `¿Revocar el código "${code}"?`, [
       { text: 'Cancelar', style: 'cancel' },
@@ -78,9 +85,11 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
               <View key={inv.id} className="bg-[#2c2f33] rounded-lg px-4 py-3 mb-2 flex-row items-center justify-between">
                 <View className="flex-1 mr-3">
                   <Text className="text-white font-mono text-sm">{inv.code}</Text>
-                  <Text className="text-[#99aab5] text-xs mt-0.5" selectable>
-                    {buildInviteUrl(WEB_URL, inv.code)}
-                  </Text>
+                  {WEB_URL !== '' && (
+                    <Text className="text-[#99aab5] text-xs mt-0.5" selectable>
+                      {buildInviteUrl(WEB_URL, inv.code)}
+                    </Text>
+                  )}
                   <Text className="text-[#72767d] text-xs mt-0.5">
                     Usos: {inv.uses}{inv.max_uses ? `/${inv.max_uses}` : ''}
                     {inv.expires_at ? `  ·  Expira: ${new Date(inv.expires_at).toLocaleDateString()}` : ''}
@@ -88,7 +97,7 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
                 </View>
                 <View className="flex-row gap-2">
                   <TouchableOpacity
-                    onPress={async () => { await Clipboard.setStringAsync(buildInviteUrl(WEB_URL, inv.code)); Alert.alert('Copiado', 'Link copiado.'); }}
+                    onPress={() => handleCopy(inv.code)}
                     className="bg-[#7289da] px-3 py-1.5 rounded-lg"
                   >
                     <Text className="text-white text-xs font-semibold">Copiar</Text>
