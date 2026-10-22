@@ -1,25 +1,44 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
-import type { Channel } from '@discordia/api';
+import type { Server } from '@discordia/api';
+import { NONE, SEND_MESSAGES, hasPermission } from '@discordia/core';
 import { ChatPanel } from '@/features/chat';
 import { VoiceChannelPanel } from '@/features/voice';
 import { serversService } from '@/shared/api';
+import { usePolling } from '@/shared/hooks/usePolling';
 
 // The channel screen: the header, and the chat or the voice panel depending on the channel type.
 export const ChannelRoute = () => {
     const { serverId, channelId } = useParams();
-    const [channel, setChannel] = useState<Channel | null>(null);
+    // The whole server and not just the channel: `my_permissions` comes with it, and it is what
+    // decides whether the composer is usable.
+    const [server, setServer] = useState<Server | null>(null);
 
     useEffect(() => {
         if (!serverId || !channelId) return;
         serversService.getServer(serverId)
-            .then(srv => setChannel(srv.channels.find(c => c.id === channelId) ?? null))
+            .then(setServer)
             .catch(console.error);
     }, [serverId, channelId]);
 
+    // Los permisos cambian sin que nadie los empuje por el socket, y el poll de
+    // `useServer` vive en el panel lateral: sin este, quitarle SEND_MESSAGES a
+    // alguien dejaba la caja como estaba hasta que cambiara de canal o
+    // recargara. El mobile ya lo refresca en ChannelScreen, así que sin esto
+    // las dos plataformas no hacen lo mismo.
+    usePolling(() => {
+        if (!serverId) return;
+        serversService.getServer(serverId)
+            .then(srv => setServer(prev => (prev && prev.id === srv.id ? srv : prev)))
+            // Un servidor que ya no está lo resuelve quien lo carga en el panel.
+            .catch(console.error);
+    }, !!serverId);
+
+    const channel = server?.channels.find(c => c.id === channelId) ?? null;
+
     // Until the new channel loads, don't keep rendering the previous one.
-    if (!channel || channel.id !== channelId) return null;
+    if (!channel) return null;
 
     const isVoice = channel.type === 'voice';
 
@@ -49,7 +68,13 @@ export const ChannelRoute = () => {
                     channel={{ id: channel.id, serverId: channel.server_id, name: channel.name }}
                 />
             ) : (
-                <ChatPanel key={channel.id} channelId={channel.id} channelName={channel.name} topic={channel.topic} />
+                <ChatPanel
+                    key={channel.id}
+                    channelId={channel.id}
+                    channelName={channel.name}
+                    topic={channel.topic}
+                    canSendMessages={hasPermission(server?.my_permissions ?? NONE, SEND_MESSAGES)}
+                />
             )}
         </div>
     );
