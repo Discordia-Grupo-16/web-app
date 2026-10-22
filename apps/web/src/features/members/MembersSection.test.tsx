@@ -3,12 +3,13 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
-import { rolesService } from '@/shared/api';
+import { membersService, rolesService } from '@/shared/api';
 import { ProfileViewerContext } from '@/shared/profile/ProfileViewerContext';
 import { MembersSection } from './MembersSection';
 
 vi.mock('@/shared/api', () => ({
     rolesService: { assignRole: vi.fn(), removeRole: vi.fn() },
+    membersService: { banMember: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -44,14 +45,17 @@ interface Options {
     members?: ServerMember[];
     roles?: Role[];
     canManage?: boolean;
+    canBan?: boolean;
 }
 
 const renderSection = ({
     members = [member('milton')],
     roles = [MODERADOR, ADMIN],
     canManage = true,
+    canBan = false,
 }: Options = {}) => {
     const onRolesChange = vi.fn();
+    const onMemberBanned = vi.fn();
     const openProfile = vi.fn();
     const source: PublicProfileSource = {
         getPublicProfiles: async () => profiles,
@@ -66,12 +70,14 @@ const renderSection = ({
                     roles={roles}
                     ownerId="owner"
                     canManage={canManage}
+                    canBan={canBan}
                     onRolesChange={onRolesChange}
+                    onMemberBanned={onMemberBanned}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
     );
-    return { onRolesChange, openProfile, user: userEvent.setup() };
+    return { onRolesChange, onMemberBanned, openProfile, user: userEvent.setup() };
 };
 
 describe('MembersSection', () => {
@@ -165,6 +171,107 @@ describe('MembersSection', () => {
         await user.click(screen.getByTitle('Editar roles de Milton'));
 
         expect(screen.getByText(/todavía no tiene roles/)).toBeInTheDocument();
+    });
+
+    it('offers no ban to whoever lacks BAN_MEMBERS', async () => {
+        renderSection({ canBan: false });
+        await screen.findByText('Milton');
+
+        expect(screen.queryByTitle('Banear a Milton')).not.toBeInTheDocument();
+    });
+
+    it('never offers to ban the owner, who the backend refuses', async () => {
+        // Rendering it would mean a button whose only possible outcome is a 403.
+        renderSection({ members: [member('owner')], canBan: true });
+        await screen.findByText('Bruno');
+
+        expect(screen.queryByTitle('Banear a Bruno')).not.toBeInTheDocument();
+    });
+
+    it('never offers to ban oneself', async () => {
+        renderSection({ members: [member('me')], canBan: true });
+
+        expect(screen.queryByTitle(/Banear a/)).not.toBeInTheDocument();
+    });
+
+    it('warns that an invitation will not bring the banned member back', async () => {
+        // It is the half of the ban a moderator cannot guess from the word.
+        const { user } = renderSection({ canBan: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Banear a Milton'));
+
+        expect(screen.getByText(/no va a poder volver a entrar con ninguna invitación/)).toBeInTheDocument();
+    });
+
+    it('bans with the reason and takes the member off the list', async () => {
+        vi.mocked(membersService.banMember).mockResolvedValue(undefined);
+        const { user, onMemberBanned } = renderSection({ canBan: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Banear a Milton'));
+        await user.type(screen.getByLabelText('Motivo (opcional)'), 'spam');
+        await user.click(screen.getByRole('button', { name: 'Banear' }));
+
+        expect(membersService.banMember).toHaveBeenCalledWith('srv', 'milton', 'spam');
+        expect(onMemberBanned).toHaveBeenCalledWith('milton');
+    });
+
+    it('bans without a reason, which is optional', async () => {
+        vi.mocked(membersService.banMember).mockResolvedValue(undefined);
+        const { user, onMemberBanned } = renderSection({ canBan: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Banear a Milton'));
+        await user.click(screen.getByRole('button', { name: 'Banear' }));
+
+        expect(membersService.banMember).toHaveBeenCalledWith('srv', 'milton', '');
+        expect(onMemberBanned).toHaveBeenCalledWith('milton');
+    });
+
+    it('shows why the backend refused and keeps the member on the list', async () => {
+        // The hierarchy lives in `community`: this screen does not know the roles of the
+        // caller, so the only honest thing it can do is repeat the refusal.
+        vi.mocked(membersService.banMember).mockRejectedValue({
+            response: {
+                data: {
+                    detail: 'No podés moderar a un miembro con jerarquía igual o superior a la tuya',
+                },
+            },
+        });
+        const { user, onMemberBanned } = renderSection({ canBan: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Banear a Milton'));
+        await user.click(screen.getByRole('button', { name: 'Banear' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(/jerarquía igual o superior/);
+        expect(onMemberBanned).not.toHaveBeenCalled();
+    });
+
+    it('no se puede cerrar mientras el baneo está en vuelo', async () => {
+        // Si se cierra con la request empezada y el backend la rechaza, el error
+        // no se ve nunca. El fondo y la X no miraban `banning`.
+        vi.mocked(membersService.banMember).mockReturnValue(new Promise(() => {}));
+        const { user } = renderSection({ canBan: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Banear a Milton'));
+        await user.click(screen.getByRole('button', { name: 'Banear' }));
+        await user.click(screen.getByLabelText('Cerrar'));
+
+        expect(screen.getByText(/no va a poder volver a entrar/)).toBeInTheDocument();
+    });
+
+    it('does not ban when the dialog is dismissed', async () => {
+        const { user, onMemberBanned } = renderSection({ canBan: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Banear a Milton'));
+        await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+        expect(membersService.banMember).not.toHaveBeenCalled();
+        expect(onMemberBanned).not.toHaveBeenCalled();
     });
 
     it('opens the public profile of the member that was clicked', async () => {

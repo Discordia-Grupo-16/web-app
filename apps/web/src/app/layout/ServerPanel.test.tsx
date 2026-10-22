@@ -2,13 +2,14 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    BAN_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
     PERMISSION_COPY,
     SEND_MESSAGES,
     VIEW_CHANNEL,
 } from '@discordia/core';
-import type { Server } from '@discordia/api';
+import type { Server, ServerMember } from '@discordia/api';
 import { membersService, rolesService, serversService } from '@/shared/api';
 import { ServerPanel } from './ServerPanel';
 
@@ -18,7 +19,7 @@ const ME = 'me';
 vi.mock('@/shared/api', () => ({
     serversService: { getServer: vi.fn() },
     rolesService: { listRoles: vi.fn() },
-    membersService: { listMembers: vi.fn() },
+    membersService: { listMembers: vi.fn(), banMember: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -53,10 +54,20 @@ const server = (myPermissions: number, ownerId = OWNER): Server => ({
     ],
 });
 
-const renderPanel = async (myPermissions: number, ownerId = OWNER) => {
+const MILTON: ServerMember = {
+    user_id: 'milton',
+    joined_at: '2026-10-01T00:00:00Z',
+    roles: [],
+};
+
+const renderPanel = async (
+    myPermissions: number,
+    ownerId = OWNER,
+    members: ServerMember[] = [],
+) => {
     vi.mocked(serversService.getServer).mockResolvedValue(server(myPermissions, ownerId));
     vi.mocked(rolesService.listRoles).mockResolvedValue([]);
-    vi.mocked(membersService.listMembers).mockResolvedValue([]);
+    vi.mocked(membersService.listMembers).mockResolvedValue(members);
     render(
         <MemoryRouter initialEntries={['/servers/srv']}>
             <Routes>
@@ -71,6 +82,9 @@ const renderPanel = async (myPermissions: number, ownerId = OWNER) => {
 const createTextChannel = () => screen.queryByTitle('Crear canal de texto');
 const createRole = () => screen.queryByTitle('Crear rol');
 const membersHeader = () => screen.queryByText(PERMISSION_COPY.membersTitle(0));
+// Por el prefijo y no por el nombre: acá los perfiles públicos están mockeados
+// vacíos, así que el nombre lo resuelve el fallback y no es lo que se mira.
+const banMember = () => screen.queryByTitle(/^Banear a /);
 
 describe('ServerPanel: qué se ve según el permiso', () => {
     beforeEach(() => {
@@ -123,6 +137,20 @@ describe('ServerPanel: qué se ve según el permiso', () => {
         await renderPanel(VIEW_CHANNEL);
 
         expect(membersHeader()).toBeInTheDocument();
+    });
+
+    it('BAN_MEMBERS habilita banear, y MANAGE_ROLES por su cuenta no', async () => {
+        // Son dos bits distintos: gestionar roles no es moderar. Si el panel
+        // pasara el mismo booleano a las dos cosas, esto lo encuentra.
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, OWNER, [MILTON]);
+
+        expect(banMember()).not.toBeInTheDocument();
+    });
+
+    it('con BAN_MEMBERS aparece la acción de banear', async () => {
+        await renderPanel(VIEW_CHANNEL | BAN_MEMBERS, OWNER, [MILTON]);
+
+        expect(banMember()).toBeInTheDocument();
     });
 
     it('irse del servidor sigue decidiéndose por ser dueño, no por un bit', async () => {

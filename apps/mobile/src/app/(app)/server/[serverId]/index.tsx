@@ -2,6 +2,7 @@ import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import {
+  BAN_MEMBERS,
   MANAGE_CHANNELS,
   MANAGE_ROLES,
   NONE,
@@ -21,7 +22,12 @@ export default function ServerScreen() {
   const { user } = useAuth();
   const { server, loading: loadingServer, updateChannels, setLeaving } = useServerDetails(serverId);
   const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
-  const { members, loading: loadingMembers, setMemberRoles } = useMembers(serverId);
+  const {
+    members,
+    loading: loadingMembers,
+    setMemberRoles,
+    removeMember,
+  } = useMembers(serverId);
 
   if (loadingServer || loadingRoles || loadingMembers || !server) {
     return (
@@ -58,6 +64,8 @@ export default function ServerScreen() {
         <RolesSection
           serverId={server.id}
           roles={roles}
+          members={members}
+          ownerId={server.owner_id}
           canManage={canManageRoles}
           onRoleCreated={addRole}
           onRoleUpdated={updateRole}
@@ -68,7 +76,9 @@ export default function ServerScreen() {
           roles={roles}
           ownerId={server.owner_id}
           canManage={canManageRoles}
+          canBan={hasPermission(permissions, BAN_MEMBERS)}
           onRolesChange={setMemberRoles}
+          onMemberBanned={removeMember}
         />
         <InvitationsSection serverId={server.id} canManage={isOwner} />
         <ServerActions server={server} isOwner={isOwner} onLeavingChange={setLeaving} />

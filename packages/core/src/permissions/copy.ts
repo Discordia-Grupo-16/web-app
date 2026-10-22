@@ -38,6 +38,33 @@ export const PERMISSION_COPY = {
     makeDefaultRole: 'Marcar como rol por defecto',
     defaultRoleError: 'No se pudo cambiar el rol por defecto',
 
+    /** Who holds a role (SCRUM-67). */
+    viewRoleMembers: (roleName: string) => `Ver los miembros con el rol ${roleName}`,
+    roleMembersTitle: 'Miembros con el rol',
+    /**
+     * Shown when the role exists but nobody has it. It is a normal state —
+     * a role is created empty and gets its permissions before its members —
+     * so it says what to do rather than reading as an error.
+     */
+    noMembersWithRole: 'Todavía nadie tiene este rol. Se asigna desde la lista de miembros.',
+
+    /** Banning a member (SCRUM-69). */
+    banMember: (memberName: string) => `Banear a ${memberName}`,
+    banMemberTitle: 'Banear miembro',
+    /**
+     * Says both halves of what a ban does. The second one is the part a
+     * moderator cannot guess: it is not the same as removing them, because an
+     * invitation does not bring them back.
+     */
+    banMemberWarning: (memberName: string) =>
+        `${memberName} va a perder el acceso al servidor y no va a poder volver a entrar con ninguna invitación.`,
+    banReasonLabel: 'Motivo (opcional)',
+    banReasonPlaceholder: 'Queda guardado para los moderadores',
+    banConfirm: 'Banear',
+    banning: 'Baneando...',
+    banCancel: 'Cancelar',
+    banMemberError: 'No se pudo banear al miembro',
+
     /** Shown instead of the channel list to whoever lacks VIEW_CHANNEL. */
     noViewChannel: 'No tenés permiso para ver los canales de este servidor.',
 

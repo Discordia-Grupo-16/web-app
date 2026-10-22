@@ -75,5 +75,17 @@ export const useMembers = (serverId: string | undefined) => {
         [],
     );
 
-    return { members, loading, setMemberRoles };
+    /**
+     * Drops a banned member from the list (SCRUM-69).
+     *
+     * The poll would do it a few seconds later, but the row has to go the
+     * moment the ban is confirmed: leaving it there invites a second ban of
+     * someone who is no longer a member, which answers 404.
+     */
+    const removeMember = useCallback(
+        (userId: string) => setMembers(prev => prev.filter(member => member.user_id !== userId)),
+        [],
+    );
+
+    return { members, loading, setMemberRoles, removeMember };
 };

@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { PERMISSION_COPY, PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
-import { rolesService } from '@/shared/api';
+import { membersService, rolesService } from '@/shared/api';
 import { MembersSection } from './MembersSection';
 
 jest.useFakeTimers();
 jest.mock('@/shared/api', () => ({
   rolesService: { assignRole: jest.fn(), removeRole: jest.fn() },
+  membersService: { banMember: jest.fn() },
 }));
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
@@ -44,14 +45,17 @@ interface Options {
   members?: ServerMember[];
   roles?: Role[];
   canManage?: boolean;
+  canBan?: boolean;
 }
 
 const renderSection = async ({
   members = [member('milton')],
   roles = [MODERADOR, ADMIN],
   canManage = true,
+  canBan = false,
 }: Options = {}) => {
   const onRolesChange = jest.fn();
+  const onMemberBanned = jest.fn();
   const source: PublicProfileSource = {
     getPublicProfiles: async () => profiles,
     peekPublicProfile: () => undefined,
@@ -65,11 +69,13 @@ const renderSection = async ({
         roles={roles}
         ownerId="owner"
         canManage={canManage}
+        canBan={canBan}
         onRolesChange={onRolesChange}
+        onMemberBanned={onMemberBanned}
       />
     </PublicProfilesProvider>,
   );
-  return { onRolesChange, user };
+  return { onRolesChange, onMemberBanned, user };
 };
 
 // A Switch reports through onValueChange, and act() is what flushes the re-render.
@@ -176,6 +182,100 @@ describe('MembersSection', () => {
 describe('MembersSection: el perfil público', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('no ofrece banear a quien no tiene BAN_MEMBERS', async () => {
+    await renderSection({ canBan: false });
+    await screen.findByText('Milton');
+
+    expect(screen.queryByLabelText(PERMISSION_COPY.banMember('Milton'))).toBeNull();
+  });
+
+  it('nunca ofrece banear al dueño, que el backend rechaza', async () => {
+    // Mostrarlo sería un botón cuyo único resultado posible es un 403.
+    await renderSection({ members: [member('owner')], canBan: true });
+    await screen.findByText('Bruno');
+
+    expect(screen.queryByLabelText(PERMISSION_COPY.banMember('Bruno'))).toBeNull();
+  });
+
+  it('nunca ofrece banearse a uno mismo', async () => {
+    await renderSection({ members: [member('me')], canBan: true });
+
+    expect(screen.queryByLabelText(/^Banear a /)).toBeNull();
+  });
+
+  it('avisa que ninguna invitación lo trae de vuelta, igual que la web', async () => {
+    const { user } = await renderSection({ canBan: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.banMember('Milton')));
+
+    expect(
+      screen.getByText(PERMISSION_COPY.banMemberWarning('Milton')),
+    ).toBeOnTheScreen();
+  });
+
+  it('banea con el motivo y saca al miembro de la lista', async () => {
+    (membersService.banMember as jest.Mock).mockResolvedValue(undefined);
+    const { user, onMemberBanned } = await renderSection({ canBan: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.banMember('Milton')));
+    await user.type(screen.getByLabelText(PERMISSION_COPY.banReasonLabel), 'spam');
+    await user.press(screen.getByText(PERMISSION_COPY.banConfirm));
+
+    expect(membersService.banMember).toHaveBeenCalledWith('srv', 'milton', 'spam');
+    expect(onMemberBanned).toHaveBeenCalledWith('milton');
+  });
+
+  it('muestra por qué el backend se negó y deja al miembro en la lista', async () => {
+    // La jerarquía es del backend: esta pantalla no conoce los roles de quien
+    // banea, así que lo único honesto que puede hacer es repetir la negativa.
+    (membersService.banMember as jest.Mock).mockRejectedValue({
+      response: {
+        data: { detail: 'No podés moderar a un miembro con jerarquía igual o superior a la tuya' },
+      },
+    });
+    const { user, onMemberBanned } = await renderSection({ canBan: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.banMember('Milton')));
+    await user.press(screen.getByText(PERMISSION_COPY.banConfirm));
+
+    expect(await screen.findByText(/jerarquía igual o superior/)).toBeOnTheScreen();
+    expect(onMemberBanned).not.toHaveBeenCalled();
+  });
+
+  it('no se puede cerrar con el botón atrás mientras el baneo está en vuelo', async () => {
+    // El equivalente del fondo y la X de la web: `onRequestClose` es el botón
+    // atrás de Android y no miraba `banning`. Si se cierra con la request
+    // empezada y el backend la rechaza, el error no se ve nunca.
+    (membersService.banMember as jest.Mock).mockReturnValue(new Promise(() => {}));
+    const { user } = await renderSection({ canBan: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.banMember('Milton')));
+    await user.press(screen.getByText(PERMISSION_COPY.banConfirm));
+    // `fireEvent` sube por los ancestros buscando el handler, así que
+    // disparándolo sobre el título llega al `onRequestClose` del Modal. RNTL 14
+    // ya no expone queries por tipo de componente.
+    await act(async () => {
+      fireEvent(screen.getByText(PERMISSION_COPY.banMemberTitle), 'requestClose');
+    });
+
+    expect(screen.getByText(PERMISSION_COPY.banMemberWarning('Milton'))).toBeOnTheScreen();
+  });
+
+  it('no banea si se cancela el diálogo', async () => {
+    const { user, onMemberBanned } = await renderSection({ canBan: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.banMember('Milton')));
+    await user.press(screen.getByText(PERMISSION_COPY.banCancel));
+
+    expect(membersService.banMember).not.toHaveBeenCalled();
+    expect(onMemberBanned).not.toHaveBeenCalled();
   });
 
   it('abre el perfil del miembro que se toca, igual que la web', async () => {

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Crown, Pencil } from 'lucide-react';
+import { Ban, Crown, Pencil } from 'lucide-react';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
+import { BanMemberDialog } from './BanMemberDialog';
 import { MemberRolesModal } from './MemberRolesModal';
 
 interface MembersSectionProps {
@@ -11,7 +12,9 @@ interface MembersSectionProps {
     roles: Role[];
     ownerId: string | undefined;
     canManage: boolean;
+    canBan: boolean;
     onRolesChange: (userId: string, roles: Role[]) => void;
+    onMemberBanned: (userId: string) => void;
 }
 
 export const MembersSection = ({
@@ -20,11 +23,14 @@ export const MembersSection = ({
     roles,
     ownerId,
     canManage,
+    canBan,
     onRolesChange,
+    onMemberBanned,
 }: MembersSectionProps) => {
     const { user } = useAuth();
     const { openProfile } = useProfileViewer();
     const [editing, setEditing] = useState<string | null>(null);
+    const [banning, setBanning] = useState<string | null>(null);
 
     // `community` only returns ids: the names are `identity`'s, resolved in one request.
     const profiles = usePublicProfiles(members.map(member => member.user_id));
@@ -91,6 +97,21 @@ export const MembersSection = ({
                                 <Pencil size={13} />
                             </button>
                         )}
+
+                        {/* Neither the owner nor oneself is a valid target: the backend
+                            refuses both, because nobody is above them in the hierarchy. */}
+                        {canBan && !isOwner && user_id !== user?.id && (
+                            <button
+                                onClick={() => setBanning(user_id)}
+                                className="opacity-0 group-hover/member:opacity-100 transition-opacity p-1 rounded shrink-0"
+                                style={{ color: '#8e9297' }}
+                                title={PERMISSION_COPY.banMember(nameOf(user_id))}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#ed4245')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                            >
+                                <Ban size={13} />
+                            </button>
+                        )}
                     </div>
                 );
             })}
@@ -103,6 +124,16 @@ export const MembersSection = ({
                     roles={roles}
                     onClose={() => setEditing(null)}
                     onRolesChange={onRolesChange}
+                />
+            )}
+
+            {banning && (
+                <BanMemberDialog
+                    serverId={serverId}
+                    userId={banning}
+                    memberName={nameOf(banning)}
+                    onClose={() => setBanning(null)}
+                    onBanned={onMemberBanned}
                 />
             )}
         </div>
