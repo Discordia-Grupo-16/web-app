@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import type { RealtimeStatus, RejectedMessage } from '@discordia/core';
+import { PERMISSION_COPY, type RealtimeStatus, type RejectedMessage } from '@discordia/core';
 
 interface MessageComposerProps {
   channelName: string;
@@ -9,6 +9,8 @@ interface MessageComposerProps {
   onSend: (content: string) => void;
   rejected: RejectedMessage | null;
   onRejectedHandled: () => void;
+  /** SEND_MESSAGES, resolved by `community`. The backend checks it too: this only hides it. */
+  canSendMessages: boolean;
 }
 
 const MAX_INPUT_HEIGHT = 120;
@@ -21,6 +23,7 @@ export const MessageComposer = ({
   onSend,
   rejected,
   onRejectedHandled,
+  canSendMessages,
 }: MessageComposerProps) => {
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +31,7 @@ export const MessageComposer = ({
   // The server limit counts runes (code points), so [...content] instead of content.length: an emoji is 1.
   const length = [...content].length;
   const tooLong = length > maxLength;
-  const canSend = content.trim() !== '' && !tooLong && status === 'open';
+  const canSend = canSendMessages && content.trim() !== '' && !tooLong && status === 'open';
 
   // The server rejected a message the client should have blocked: show why and give the text back.
   // Done while rendering (not in an effect) so it does not cascade an extra render.
@@ -66,7 +69,12 @@ export const MessageComposer = ({
             setContent(text);
             setError(null);
           }}
-          placeholder={`Enviar mensaje a #${channelName}`}
+          editable={canSendMessages}
+          placeholder={
+            canSendMessages
+              ? PERMISSION_COPY.sendMessage(channelName)
+              : PERMISSION_COPY.cannotSendMessage(channelName)
+          }
           placeholderTextColor="#72767d"
         />
         {length >= maxLength * COUNTER_THRESHOLD && (

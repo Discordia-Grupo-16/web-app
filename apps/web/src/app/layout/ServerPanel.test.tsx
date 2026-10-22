@@ -1,94 +1,165 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Channel, Server } from '@discordia/api';
-import { useVoice, type VoiceContextValue } from '@discordia/core';
-import { useServer } from '@/features/servers';
+import {
+    BAN_MEMBERS,
+    MANAGE_CHANNELS,
+    MANAGE_ROLES,
+    PERMISSION_COPY,
+    SEND_MESSAGES,
+    VIEW_CHANNEL,
+} from '@discordia/core';
+import type { Server, ServerMember } from '@discordia/api';
+import { membersService, rolesService, serversService } from '@/shared/api';
 import { ServerPanel } from './ServerPanel';
 
-vi.mock('@/shared/api', () => ({ channelsService: {} }));
-vi.mock('@/features/invitations', () => ({ InviteButton: () => null }));
-vi.mock('@/features/roles', () => ({ RolesSection: () => null, useRoles: () => ({ roles: [], loading: false, addRole: vi.fn() }) }));
-vi.mock('@/features/servers', () => ({
-    LeaveServerButton: () => null,
-    ServerHeader: ({ title }: { title: string }) => <h2>{title}</h2>,
-    useServer: vi.fn(),
+const OWNER = 'owner';
+const ME = 'me';
+
+vi.mock('@/shared/api', () => ({
+    serversService: { getServer: vi.fn() },
+    rolesService: { listRoles: vi.fn() },
+    membersService: { listMembers: vi.fn(), banMember: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
-    useAuth: () => ({ user: { id: 'me', name: 'Milton' } }),
-    useVoice: vi.fn(),
-    useVoiceCallParticipants: (participants: { userId: string }[]) =>
-        participants.map(p => ({ userId: p.userId, name: `Nombre ${p.userId}`, loading: false, muted: false })),
+    useAuth: () => ({ user: { id: ME, name: 'Yo', avatarUrl: null } }),
+    usePublicProfiles: () => new Map(),
+    // The voice call list under a channel has its own tests (ServerPanel.voice.test.tsx).
+    useVoice: () => ({ call: { status: 'idle' } }),
+    useVoiceCallParticipants: () => [],
+}));
+// Dependen de un contexto que este panel no provee y que no es lo que se mira acá.
+vi.mock('@/features/invitations', () => ({ InviteButton: () => null }));
+vi.mock('@/shared/profile/ProfileViewerContext', () => ({
+    useProfileViewer: () => ({ openProfile: vi.fn() }),
 }));
 
-const channel = (id: string, name: string, serverId: string, type: Channel['type'] = 'voice'): Channel => ({
-    id,
-    server_id: serverId,
-    name,
-    type,
-    topic: null,
-    position: 0,
+const server = (myPermissions: number, ownerId = OWNER): Server => ({
+    id: 'srv',
+    name: 'Discordia',
+    description: null,
+    owner_id: ownerId,
+    avatar_url: null,
     created_at: '2026-10-01T00:00:00Z',
+    my_permissions: myPermissions,
+    my_permission_names: [],
+    channels: [
+        {
+            id: 'c1',
+            server_id: 'srv',
+            name: 'general',
+            type: 'text',
+            topic: null,
+            position: 0,
+            created_at: '2026-10-01T00:00:00Z',
+        },
+    ],
 });
 
-const servers: Record<string, Server> = {
-    s1: { id: 's1', name: 'Uno', owner_id: 'other', channels: [channel('c1', 'general', 's1', 'text'), channel('v1', 'lobby', 's1'), channel('v2', 'juegos', 's1')] } as Server,
-    s2: { id: 's2', name: 'Dos', owner_id: 'other', channels: [channel('v3', 'charla', 's2')] } as Server,
+const MILTON: ServerMember = {
+    user_id: 'milton',
+    joined_at: '2026-10-01T00:00:00Z',
+    roles: [],
 };
 
-const inCallAt = (channelId: string, serverId: string): Partial<VoiceContextValue> => ({
-    call: {
-        status: 'connected',
-        channel: { id: channelId, serverId, name: 'lobby' },
-        micAvailable: true,
-        micBlocked: false,
-        muted: false,
-        reconnecting: false,
-        participants: [{ userId: 'ana', isLocal: false, muted: false, joinedAt: 1, seenOrder: 0 }],
-    },
-});
-
-const renderPanel = (serverId: string, voice: Partial<VoiceContextValue>) => {
-    vi.mocked(useVoice).mockReturnValue({ call: { status: 'idle' }, ...voice } as VoiceContextValue);
+const renderPanel = async (
+    myPermissions: number,
+    ownerId = OWNER,
+    members: ServerMember[] = [],
+) => {
+    vi.mocked(serversService.getServer).mockResolvedValue(server(myPermissions, ownerId));
+    vi.mocked(rolesService.listRoles).mockResolvedValue([]);
+    vi.mocked(membersService.listMembers).mockResolvedValue(members);
     render(
-        <MemoryRouter initialEntries={[`/servers/${serverId}`]}>
+        <MemoryRouter initialEntries={['/servers/srv']}>
             <Routes>
                 <Route path="/servers/:serverId" element={<ServerPanel />} />
             </Routes>
         </MemoryRouter>,
     );
+    await waitFor(() => expect(screen.getByText('general')).toBeInTheDocument());
 };
 
-const rowOf = (name: string) => screen.getByRole('button', { name }).closest('div')!.parentElement!;
+// Los botones de administración de cada sección, por su tooltip.
+const createTextChannel = () => screen.queryByTitle('Crear canal de texto');
+const createRole = () => screen.queryByTitle('Crear rol');
+const membersHeader = () => screen.queryByText(PERMISSION_COPY.membersTitle(0));
+// Por el prefijo y no por el nombre: acá los perfiles públicos están mockeados
+// vacíos, así que el nombre lo resuelve el fallback y no es lo que se mira.
+const banMember = () => screen.queryByTitle(/^Banear a /);
 
-describe('ServerPanel', () => {
+describe('ServerPanel: qué se ve según el permiso', () => {
     beforeEach(() => {
-        vi.mocked(useServer).mockImplementation(id => ({
-            server: servers[id!],
-            loading: false,
-            updateChannels: vi.fn(),
-        }) as unknown as ReturnType<typeof useServer>);
+        vi.clearAllMocks();
     });
 
-    it('lists the call under the connected channel only', () => {
-        renderPanel('s1', inCallAt('v1', 's1'));
+    it('MANAGE_CHANNELS habilita solo los canales', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_CHANNELS);
 
-        expect(within(rowOf('lobby')).getByText('Nombre ana')).toBeInTheDocument();
-        expect(within(rowOf('juegos')).queryByText('Nombre ana')).not.toBeInTheDocument();
-        expect(screen.getAllByText('Nombre ana')).toHaveLength(1);
+        expect(createTextChannel()).toBeInTheDocument();
+        expect(createRole()).not.toBeInTheDocument();
     });
 
-    it('does not list the call in another server', () => {
-        renderPanel('s2', inCallAt('v1', 's1'));
+    it('MANAGE_ROLES habilita solo los roles', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES);
 
-        expect(screen.getByRole('button', { name: 'charla' })).toBeInTheDocument();
-        expect(screen.queryByText('Nombre ana')).not.toBeInTheDocument();
+        expect(createRole()).toBeInTheDocument();
+        expect(createTextChannel()).not.toBeInTheDocument();
     });
 
-    it('lists nobody without a call', () => {
-        renderPanel('s1', {});
+    it('un moderador con los dos permisos ve los dos', async () => {
+        // El caso que el chequeo por `owner_id` escondía: no es dueño y
+        // administra igual.
+        await renderPanel(VIEW_CHANNEL | MANAGE_CHANNELS | MANAGE_ROLES);
 
-        expect(screen.queryByRole('list', { name: 'Participantes de la llamada' })).not.toBeInTheDocument();
+        expect(createTextChannel()).toBeInTheDocument();
+        expect(createRole()).toBeInTheDocument();
+    });
+
+    it('un miembro común no ve ningún botón de administración', async () => {
+        await renderPanel(VIEW_CHANNEL | SEND_MESSAGES);
+
+        expect(createTextChannel()).not.toBeInTheDocument();
+        expect(createRole()).not.toBeInTheDocument();
+    });
+
+    it('el dueño sin bits tampoco: lo que manda es my_permissions', async () => {
+        // `community` le manda al owner todos los bits, así que un cero acá
+        // sería un bug del backend. El panel no lo compensa comparando ids:
+        // este test fija que no volvió el chequeo por `owner_id`.
+        await renderPanel(VIEW_CHANNEL, ME);
+
+        expect(createTextChannel()).not.toBeInTheDocument();
+        expect(createRole()).not.toBeInTheDocument();
+    });
+
+    it('la sección de miembros se ve siempre', async () => {
+        // Ver quién está no es gestionar: el backend tampoco pide MANAGE_ROLES
+        // para el listado.
+        await renderPanel(VIEW_CHANNEL);
+
+        expect(membersHeader()).toBeInTheDocument();
+    });
+
+    it('BAN_MEMBERS habilita banear, y MANAGE_ROLES por su cuenta no', async () => {
+        // Son dos bits distintos: gestionar roles no es moderar. Si el panel
+        // pasara el mismo booleano a las dos cosas, esto lo encuentra.
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, OWNER, [MILTON]);
+
+        expect(banMember()).not.toBeInTheDocument();
+    });
+
+    it('con BAN_MEMBERS aparece la acción de banear', async () => {
+        await renderPanel(VIEW_CHANNEL | BAN_MEMBERS, OWNER, [MILTON]);
+
+        expect(banMember()).toBeInTheDocument();
+    });
+
+    it('irse del servidor sigue decidiéndose por ser dueño, no por un bit', async () => {
+        // No es un permiso sino una condición: el dueño no puede irse, elimina.
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME);
+
+        expect(screen.queryByText(/abandonar/i)).not.toBeInTheDocument();
     });
 });
