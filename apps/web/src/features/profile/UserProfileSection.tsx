@@ -1,12 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ProfilePopup } from './ProfilePopup';
 import { UserProfileEditModal } from './UserProfileEditModal';
 import { useAuth } from "@discordia/core";
+import { LogoutIcon } from "@discordia/ui";
+import { userService } from "@/shared/api";
+import { usePolling } from "@/shared/hooks/usePolling"
 
 export const UserProfileSection = () => {
     const [showProfile, setShowProfile] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
-    const { user } = useAuth();
+    const { user, signOut, updateUser } = useAuth();
+
+    const localChangeRef = useRef(0);
+
+    const refreshProfile = useCallback(() => {
+        const startedAt = localChangeRef.current;
+        userService.getOwnProfile()
+            .then(res => {
+                if (localChangeRef.current === startedAt) {
+                    updateUser(res.data);
+                }
+            })
+            .catch(console.error);
+    }, [updateUser]);
+
+    useEffect(() => {
+        refreshProfile();
+    }, [refreshProfile]);
+
+    usePolling(refreshProfile);
 
     if (!user) {
         return <div>Cargando...</div>;
@@ -52,6 +74,14 @@ export const UserProfileSection = () => {
                 </p>
                 <p className="text-xs" style={{ color: '#43b581' }}>● En línea</p>
             </div>
+            <button
+                onClick={e => { e.stopPropagation(); signOut() }}
+                title="Cerrar sesión"
+                className="p-1.5 rounded transition-colors hover:bg-white/10"
+                style={{ color: '#72767d' }}
+            >
+                <LogoutIcon size={19} />
+            </button>
         </div>
     </div>
 }

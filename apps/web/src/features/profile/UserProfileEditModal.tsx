@@ -13,8 +13,10 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
 
     const [newName, setName] = useState('');
     const [newBio, setBio] = useState('');
+    const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
-    const [errorMessage, setErrorMessage] = useState(null)
+    const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const nameIsEmpty = newName.trim() == ''
     const nameIsTooLong = newName.trim().length > 80
     const bioIsTooLong = newBio.trim().length > 240
@@ -28,9 +30,42 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
         }
     }, [isOpen, user]);
 
+    useEffect(() => {
+        return () => {
+            if (avatarPreview && avatarPreview.startsWith('blob:')) {
+                URL.revokeObjectURL(avatarPreview);
+            }
+        };
+    }, [avatarPreview]);
+
     if (!isOpen || !user) return null;
 
-    const hasChanges = newName.trim() !== (user.name || '') || newBio.trim() !== (user.bio || '');
+    const avatarHasChanged = newAvatarFile !== null;
+    const nameHasChanged = newName.trim() !== (user.name || '');
+    const bioHasChanged = newBio.trim() !== (user.bio || '');
+    const hasChanges = nameHasChanged || bioHasChanged || avatarHasChanged;
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+            if (!validTypes.includes(file.type)) {
+                setErrorMessage('El formato de imagen no es válido. Usa JPG, PNG o WEBP.');
+                return;
+            }
+
+            const maxSize = 5 * 1024 * 1024;
+            if (file.size > maxSize) {
+                setErrorMessage('La imagen es demasiado grande (máximo 5MB).');
+                return;
+            }
+
+            setErrorMessage(null);
+            setNewAvatarFile(file);
+            setAvatarPreview(URL.createObjectURL(file));
+        }
+    };
 
     const handleSave = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -38,26 +73,58 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
 
         setErrorMessage(null);
         setIsSaving(true);
-        try {
-            const response = await userService.editOwnProfile(newName.trim(), newBio.trim());
-            await updateUser(response.data);
-            onClose();
-        } catch (error) {
-            const apiError = axios.isAxiosError(error) ? error.response?.data : null;
 
-            const errorMsg = apiError?.detail
-                || apiError?.title
-                || "Hubo un error al actualizar tu perfil. Intenta de nuevo más tarde.";
+        let didSaveProfile = false;
 
-            setErrorMessage(errorMsg);
-        } finally {
-            setIsSaving(false);
+        if (nameHasChanged || bioHasChanged) {
+            try {
+                const response = await userService.editOwnProfile(newName.trim(), newBio.trim());
+                await updateUser(response.data);
+                didSaveProfile = true;
+            } catch (error) {
+                const apiError = axios.isAxiosError(error) ? error.response?.data : null;
+                const errorMsg = apiError?.detail || apiError?.title || "Hubo un error al actualizar los datos del perfil.";
+
+                setErrorMessage(errorMsg);
+                setIsSaving(false);
+                return;
+            }
         }
+
+        if (avatarHasChanged && newAvatarFile) {
+            try {
+                const response = await userService.editAvatar(newAvatarFile);
+                await updateUser(response.data);
+            } catch (error) {
+                const apiError = axios.isAxiosError(error) ? error.response?.data : null;
+                const errorMsg = apiError?.detail || apiError?.title || "Hubo un error al subir el avatar.";
+
+                if (didSaveProfile) {
+                    setErrorMessage(`Datos guardados, pero falló la imagen: ${errorMsg}`);
+                } else {
+                    setErrorMessage(`Avatar: ${errorMsg}`);
+                }
+
+                setIsSaving(false);
+                return;
+            }
+        }
+
+        setIsSaving(false);
+        onClose();
     };
 
     const handleCancel = () => {
         setName(user.name || '');
         setBio(user.bio || '');
+        setAvatarPreview(null);
+        setNewAvatarFile(null);
+        setErrorMessage(null);
+
+        const fileInput = document.getElementById('avatar-upload') as HTMLInputElement;
+        if (fileInput) {
+            fileInput.value = '';
+        }
     };
 
     return (
@@ -77,21 +144,35 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
                 </div>
 
                 <div className="px-6 pb-6 relative">
-                    <div className="absolute top-0 -translate-y-1/2 left-6 p-1.5 bg-[#36393f] rounded-full overflow-hidden">
-                        {user.avatarUrl ? (
-                            <img
-                                src={user.avatarUrl}
-                                alt="Avatar"
-                                className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-[#36393f]"
-                            />
-                        ) : (
-                            <div
-                                className="w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center text-5xl font-bold text-white border-4 border-[#36393f]"
-                                style={{ background: '#7289da' }}
-                            >
-                                {user.name[0].toUpperCase()}
+                    <div className="absolute top-0 -translate-y-1/2 left-6 p-1.5 bg-[#36393f] rounded-full overflow-hidden group focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-[#36393f] focus-within:ring-[#5865f2]">
+                        <label htmlFor="avatar-upload" className="cursor-pointer relative block rounded-full">
+                            <div className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center rounded-full z-10 text-white text-[10px] font-bold uppercase text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                Cambiar<br />Avatar
                             </div>
-                        )}
+
+                            {avatarPreview || user.avatarUrl ? (
+                                <img
+                                    src={avatarPreview || user.avatarUrl || undefined}
+                                    alt="Avatar"
+                                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-[#36393f]"
+                                />
+                            ) : (
+                                <div
+                                    className="w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center text-5xl font-bold text-white border-4 border-[#36393f]"
+                                    style={{ background: '#7289da' }}
+                                >
+                                    {user.name[0].toUpperCase()}
+                                </div>
+                            )}
+                        </label>
+
+                        <input
+                            id="avatar-upload"
+                            type="file"
+                            accept="image/png, image/jpeg, image/webp, image/jpg"
+                            className="sr-only"
+                            onChange={handleAvatarChange}
+                        />
                     </div>
 
                     <div className="mt-16 sm:mt-20 bg-[#2f3136] p-4 rounded-lg border border-zinc-700/50 flex flex-col gap-4">

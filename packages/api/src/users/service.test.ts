@@ -73,3 +73,41 @@ describe('createUserService public profiles', () => {
         expect(service.peekPublicProfile('a')).toBeUndefined();
     });
 });
+
+describe('createUserService profile editing', () => {
+    it('getOwnProfile asks GET /api/v1/users/me', async () => {
+        const { apiClient, service } = setup();
+
+        await service.getOwnProfile();
+
+        expect(apiClient.get).toHaveBeenCalledWith('/api/v1/users/me');
+    });
+
+    it('editOwnProfile sends name and bio to PATCH /api/v1/users/me', async () => {
+        const { apiClient, service } = setup();
+
+        await service.editOwnProfile('Nuevo Nombre', 'Nueva bio');
+
+        expect(apiClient.patch).toHaveBeenCalledWith('/api/v1/users/me', {
+            name: 'Nuevo Nombre',
+            bio: 'Nueva bio',
+        });
+    });
+
+    it('editAvatar wraps the file in a FormData and sends it to PUT /api/v1/users/me/avatar', async () => {
+        const { apiClient, service } = setup();
+        const fakeFile = new File(['fake content'], 'avatar.png', { type: 'image/png' });
+
+        await service.editAvatar(fakeFile);
+
+        expect(apiClient.put).toHaveBeenCalledTimes(1);
+
+        const [url, body] = vi.mocked(apiClient.put).mock.calls[0] as unknown as [string, FormData];
+
+        expect(url).toBe('/api/v1/users/me/avatar');
+
+        expect(body).toBeInstanceOf(FormData);
+
+        expect(body.get('file')).toBe(fakeFile);
+    });
+});

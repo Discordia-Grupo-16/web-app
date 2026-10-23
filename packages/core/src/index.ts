@@ -20,3 +20,4 @@ export * from './voice/useVoiceController';
 export * from './voice/useVoiceCallParticipants';
 export * from './voice/texts';
 export * from './voice/permissions';
+export * from './chat/useSuspensionSignOut';

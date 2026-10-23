@@ -15,8 +15,13 @@ interface ChatScreenProps {
 export const ChatScreen = ({ channelId, channelName, canSendMessages }: ChatScreenProps) => {
   const { user } = useAuth();
   const headerHeight = useHeaderHeight();
-  const { messages, pending, status, maxLength, send, retry, discard, rejected, clearRejected } =
-    useChannelMessages(channelId);
+  const {
+    messages, pending, status, maxLength,
+    send, retry, discard,
+    historyLoaded, historyError, retryHistory,
+    hasMore, loadingMore, loadMoreError, loadMore,
+    rejected, clearRejected,
+  } = useChannelMessages(channelId);
 
   return (
     <SafeAreaView className="flex-1 bg-[#36393f]" edges={['bottom']}>
@@ -30,6 +35,14 @@ export const ChatScreen = ({ channelId, channelName, canSendMessages }: ChatScre
           canRetry={status === 'open'}
           onRetry={retry}
           onDiscard={discard}
+          historyLoaded={historyLoaded}
+          historyError={historyError}
+          onRetryHistory={retryHistory}
+          hasMore={hasMore}
+          loadingMore={loadingMore}
+          loadMoreError={loadMoreError}
+          onLoadMore={loadMore}
+          onRetryLoadMore={loadMore}
         />
         <MessageComposer
           channelName={channelName}
