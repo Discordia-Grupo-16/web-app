@@ -9,7 +9,10 @@ Monorepositorio para las aplicaciones cliente del ecosistema Discordia:
 
 - Node.js 20+
 - npm 10+
-- (Para Mobile) Expo Go en dispositivo Android o emulador de Android Studio
+- (Para Mobile) un celular Android o el emulador de Android Studio, con Expo Go o con la app de
+  desarrollo (ver [Mobile Android](#mobile-android))
+- (Para compilar la app de desarrollo) Android Studio y Java 17 (ver
+  [Instalar la app de desarrollo](#instalar-la-app-de-desarrollo-una-vez))
 
 ## Setup
 
@@ -69,17 +72,70 @@ guardada. Ojo: ocultar pantallas en el front es solo UX; la autorización real e
 endpoints de staff en el backend.
 
 ### Mobile Android
-Iniciar el bundler de Expo para Mobile:
+La app se puede abrir de dos maneras:
+
+| | Expo Go | App de desarrollo |
+| --- | --- | --- |
+| Qué es | La app "Expo Go" de la Play Store | Una app "Discordia" propia, compilada con `expo-dev-client` |
+| Canales de voz | No: muestran "La voz necesita la app de desarrollo." | Sí |
+| Todo lo demás | Sí | Sí |
+| Instalación | Ninguna | Una vez, con el celular por USB |
+
+La voz necesita los módulos nativos de WebRTC de LiveKit, que Expo Go no trae. El resto de la app
+sigue andando en Expo Go, así que quien no trabaje con la voz no necesita instalar nada.
+
+Para el día a día, en las dos maneras, se levanta el bundler y se abre la app en el celular, que
+tiene que estar en **la misma red Wi-Fi** que la computadora:
 
 ```bash
 npm run dev:mobile
 ```
 
-O directamente en modo Android:
+El bundler arranca en modo Expo Go (la terminal dice "Using Expo Go"): escaneá el QR con Expo Go.
+**Para usar la app de desarrollo, apretá `s`** en la terminal hasta que diga "Using development
+build", abrí la app "Discordia" (no Expo Go) y elegí tu computadora en la lista, o escaneá el QR
+desde esa app.
+
+Los cambios de código aparecen solos en el celular. Los del `.env` tampoco piden reinstalar nada,
+pero hay que cortar el bundler y volver a levantarlo limpiando su caché, porque las variables
+`EXPO_PUBLIC_*` quedan copiadas adentro del código que ya armó:
 
 ```bash
-npm run android
+npm run dev:mobile -- -- --clear
 ```
+
+(Van dos `--`: el primero se lo come `npm run dev:mobile` y el segundo hace que `--clear` llegue a
+`expo start`.)
+
+#### Instalar la app de desarrollo (una vez)
+1. Instalá [Android Studio](https://developer.android.com/studio) y abrilo una vez: crea el SDK de
+   Android y acepta sus licencias. Lo que falte del SDK lo descarga Gradle en la
+   primera compilación.
+2. Instalá Java 17 (por ejemplo, `openjdk-17-jdk` en Ubuntu o Eclipse Temurin 17 en Windows), que es
+   la versión con la que compila React Native. Si tenés otra versión de Java como predeterminada,
+   `JAVA_HOME` tiene que apuntar a la 17.
+3. Definí la variable de entorno `ANDROID_HOME` con la carpeta del SDK de Android. La ruta está en
+   Android Studio, en Settings → Languages & Frameworks → Android SDK ("Android SDK Location").
+4. Activá la depuración por USB en el celular y conectalo a la computadora.
+5. Compilá e instalá la app:
+   ```bash
+   npm run android
+   ```
+   La primera compilación tarda varios minutos, porque también descarga lo que falte del SDK.
+
+Hay que volver a correr `npm run android` solo cuando cambia algo nativo: se agrega o se
+actualiza un paquete con código nativo, se tocan plugins o permisos en `app.json`, o se sube la
+versión de Expo. Si después de un `git pull` solo cambió código de `src/`, alcanza con
+`npm run dev:mobile`.
+
+#### Voz con el stack local
+Para que el celular se conecte al LiveKit local, el `.env` de `chat-and-real-time` tiene que tener:
+
+- `LIVEKIT_URL` con la IP de tu computadora en la red, por ejemplo `ws://192.168.0.10:7880`. Con
+  `localhost` no anda, porque para el celular `localhost` es el propio celular.
+- `LIVEKIT_API_KEY=devkey` y `LIVEKIT_API_SECRET=secret`, que son las claves fijas del LiveKit local.
+
+Para usar LiveKit Cloud, cambiá las tres variables juntas por la URL y las claves del proyecto.
 
 Correr los tests de mobile (Jest + React Native Testing Library):
 
@@ -155,8 +211,8 @@ Los packages se parten por capa:
 
 | Package | Qué tiene | Depende de |
 | --- | --- | --- |
-| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
-| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios y el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) | `@discordia/api`, `react` |
+| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`, `voice/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
+| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios, el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) y la voz (`useVoiceController`, la lista de la llamada y sus textos) | `@discordia/api`, `react` |
 | `@discordia/ui` | Componentes con variante web y `.native` (marca, íconos) | `react` |
 
 Cada package expone solo lo de su `src/index.ts` y tiene su propio typecheck (`npm run build`
@@ -190,7 +246,7 @@ ESLint hace cumplir estas reglas con `import-x/no-restricted-paths`. Las zonas s
 │   │   └── src/
 │   │       ├── main.tsx
 │   │       ├── app/                  # router, layouts (AppLayout, ServerPanel, RealtimeOutlet)
-│   │       ├── features/             # auth, servers, channels, roles, invitations, profile, chat
+│   │       ├── features/             # auth, servers, channels, roles, invitations, profile, chat, voice
 │   │       ├── shared/               # api, session, config, hooks, ui
 │   │       └── test/setup.ts
 │   ├── backoffice/                   # Backoffice de staff (Vite + React 19), puerto 5174
@@ -205,7 +261,7 @@ ESLint hace cumplir estas reglas con `import-x/no-restricted-paths`. Las zonas s
 │           ├── app/                  # Expo Router: solo rutas, layouts y guards
 │           │   ├── (auth)/           # login y registro
 │           │   └── (app)/            # rutas protegidas
-│           ├── features/             # auth, servers, channels, roles, invitations, profile, chat
+│           ├── features/             # auth, servers, channels, roles, invitations, profile, chat, voice
 │           ├── shared/               # api, session, config, hooks, ui
 │           └── global.css            # estilos globales NativeWind
 ├── packages/

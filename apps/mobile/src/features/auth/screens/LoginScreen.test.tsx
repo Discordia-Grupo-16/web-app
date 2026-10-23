@@ -5,6 +5,8 @@ import { setLoginNotice } from '@/shared/session/loginNotice';
 jest.mock('expo-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => children,
   useRouter: () => ({ replace: jest.fn() }),
+  // useReturnTo reads the pending destination from the route.
+  useLocalSearchParams: () => ({}),
 }));
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('@discordia/core', () => ({
