@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -119,5 +119,27 @@ describe('ChannelList', () => {
 
         expect(alert).toHaveBeenCalledWith('Sin permiso');
         expect(onChannelsChange).not.toHaveBeenCalled();
+    });
+
+    it('draws what renderBelowChannel returns under the given channel', () => {
+        renderList({ renderBelowChannel: (ch) => (ch.id === 'c2' ? <p>En la llamada</p> : null) });
+
+        const lobbyRow = screen.getByRole('button', { name: 'lobby' }).closest('div')!.parentElement!;
+        expect(within(lobbyRow).getByText('En la llamada')).toBeInTheDocument();
+        const generalRow = screen.getByRole('button', { name: 'general' }).closest('div')!.parentElement!;
+        expect(within(generalRow).queryByText('En la llamada')).not.toBeInTheDocument();
+    });
+
+    it('draws nothing extra without renderBelowChannel', () => {
+        renderList();
+
+        expect(screen.queryByText('En la llamada')).not.toBeInTheDocument();
+    });
+
+    it('picks the icon by the channel type', () => {
+        renderList();
+
+        expect(screen.getByRole('button', { name: 'lobby' }).querySelector('[data-icon="voice"]')).not.toBeNull();
+        expect(screen.getByRole('button', { name: 'general' }).querySelector('[data-icon="text"]')).not.toBeNull();
     });
 });

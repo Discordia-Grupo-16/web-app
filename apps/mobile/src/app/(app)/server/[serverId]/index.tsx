@@ -1,6 +1,7 @@
 import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
+import type { Channel } from '@discordia/api';
 import {
   BAN_MEMBERS,
   KICK_MEMBERS,
@@ -11,12 +12,18 @@ import {
   VIEW_CHANNEL,
   hasPermission,
   useAuth,
+  useVoice,
+  useVoiceCallParticipants,
+  type VoiceParticipant,
 } from '@discordia/core';
 import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
 import { MembersSection, useMembers } from '@/features/members';
 import { RolesSection, useRoles } from '@/features/roles';
 import { ServerActions, useServerDetails } from '@/features/servers';
+import { VoiceParticipantList } from '@/features/voice';
+
+const NO_PARTICIPANTS: VoiceParticipant[] = [];
 
 export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
@@ -29,6 +36,13 @@ export default function ServerScreen() {
     setMemberRoles,
     removeMember,
   } = useMembers(serverId);
+
+  const { call } = useVoice();
+  const callChannelId = call.status === 'connected' ? call.channel.id : null;
+  const callParticipants = useVoiceCallParticipants(call.status === 'connected' ? call.participants : NO_PARTICIPANTS);
+  // Only the channel of the call shows who is in it. Another server does not list that channel.
+  const renderBelowChannel = (channel: Channel) =>
+    channel.id === callChannelId ? <VoiceParticipantList participants={callParticipants} /> : null;
 
   if (loadingServer || loadingRoles || loadingMembers || !server) {
     return (
@@ -56,6 +70,7 @@ export default function ServerScreen() {
             channels={server.channels}
             canManage={canManageChannels}
             onChannelsChange={updateChannels}
+            renderBelowChannel={renderBelowChannel}
           />
         ) : (
           // `community` no manda los canales sin VIEW_CHANNEL, así que la

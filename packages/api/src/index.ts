@@ -30,3 +30,6 @@ export type * from './invitations/types';
 
 export * from './realtime/client';
 export type * from './realtime/protocol';
+
+export * from './voice/service';
+export type * from './voice/types';
