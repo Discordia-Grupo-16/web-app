@@ -15,9 +15,6 @@
     "dev:mobile": "npm run start --workspace=mobile-app",
     "android": "npm run android --workspace=mobile-app"
   },
-  "dependencies": {
-    "expo-linear-gradient": "~57.0.2"
-  },
   "overrides": {
     "react": "19.2.3",
     "react-dom": "19.2.3"

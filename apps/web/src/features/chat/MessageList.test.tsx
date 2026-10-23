@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublicProfilesProvider, type ChatMessage, type PublicProfileSource } from '@discordia/core';
 import type { PublicUser, User } from '@discordia/api';
 import { ProfileViewerContext } from '@/shared/profile/ProfileViewerContext';
@@ -16,6 +16,16 @@ const renderList = (
     messages: ChatMessage[],
     profiles: Record<string, PublicUser | null>,
     getPublicProfiles?: PublicProfileSource['getPublicProfiles'],
+    overrides: {
+        historyLoaded?: boolean;
+        historyError?: boolean;
+        onRetryHistory?: () => void;
+        hasMore?: boolean;
+        loadingMore?: boolean;
+        loadMoreError?: boolean;
+        onLoadMore?: () => void;
+        onRetryLoadMore?: () => void;
+    } = {},
 ) => {
     const openProfile = vi.fn();
     const source: PublicProfileSource = {
@@ -24,7 +34,7 @@ const renderList = (
             vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, profiles[id] ?? null]))),
         peekPublicProfile: () => undefined,
     };
-    render(
+    const result = render(
         <PublicProfilesProvider source={source}>
             <ProfileViewerContext.Provider value={{ openProfile }}>
                 <MessageList
@@ -36,11 +46,19 @@ const renderList = (
                     canRetry
                     onRetry={vi.fn()}
                     onDiscard={vi.fn()}
+                    historyLoaded={overrides.historyLoaded ?? true}
+                    historyError={overrides.historyError ?? false}
+                    onRetryHistory={overrides.onRetryHistory ?? vi.fn()}
+                    hasMore={overrides.hasMore ?? false}
+                    loadingMore={overrides.loadingMore ?? false}
+                    loadMoreError={overrides.loadMoreError ?? false}
+                    onLoadMore={overrides.onLoadMore ?? vi.fn()}
+                    onRetryLoadMore={overrides.onRetryLoadMore ?? vi.fn()}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
     );
-    return { openProfile, source };
+    return { openProfile, source, ...result };
 };
 
 describe('MessageList authors', () => {
@@ -105,5 +123,124 @@ describe('MessageList authors', () => {
 
         expect(openProfile).toHaveBeenCalledTimes(2);
         expect(openProfile).toHaveBeenCalledWith('milton');
+    });
+});
+
+describe('MessageList loading and error states', () => {
+    it('shows a spinner while history is loading', () => {
+        renderList([], {}, undefined, { historyLoaded: false });
+        expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+    });
+
+    it('shows an error message and a retry button when history fails', () => {
+        const onRetryHistory = vi.fn();
+        renderList([], {}, undefined, { historyLoaded: false, historyError: true, onRetryHistory });
+
+        expect(screen.getByText('No se pudo cargar el historial.')).toBeInTheDocument();
+        screen.getByRole('button', { name: 'Reintentar' }).click();
+        expect(onRetryHistory).toHaveBeenCalledOnce();
+    });
+
+    it('shows the load-more error banner with a retry button when older messages fail to load', () => {
+        const onRetryLoadMore = vi.fn();
+        renderList([message('m1', 'me')], {}, undefined, { loadMoreError: true, onRetryLoadMore });
+        expect(screen.getByText('No se pudo cargar más mensajes.')).toBeInTheDocument();
+        screen.getByRole('button', { name: 'Reintentar' }).click();
+        expect(onRetryLoadMore).toHaveBeenCalledOnce();
+    });
+});
+
+describe('MessageList scroll behavior', () => {
+    // Controllable scrollHeight: jsdom returns 0 by default, we need real values for scroll tests.
+    let mockScrollHeight = 0;
+
+    beforeAll(() => {
+        Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
+            configurable: true,
+            get() { return mockScrollHeight; },
+        });
+    });
+
+    beforeEach(() => {
+        mockScrollHeight = 0;
+    });
+
+    // Full provider tree needed because MessageList uses useProfileViewer and usePublicProfiles.
+    const makeTree = (props: {
+        messages: ChatMessage[];
+        hasMore?: boolean;
+        loadingMore?: boolean;
+        loadMoreError?: boolean;
+        onLoadMore?: () => void;
+    }) => (
+        <PublicProfilesProvider source={{ getPublicProfiles: vi.fn(async () => new Map()), peekPublicProfile: () => undefined }}>
+            <ProfileViewerContext.Provider value={{ openProfile: vi.fn() }}>
+                <MessageList
+                    channelName="general"
+                    topic={null}
+                    messages={props.messages}
+                    pending={[]}
+                    currentUser={me}
+                    canRetry
+                    onRetry={vi.fn()}
+                    onDiscard={vi.fn()}
+                    historyLoaded
+                    historyError={false}
+                    onRetryHistory={vi.fn()}
+                    hasMore={props.hasMore ?? false}
+                    loadingMore={props.loadingMore ?? false}
+                    loadMoreError={props.loadMoreError ?? false}
+                    onLoadMore={props.onLoadMore ?? vi.fn()}
+                    onRetryLoadMore={vi.fn()}
+                />
+            </ProfileViewerContext.Provider>
+        </PublicProfilesProvider>
+    );
+
+    it('triggers onLoadMore when scrolled near the top and hasMore is true', () => {
+        const onLoadMore = vi.fn();
+        render(makeTree({ messages: [message('m1', 'me')], hasMore: true, onLoadMore }));
+
+        // scrollTop defaults to 0 in jsdom, which is below the 80px threshold.
+        fireEvent.scroll(document.querySelector('.py-2')!);
+
+        expect(onLoadMore).toHaveBeenCalledOnce();
+    });
+
+    it('clears prevScrollHeightRef when loadMore fails so a later socket message does not misadjust scroll', () => {
+        const onLoadMore = vi.fn();
+        mockScrollHeight = 300;
+        const initial = [message('m1', 'me')];
+        const { rerender } = render(makeTree({ messages: initial, hasMore: true, onLoadMore }));
+
+        const el = document.querySelector('.py-2') as HTMLDivElement;
+        el.scrollTop = 40;
+        fireEvent.scroll(el); // saves prevScrollHeight=300, calls onLoadMore
+
+        rerender(makeTree({ messages: initial, hasMore: true, onLoadMore, loadingMore: true }));
+        rerender(makeTree({ messages: initial, hasMore: true, onLoadMore, loadMoreError: true }));
+
+        // A new message arrives via socket — scroll should NOT adjust using the stale height
+        mockScrollHeight = 340;
+        rerender(makeTree({ messages: [...initial, message('m2', 'me')], hasMore: true, onLoadMore }));
+
+        expect(el.scrollTop).toBe(40);
+    });
+
+    it('adjusts scrollTop to maintain position after messages are prepended', () => {
+        mockScrollHeight = 300;
+        const onLoadMore = vi.fn();
+        const initial = [message('m2', 'me')];
+        const { rerender } = render(makeTree({ messages: initial, hasMore: true, onLoadMore }));
+
+        const el = document.querySelector('.py-2') as HTMLDivElement;
+        el.scrollTop = 40;
+        fireEvent.scroll(el); // saves prevScrollHeight=300, calls onLoadMore
+
+        mockScrollHeight = 500;
+        rerender(makeTree({ messages: [message('m1', 'me'), ...initial], hasMore: true, onLoadMore }));
+
+        // useLayoutEffect: scrollTop += 500 - 300 = 200 → 40 + 200 = 240
+        expect(el.scrollTop).toBe(240);
     });
 });

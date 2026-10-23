@@ -40,6 +40,33 @@ navegador solo entrega un `close` con código 1006 sin status HTTP. El cliente t
 igual y reintenta con backoff. Distinguir "token inválido" de "red caída" queda como deuda
 conocida para CP1.
 
+## Cierres terminales (4400–4499) y el evento `terminated`
+
+Según `chat.yaml`, el rango **4400–4499** de close codes es **terminal**: el servidor rechazó
+la conexión y reintentar no la arregla. Si el socket se cierra con un código de ese rango, el
+cliente:
+
+- pasa a `'closed'` (no a `'reconnecting'`) y **no reconecta**;
+- cancela cualquier reconexión pendiente;
+- emite `terminated` con `{ code, reason }`.
+
+```typescript
+import { CLOSE_ACCOUNT_SUSPENDED } from '@discordia/api';
+
+client.on('terminated', ({ code, reason }) => {
+    if (code === CLOSE_ACCOUNT_SUSPENDED) {
+        // 4403 account_suspended: la app decide qué hacer (cerrar sesión, avisar al usuario).
+    }
+});
+```
+
+El paquete **no** desloguea ni toca tokens: no conoce la sesión, y eso lo decide cada app. Un
+`connect()` posterior (por ejemplo, otro login) abre un socket nuevo sin problema, porque
+`'closed'` lo permite. Cualquier otro código (1001, 1006, 1011, 4500 en adelante) sigue
+reconectando con backoff como siempre.
+
+`isTerminalCloseCode(code)` está exportado para quien necesite aplicar la misma regla.
+
 ## Dependencia externa: la ruta del gateway
 
 La ruta correcta según el contrato es `GET /api/v1/ws` (una conexión por usuario, suscripta a

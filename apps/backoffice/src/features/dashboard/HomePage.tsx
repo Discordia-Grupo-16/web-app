@@ -1,9 +1,7 @@
+import { Link } from 'react-router-dom';
 import { useAuth } from '@discordia/core';
 
-const UPCOMING_SECTIONS = [
-    { title: 'Usuarios', ticket: 'SCRUM-85', description: 'Listado y búsqueda de usuarios.' },
-    { title: 'Servidores', ticket: 'SCRUM-83', description: 'Próximamente.' },
-];
+const cardClass = 'rounded-xl p-5 bg-discord-card';
 
 export const HomePage = () => {
     const { user } = useAuth();
@@ -14,14 +12,16 @@ export const HomePage = () => {
             <p className="mt-1 text-sm text-discord-muted">Las secciones del backoffice se van sumando acá.</p>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
-                {UPCOMING_SECTIONS.map(({ title, ticket, description }) => (
-                    <div key={ticket} className="rounded-xl p-5 bg-discord-card">
-                        <h2 className="font-bold text-white">
-                            {title} <span className="text-xs font-normal text-discord-muted">· {ticket}</span>
-                        </h2>
-                        <p className="mt-1 text-sm text-discord-muted">{description}</p>
-                    </div>
-                ))}
+                <Link to="/users" className={`${cardClass} block hover:bg-white/5`}>
+                    <h2 className="font-bold text-white">Usuarios</h2>
+                    <p className="mt-1 text-sm text-discord-muted">Buscar y filtrar usuarios de la plataforma.</p>
+                </Link>
+                <div className={cardClass}>
+                    <h2 className="font-bold text-white">
+                        Servidores <span className="text-xs font-normal text-discord-muted">· SCRUM-83</span>
+                    </h2>
+                    <p className="mt-1 text-sm text-discord-muted">Próximamente.</p>
+                </div>
             </div>
         </div>
     );
