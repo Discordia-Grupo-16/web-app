@@ -18,10 +18,10 @@ jobs:
     uses: Discordia-Grupo-16/discordia-ci/.github/workflows/node-app.yml@v1
     with:
       node-version: "22"
-      # npm workspace: both client apps live under apps/, plus the packages
-      # that already have a test runner and a `test` script.
-      workspaces: '["web-app", "mobile-app", "@discordia/realtime"]'
-      # @discordia/realtime has vitest wired up (SCRUM-139); web-app and
-      # mobile-app still don't define a `test` script, so `--if-present`
-      # skips them harmlessly until they do.
+      # npm workspaces: the client apps under apps/ and the three packages.
+      # Every one has a `build` script, which in the packages and in mobile-app
+      # is the typecheck (tsc --noEmit).
+      workspaces: '["web-app", "backoffice", "mobile-app", "@discordia/api", "@discordia/core", "@discordia/ui"]'
+      # Tests: Vitest in web-app, backoffice, @discordia/api and @discordia/core, Jest in
+      # mobile-app. @discordia/ui has no tests yet; --if-present skips it.
       run-tests: true

@@ -2,13 +2,17 @@
 
 Monorepositorio para las aplicaciones cliente del ecosistema Discordia:
 - **Web App**: `apps/web` (React 19 + Vite + Tailwind CSS v4)
+- **Backoffice**: `apps/backoffice` (app web separada para el staff, mismo stack que la web)
 - **Mobile Android**: `apps/mobile` (React Native + Expo SDK 57 + Expo Router + NativeWind)
 
 ## Requisitos
 
 - Node.js 20+
 - npm 10+
-- (Para Mobile) Expo Go en dispositivo Android o emulador de Android Studio
+- (Para Mobile) un celular Android o el emulador de Android Studio, con Expo Go o con la app de
+  desarrollo (ver [Mobile Android](#mobile-android))
+- (Para compilar la app de desarrollo) Android Studio y Java 17 (ver
+  [Instalar la app de desarrollo](#instalar-la-app-de-desarrollo-una-vez))
 
 ## Setup
 
@@ -27,24 +31,122 @@ Levantar la aplicación web en desarrollo:
 npm run dev:web
 ```
 
-Compilar la aplicación web:
+Compilar la aplicación web (corre `tsc -b` antes de Vite, así que también hace el typecheck):
 
 ```bash
-npm run build:web
+npm run build --workspace=web-app
 ```
 
+Correr los tests de la web (Vitest + React Testing Library):
+
+```bash
+npm run test --workspace=web-app              # una corrida
+npm run test:watch --workspace=web-app        # modo watch
+npm run test --workspace=web-app -- --coverage
+```
+
+Los tests viven junto al archivo que prueban (`LoginForm.tsx` → `LoginForm.test.tsx`).
+La configuración está en `apps/web/vite.config.ts` y el setup en `apps/web/src/test/setup.ts`.
+
+### Backoffice
+Panel para el staff. Es una app aparte de la web, con su propia sesión: las claves de `localStorage`
+son `discordia_backoffice_*`, así que loguearse en uno no loguea en el otro.
+
+```bash
+npm run dev:backoffice                       # http://localhost:5174 (puerto fijo)
+npm run build --workspace=backoffice
+npm run test --workspace=backoffice
+```
+
+Creá `apps/backoffice/.env.local` (hay un `.env.example`) con la URL del gateway, **sin** `/api/v1`
+porque los servicios de `@discordia/api` ya lo agregan:
+
+```
+VITE_API_URL=http://localhost:8080
+```
+
+Para entrar necesitás un usuario staff: ver el README de `identity` ("Dar el rol de staff"). El
+gateway tiene que tener `http://localhost:5174` en `CORS_ALLOWED_ORIGINS`. Una cuenta sin rol staff
+con la contraseña correcta ve "Esta cuenta no tiene acceso al backoffice" y no queda ninguna sesión
+guardada. Ojo: ocultar pantallas en el front es solo UX; la autorización real es el 403 de los
+endpoints de staff en el backend.
+
 ### Mobile Android
-Iniciar el bundler de Expo para Mobile:
+La app se puede abrir de dos maneras:
+
+| | Expo Go | App de desarrollo |
+| --- | --- | --- |
+| Qué es | La app "Expo Go" de la Play Store | Una app "Discordia" propia, compilada con `expo-dev-client` |
+| Canales de voz | No: muestran "La voz necesita la app de desarrollo." | Sí |
+| Todo lo demás | Sí | Sí |
+| Instalación | Ninguna | Una vez, con el celular por USB |
+
+La voz necesita los módulos nativos de WebRTC de LiveKit, que Expo Go no trae. El resto de la app
+sigue andando en Expo Go, así que quien no trabaje con la voz no necesita instalar nada.
+
+Para el día a día, en las dos maneras, se levanta el bundler y se abre la app en el celular, que
+tiene que estar en **la misma red Wi-Fi** que la computadora:
 
 ```bash
 npm run dev:mobile
 ```
 
-O directamente en modo Android:
+El bundler arranca en modo Expo Go (la terminal dice "Using Expo Go"): escaneá el QR con Expo Go.
+**Para usar la app de desarrollo, apretá `s`** en la terminal hasta que diga "Using development
+build", abrí la app "Discordia" (no Expo Go) y elegí tu computadora en la lista, o escaneá el QR
+desde esa app.
+
+Los cambios de código aparecen solos en el celular. Los del `.env` tampoco piden reinstalar nada,
+pero hay que cortar el bundler y volver a levantarlo limpiando su caché, porque las variables
+`EXPO_PUBLIC_*` quedan copiadas adentro del código que ya armó:
 
 ```bash
-npm run android
+npm run dev:mobile -- -- --clear
 ```
+
+(Van dos `--`: el primero se lo come `npm run dev:mobile` y el segundo hace que `--clear` llegue a
+`expo start`.)
+
+#### Instalar la app de desarrollo (una vez)
+1. Instalá [Android Studio](https://developer.android.com/studio) y abrilo una vez: crea el SDK de
+   Android y acepta sus licencias. Lo que falte del SDK lo descarga Gradle en la
+   primera compilación.
+2. Instalá Java 17 (por ejemplo, `openjdk-17-jdk` en Ubuntu o Eclipse Temurin 17 en Windows), que es
+   la versión con la que compila React Native. Si tenés otra versión de Java como predeterminada,
+   `JAVA_HOME` tiene que apuntar a la 17.
+3. Definí la variable de entorno `ANDROID_HOME` con la carpeta del SDK de Android. La ruta está en
+   Android Studio, en Settings → Languages & Frameworks → Android SDK ("Android SDK Location").
+4. Activá la depuración por USB en el celular y conectalo a la computadora.
+5. Compilá e instalá la app:
+   ```bash
+   npm run android
+   ```
+   La primera compilación tarda varios minutos, porque también descarga lo que falte del SDK.
+
+Hay que volver a correr `npm run android` solo cuando cambia algo nativo: se agrega o se
+actualiza un paquete con código nativo, se tocan plugins o permisos en `app.json`, o se sube la
+versión de Expo. Si después de un `git pull` solo cambió código de `src/`, alcanza con
+`npm run dev:mobile`.
+
+#### Voz con el stack local
+Para que el celular se conecte al LiveKit local, el `.env` de `chat-and-real-time` tiene que tener:
+
+- `LIVEKIT_URL` con la IP de tu computadora en la red, por ejemplo `ws://192.168.0.10:7880`. Con
+  `localhost` no anda, porque para el celular `localhost` es el propio celular.
+- `LIVEKIT_API_KEY=devkey` y `LIVEKIT_API_SECRET=secret`, que son las claves fijas del LiveKit local.
+
+Para usar LiveKit Cloud, cambiá las tres variables juntas por la URL y las claves del proyecto.
+
+Correr los tests de mobile (Jest + React Native Testing Library):
+
+```bash
+npm run test --workspace=mobile-app              # una corrida
+npm run test:watch --workspace=mobile-app        # modo watch
+npm run test --workspace=mobile-app -- --coverage
+```
+
+Igual que en web, cada test vive junto al archivo que prueba. La configuración está en
+`apps/mobile/jest.config.js`; usa el preset de Expo (`jest-expo`).
 
 ## Desarrollo local con API Gateway
 
@@ -90,39 +192,82 @@ uvicorn app.main:app --reload --port 8000
 npm run dev:web
 ```
 
+## Lint, typecheck y tests de todo el monorepo
+
+```bash
+npm run lint    # ESLint en web y mobile, incluida la regla de capas
+npm run test    # web, mobile y los packages
+npm run test:coverage   # lo mismo, con el reporte de cobertura de cada workspace
+npm run build   # build de web y typecheck de mobile y de los packages
+```
+
+## Arquitectura
+
+### Packages: por capa, y por funcionalidad adentro
+
+Lo que comparten web y mobile vive en `packages/`. No hay un package por servicio del backend:
+el cliente ve un único `/api/v1` a través del gateway, y hay funcionalidades que cruzan servicios.
+Los packages se parten por capa:
+
+| Package | Qué tiene | Depende de |
+| --- | --- | --- |
+| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`, `voice/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
+| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios, el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) y la voz (`useVoiceController`, la lista de la llamada y sus textos) | `@discordia/api`, `react` |
+| `@discordia/ui` | Componentes con variante web y `.native` (marca, íconos) | `react` |
+
+Cada package expone solo lo de su `src/index.ts` y tiene su propio typecheck (`npm run build`
+dentro del package), con `strict` y **sin los tipos del DOM** en `api` y `core`: como también corren
+en React Native, usar `window`, `document` o `localStorage` no compila. Lo que sí existe en las dos
+plataformas (`FormData`, `Blob`, `setTimeout`…) está declarado en `packages/tsconfig/platform.d.ts`.
+Los tests se chequean aparte (`tsconfig.test.json`), porque los tipos de Vitest traen el DOM. La lógica que combine varios recursos va en
+una carpeta de funcionalidad dentro de `core`.
+
+### Apps: `shared` → `features` → `app`
+
+Web y mobile se organizan igual, y las dependencias van en un solo sentido:
+
+- **`src/shared/`**: lo genérico, agrupado por tipo. `api/` instancia el cliente HTTP y **todos**
+  los servicios de `@discordia/api`, así que cualquier feature puede llamar a cualquier endpoint.
+  Además están la sesión (`session/`), las variables de entorno (`config/`), los hooks y la UI
+  genéricos.
+- **`src/features/<feature>/`**: todo lo de una funcionalidad (componentes, hooks, pantallas y
+  tests). Expone su API pública en `index.ts` y **no importa de otra feature ni de `src/app`**.
+- **`src/app/`**: la única capa que combina features. En web tiene el router y los layouts; en
+  mobile, las rutas de Expo Router, que solo re-exportan o componen pantallas.
+
+ESLint hace cumplir estas reglas con `import-x/no-restricted-paths`. Las zonas se arman leyendo
+`src/features`, así que una feature nueva queda cubierta sin tocar la config.
+
 ## Estructura del Monorepo
 
 ```text
 ├── apps/
-│   ├── web/                      # Frontend Web (Vite + React 19)
-│   │   ├── src/
-│   │   ├── index.html
-│   │   ├── vite.config.ts
-│   │   └── package.json
-│   └── mobile/                   # Frontend Mobile Android (Expo + React Native)
-│       ├── assets/
-│       ├── src/
-│       │   ├── app/              # Expo Router (Rutas, layouts, session guard)
-│       │   │   ├── (auth)/       # Rutas de login y registro
-│       │   │   ├── (app)/        # Rutas protegidas con guard de sesión
-│       │   │   ├── _layout.tsx
-│       │   │   └── index.tsx
-│       │   ├── context/          # Contexto de autenticación y sesión
-│       │   ├── services/         # Cliente API (Axios) y SecureStore (JWT)
-│       │   ├── constants/        # Configuración y URLs de backend
-│       │   └── global.css        # Estilos globales NativeWind
-│       ├── app.json              # Configuración Expo orientada a Android
-│       ├── metro.config.js       # Configuración Metro con NativeWind
-│       ├── tailwind.config.js    # Configuración de Tailwind para Mobile
-│       └── package.json
+│   ├── web/                          # Web (Vite + React 19)
+│   │   └── src/
+│   │       ├── main.tsx
+│   │       ├── app/                  # router, layouts (AppLayout, ServerPanel, RealtimeOutlet)
+│   │       ├── features/             # auth, servers, channels, roles, invitations, profile, chat, voice
+│   │       ├── shared/               # api, session, config, hooks, ui
+│   │       └── test/setup.ts
+│   ├── backoffice/                   # Backoffice de staff (Vite + React 19), puerto 5174
+│   │   └── src/
+│   │       ├── main.tsx
+│   │       ├── app/                  # router, StaffLayout
+│   │       ├── features/             # auth (login y StaffRoute), dashboard
+│   │       └── shared/               # api, session (claves discordia_backoffice_*), config
+│   └── mobile/                       # Mobile Android (Expo + React Native)
+│       ├── app.json, metro.config.js, tailwind.config.js
+│       └── src/
+│           ├── app/                  # Expo Router: solo rutas, layouts y guards
+│           │   ├── (auth)/           # login y registro
+│           │   └── (app)/            # rutas protegidas
+│           ├── features/             # auth, servers, channels, roles, invitations, profile, chat, voice
+│           ├── shared/               # api, session, config, hooks, ui
+│           └── global.css            # estilos globales NativeWind
 ├── packages/
-│   └── ui/                       # Componentes compartidos Web & Mobile (@discordia/ui)
-│       ├── src/
-│       │   ├── DiscordiaMark.tsx        # Versión Web (DOM SVG)
-│       │   ├── DiscordiaMark.native.tsx # Versión Mobile (react-native-svg)
-│       │   ├── constants.ts             # Path, viewBox y colores compartidos
-│       │   └── index.ts
-│       └── package.json
-├── package.json                  # Workspaces y scripts globales
+│   ├── api/src/                      # @discordia/api
+│   ├── core/src/                     # @discordia/core
+│   └── ui/src/                       # @discordia/ui (brand, icons)
+├── package.json                      # workspaces y scripts globales
 └── README.md
 ```

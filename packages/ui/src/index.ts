@@ -1,3 +1,4 @@
-export * from './DiscordiaMark';
-export * from './EyeIcons';
-export * from './constants';
+export * from './brand/DiscordiaMark';
+export * from './brand/constants';
+export * from './icons/EyeIcons';
+export * from './icons/LogOutIcon';

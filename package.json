@@ -7,12 +7,16 @@
   ],
   "scripts": {
     "dev:web": "npm run dev --workspace=web-app",
-    "build": "npm run build --workspace=web-app",
-    "lint": "npm run lint --workspace=web-app",
+    "dev:backoffice": "npm run dev --workspace=backoffice",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:coverage": "npm run test --workspaces --if-present -- --coverage",
     "dev:mobile": "npm run start --workspace=mobile-app",
     "android": "npm run android --workspace=mobile-app"
   },
-  "dependencies": {
-    "expo-linear-gradient": "~57.0.2"
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }

@@ -11,6 +11,9 @@
       "default": "./src/index.ts"
     }
   },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
   "peerDependencies": {
     "react": "*",
     "react-native": "*",
@@ -23,5 +26,8 @@
     "react-native-svg": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
   }
 }

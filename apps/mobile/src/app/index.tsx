@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { useAuth } from '@discordia/context';
+import { useAuth } from '@discordia/core';
 
 export default function Index() {
   const { token, isLoading } = useAuth();

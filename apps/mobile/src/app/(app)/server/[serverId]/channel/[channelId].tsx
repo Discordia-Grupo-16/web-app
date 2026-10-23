@@ -1,29 +1,37 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, ActivityIndicator, Alert } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, View } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { getServer } from '@/services/serversService';
-import { ChatScreen } from '@/realtime/components/ChatScreen';
-import { isGoneError, useFocusedPolling } from '@/hooks/useFocusedPolling';
+import type { Channel } from '@discordia/api';
+import { NONE, canJoinVoice } from '@discordia/core';
+import { ChannelScreen } from '@/features/chat';
+import { VoiceChannelScreen } from '@/features/voice';
+import { serversService } from '@/shared/api';
+import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
 
-export default function ChannelScreen() {
-  const { serverId, channelId, name } = useLocalSearchParams<{ serverId: string; channelId: string; name?: string }>();
+type ChannelParams = { serverId: string; channelId: string; name?: string; type?: Channel['type'] };
+type ChannelInfo = Pick<Channel, 'name' | 'type'>;
+
+// The channel screen: the chat or the call, depending on the channel type the channel list passes.
+export default function ChannelRoute() {
+  const { serverId, channelId, name, type } = useLocalSearchParams<ChannelParams>();
   const navigation = useNavigation();
   const router = useRouter();
-  const [channelName, setChannelName] = useState<string | null>(name ?? null);
+  const [channel, setChannel] = useState<ChannelInfo | null>(name && type ? { name, type } : null);
+  // The voice call needs the server permissions; null while unknown. The chat loads its own.
+  const [permissions, setPermissions] = useState<number | null>(null);
+  const isText = channel?.type === 'text';
 
   useEffect(() => {
-    if (channelName !== null) {
-      navigation.setOptions({ title: `#${channelName}` });
-      return;
-    }
-    // No name in the params (e.g. opened from a deep link): look it up like ServerScreen does.
+    if (isText) return;
+    // The server comes even when the type came in the params: `my_permissions` comes with it.
     let cancelled = false;
-    getServer(serverId)
+    serversService.getServer(serverId)
       .then((server) => {
         if (cancelled) return;
-        const channel = server.channels.find((ch) => ch.id === channelId);
-        if (!channel) throw new Error('channel not found');
-        setChannelName(channel.name);
+        const found = server.channels.find((ch) => ch.id === channelId);
+        if (!found) throw new Error('channel not found');
+        setChannel({ name: found.name, type: found.type });
+        setPermissions(server.my_permissions ?? NONE);
       })
       .catch(() => {
         if (cancelled) return;
@@ -33,29 +41,23 @@ export default function ChannelScreen() {
     return () => {
       cancelled = true;
     };
-  }, [channelName, serverId, channelId, navigation, router]);
+  }, [isText, serverId, channelId, router]);
 
-  // The channel (or its whole server) was deleted from another client: leave the chat.
-  const goneRef = useRef(false);
+  // Losing CONNECT takes "Unirse" away without a reload. A deleted channel cuts the call by itself.
   useFocusedPolling(() => {
-    if (goneRef.current) return;
-    const leave = (message: string, toServerList: boolean) => {
-      if (goneRef.current) return;
-      goneRef.current = true;
-      Alert.alert('Canal no disponible', message);
-      if (toServerList && router.canDismiss()) router.dismissAll();
-      else router.back();
-    };
-    getServer(serverId)
-      .then((server) => {
-        if (!server.channels.some((ch) => ch.id === channelId)) leave('Este canal fue eliminado.', false);
-      })
-      .catch((err) => {
-        if (isGoneError(err)) leave('Este servidor fue eliminado o ya no sos miembro.', true);
-      });
+    if (channel?.type !== 'voice') return;
+    serversService.getServer(serverId)
+      .then((server) => setPermissions(server.my_permissions ?? NONE))
+      .catch(() => undefined);
   });
 
-  if (channelName === null) {
+  useEffect(() => {
+    if (channel?.type === 'voice') navigation.setOptions({ title: `🔊 ${channel.name}` });
+  }, [channel, navigation]);
+
+  if (channel?.type === 'text') return <ChannelScreen />;
+
+  if (channel === null || permissions === null) {
     return (
       <View className="flex-1 items-center justify-center bg-[#23272a]">
         <ActivityIndicator size="large" color="#7289da" />
@@ -63,5 +65,10 @@ export default function ChannelScreen() {
     );
   }
 
-  return <ChatScreen channelId={channelId} channelName={channelName} />;
+  return (
+    <VoiceChannelScreen
+      channel={{ id: channelId, serverId, name: channel.name }}
+      canJoin={canJoinVoice(permissions)}
+    />
+  );
 }
