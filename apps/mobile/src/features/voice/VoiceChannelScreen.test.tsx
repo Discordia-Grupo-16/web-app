@@ -1,6 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { Linking } from 'react-native';
-import { useVoice, VOICE_TEXTS, type VoiceChannelRef, type VoiceJoinError } from '@discordia/core';
+import { useVoice, VOICE_JOIN_ERROR_TEXTS, VOICE_TEXTS, type VoiceChannelRef, type VoiceJoinError } from '@discordia/core';
 import { voiceValue } from './testing';
 import { VOICE_NEEDS_DEV_BUILD, VoiceChannelScreen } from './VoiceChannelScreen';
 
@@ -30,7 +30,7 @@ describe('VoiceChannelScreen', () => {
   it('offers to join without connecting on open', async () => {
     const value = voiceValue();
     jest.mocked(useVoice).mockReturnValue(value);
-    await render(<VoiceChannelScreen channel={general} />);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
 
     expect(value.join).not.toHaveBeenCalled();
     await userEvent.setup().press(screen.getByRole('button', { name: 'Unirse' }));
@@ -39,7 +39,7 @@ describe('VoiceChannelScreen', () => {
 
   it('shows that it is connecting', async () => {
     jest.mocked(useVoice).mockReturnValue(voiceValue({ attempt: { status: 'connecting', channel: general } }));
-    await render(<VoiceChannelScreen channel={general} />);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
 
     expect(screen.getByRole('button', { name: VOICE_TEXTS.connecting })).toBeDisabled();
   });
@@ -53,7 +53,7 @@ describe('VoiceChannelScreen', () => {
   ] as const)('shows the %s error, with retry only when it can work', async (error: VoiceJoinError, text, retryable) => {
     const value = voiceValue({ attempt: { status: 'failed', channel: general, error } });
     jest.mocked(useVoice).mockReturnValue(value);
-    await render(<VoiceChannelScreen channel={general} />);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
 
     expect(screen.getByRole('alert')).toHaveTextContent(text);
     expect(screen.queryByRole('button', { name: 'Unirse' })).toBeNull();
@@ -67,14 +67,14 @@ describe('VoiceChannelScreen', () => {
 
   it('keeps offering to join while the call is in another channel', async () => {
     jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(other) }));
-    await render(<VoiceChannelScreen channel={general} />);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
 
     expect(screen.getByRole('button', { name: 'Unirse' })).toBeTruthy();
   });
 
   it('shows the call with its participants', async () => {
     jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
-    await render(<VoiceChannelScreen channel={general} />);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
 
     expect(screen.getByText('Estás en la llamada')).toBeTruthy();
     expect(screen.getByText('Ana')).toBeTruthy();
@@ -83,7 +83,7 @@ describe('VoiceChannelScreen', () => {
 
   it('warns about joining without a microphone', async () => {
     jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general, { micAvailable: false }) }));
-    await render(<VoiceChannelScreen channel={general} />);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
 
     expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.noMic);
     expect(screen.queryByRole('button', { name: VOICE_TEXTS.openSettings })).toBeNull();
@@ -94,7 +94,7 @@ describe('VoiceChannelScreen', () => {
     jest
       .mocked(useVoice)
       .mockReturnValue(voiceValue({ call: connectedTo(general, { micAvailable: false, micBlocked: true }) }));
-    await render(<VoiceChannelScreen channel={general} />);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
 
     expect(screen.getByText(VOICE_TEXTS.micBlockedMobileInCall)).toBeTruthy();
     await userEvent.setup().press(screen.getByRole('button', { name: VOICE_TEXTS.openSettings }));
@@ -103,9 +103,24 @@ describe('VoiceChannelScreen', () => {
 
   it('explains that voice needs the development build in Expo Go', async () => {
     jest.mocked(useVoice).mockReturnValue(voiceValue({ available: false }));
-    await render(<VoiceChannelScreen channel={general} />);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
 
     expect(screen.getByText(VOICE_NEEDS_DEV_BUILD)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Unirse' })).toBeNull();
+  });
+
+  it('does not offer to join without the voice permissions (CA2 de SCRUM-51, Unirse a canal de voz de servidor)', async () => {
+    await render(<VoiceChannelScreen channel={general} canJoin={false} />);
+
+    expect(screen.queryByRole('button', { name: 'Unirse' })).toBeNull();
+    expect(screen.getByText(VOICE_JOIN_ERROR_TEXTS.forbidden)).toBeTruthy();
+  });
+
+  it('keeps showing the call of this channel without the voice permissions', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+    await render(<VoiceChannelScreen channel={general} canJoin={false} />);
+
+    expect(screen.getByText('Estás en la llamada')).toBeTruthy();
+    expect(screen.queryByText(VOICE_JOIN_ERROR_TEXTS.forbidden)).toBeNull();
   });
 });

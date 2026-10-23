@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PERMISSION_COPY, SEND_MESSAGES, VIEW_CHANNEL } from '@discordia/core';
+import { CONNECT, PERMISSION_COPY, SEND_MESSAGES, VIEW_CHANNEL } from '@discordia/core';
 import type { Channel, Server } from '@discordia/api';
 import { serversService } from '@/shared/api';
 import { ChannelRoute } from './ChannelRoute';
@@ -17,8 +17,11 @@ vi.mock('@/features/chat', () => ({
     ),
 }));
 vi.mock('@/features/voice', () => ({
-    VoiceChannelPanel: ({ channel }: { channel: { id: string; serverId: string; name: string } }) => (
-        <p>voz de {channel.name} en {channel.serverId}</p>
+    VoiceChannelPanel: ({ channel, canJoin }: { channel: { id: string; serverId: string; name: string }; canJoin: boolean }) => (
+        <>
+            <p>voz de {channel.name} en {channel.serverId}</p>
+            {canJoin ? <button>Unirse</button> : <p>sin permiso para unirse</p>}
+        </>
     ),
 }));
 
@@ -32,7 +35,7 @@ const channel = (id: string, name: string, type: Channel['type']): Channel => ({
     created_at: '2026-10-01T00:00:00Z',
 });
 
-const server = (myPermissions = VIEW_CHANNEL | SEND_MESSAGES): Server => ({
+const server = (myPermissions = VIEW_CHANNEL | SEND_MESSAGES | CONNECT): Server => ({
     id: 'srv',
     name: 'Discordia',
     description: null,
@@ -113,5 +116,40 @@ describe('ChannelRoute y SEND_MESSAGES', () => {
                 screen.getByText(PERMISSION_COPY.cannotSendMessage('general')),
             ).toBeInTheDocument(),
         );
+    });
+});
+
+describe('ChannelRoute y CONNECT (CA2 de SCRUM-51, Unirse a canal de voz de servidor)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('sin CONNECT no ofrece unirse', async () => {
+        vi.mocked(serversService.getServer).mockResolvedValue(server(VIEW_CHANNEL | SEND_MESSAGES));
+
+        renderAt('c2');
+
+        expect(await screen.findByText('sin permiso para unirse')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Unirse' })).not.toBeInTheDocument();
+    });
+
+    it('con VIEW_CHANNEL y CONNECT ofrece unirse', async () => {
+        vi.mocked(serversService.getServer).mockResolvedValue(server(VIEW_CHANNEL | CONNECT));
+
+        renderAt('c2');
+
+        expect(await screen.findByRole('button', { name: 'Unirse' })).toBeInTheDocument();
+    });
+
+    it('deja de ofrecer unirse cuando el poll trae el servidor sin CONNECT', async () => {
+        vi.mocked(serversService.getServer).mockResolvedValue(server(VIEW_CHANNEL | CONNECT));
+        renderAt('c2');
+        await screen.findByRole('button', { name: 'Unirse' });
+
+        vi.mocked(serversService.getServer).mockResolvedValue(server(VIEW_CHANNEL));
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        await waitFor(() => expect(screen.getByText('sin permiso para unirse')).toBeInTheDocument());
+        expect(screen.queryByRole('button', { name: 'Unirse' })).not.toBeInTheDocument();
     });
 });

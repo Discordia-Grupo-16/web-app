@@ -30,7 +30,9 @@ const Button = ({ label, onPress, color, busy }: { label: string; onPress: () =>
   </Pressable>
 );
 
-export const VoiceChannelScreen = ({ channel }: { channel: VoiceChannelRef }) => {
+// canJoin comes from the server permissions. Without it there is no "Unirse"; a call already going
+// on in this channel is still shown, because cutting it is the server's job.
+export const VoiceChannelScreen = ({ channel, canJoin }: { channel: VoiceChannelRef; canJoin: boolean }) => {
   const { call, attempt, available, join, retry } = useVoice();
   const inCall = call.status === 'connected' && call.channel.id === channel.id;
   const participants = useVoiceCallParticipants(inCall ? call.participants : NO_PARTICIPANTS);
@@ -76,6 +78,8 @@ export const VoiceChannelScreen = ({ channel }: { channel: VoiceChannelRef }) =>
 
       {!available ? (
         <Text className="text-center text-sm text-[#b9bbbe]">{VOICE_NEEDS_DEV_BUILD}</Text>
+      ) : !canJoin ? (
+        <Text className="text-center text-sm text-[#b9bbbe]">{VOICE_JOIN_ERROR_TEXTS.forbidden}</Text>
       ) : failed ? (
         <>
           <Text accessibilityRole="alert" className="text-center text-sm text-[#f38688]">
