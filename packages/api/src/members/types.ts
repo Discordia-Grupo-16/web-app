@@ -13,3 +13,11 @@ export interface ServerMember {
     /** The roles the member has, ordered by position: lowest in the hierarchy first. */
     roles: Role[];
 }
+
+/** A ban of a server, as `community` returns it. No names: they belong to `identity`. */
+export interface ServerBan {
+    user_id: string;
+    banned_by: string;
+    reason: string | null;
+    created_at: string;
+}

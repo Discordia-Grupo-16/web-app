@@ -15,7 +15,7 @@ import {
     type VoiceParticipant,
 } from '@discordia/core';
 import { ChannelList } from '@/features/channels';
-import { MembersSection, useMembers } from '@/features/members';
+import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
 import { RolesSection, useRoles } from '@/features/roles';
 import { LeaveServerButton, ServerHeader, useServer } from '@/features/servers';
@@ -43,6 +43,17 @@ export const ServerPanel = () => {
     // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
     // showing a button that then disappears is worse than showing it one render late.
     const permissions = server?.my_permissions ?? NONE;
+
+    // The same bit bans and revokes (ADR-0011). Without it the hook does not even ask: the list of
+    // bans is moderation data and the backend answers 403.
+    const canBan = hasPermission(permissions, BAN_MEMBERS);
+    const {
+        bans,
+        loading: loadingBans,
+        error: bansError,
+        removeBan,
+        reload: reloadBans,
+    } = useBans(serverId, canBan);
 
     // Leaving is not a permission but a condition: the owner cannot leave their own server, they
     // delete it. That is why this is still an ownership check and not a bit.
@@ -98,11 +109,26 @@ export const ServerPanel = () => {
                             ownerId={server?.owner_id}
                             canManage={hasPermission(permissions, MANAGE_ROLES)}
                             canKick={hasPermission(permissions, KICK_MEMBERS)}
-                            canBan={hasPermission(permissions, BAN_MEMBERS)}
+                            canBan={canBan}
                             onRolesChange={setMemberRoles}
                             onMemberKicked={removeMember}
-                            onMemberBanned={removeMember}
+                            onMemberBanned={userId => {
+                                removeMember(userId);
+                                // Without this the new ban would only show up with the next poll.
+                                reloadBans();
+                            }}
                         />
+                        {/* Not part of the panel's `loading`: the bans only start loading once the
+                            server says the caller has the bit, and hiding every section a second
+                            time would blink the panel. The section waits on its own instead. */}
+                        {canBan && !loadingBans && (
+                            <BansSection
+                                serverId={serverId}
+                                bans={bans}
+                                error={bansError}
+                                onBanRevoked={removeBan}
+                            />
+                        )}
                     </>
                 )}
             </div>

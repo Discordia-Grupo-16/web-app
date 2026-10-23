@@ -1,7 +1,7 @@
 import type { AxiosInstance } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { createMembersService } from './service';
-import type { ServerMember } from './types';
+import type { ServerBan, ServerMember } from './types';
 
 const member: ServerMember = {
     user_id: 'u1',
@@ -67,5 +67,34 @@ describe('createMembersService kickMember', () => {
         await service.kickMember('srv', 'u1');
 
         expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/servers/srv/members/u1');
+    });
+});
+
+describe('createMembersService listBans', () => {
+    it('asks for the bans of the given server and returns them', async () => {
+        const ban: ServerBan = {
+            user_id: 'u1',
+            banned_by: 'u2',
+            reason: null,
+            created_at: '2026-10-01T00:00:00Z',
+        };
+        const apiClient = { get: vi.fn(async () => ({ data: [ban] })) };
+        const service = createMembersService(apiClient as unknown as AxiosInstance);
+
+        const bans = await service.listBans('srv');
+
+        // The trailing slash is part of the route: the gateway does not answer without it.
+        expect(apiClient.get).toHaveBeenCalledWith('/api/v1/servers/srv/bans/');
+        expect(bans).toEqual([ban]);
+    });
+});
+
+describe('createMembersService revokeBan', () => {
+    it('deletes the ban path of the server', async () => {
+        const { apiClient, service } = setup();
+
+        await service.revokeBan('srv', 'u1');
+
+        expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/servers/srv/bans/u1');
     });
 });

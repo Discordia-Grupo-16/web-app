@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -10,7 +11,7 @@ import {
     SEND_MESSAGES,
     VIEW_CHANNEL,
 } from '@discordia/core';
-import type { Server, ServerMember } from '@discordia/api';
+import type { Server, ServerBan, ServerMember } from '@discordia/api';
 import { membersService, rolesService, serversService } from '@/shared/api';
 import { ServerPanel } from './ServerPanel';
 
@@ -20,7 +21,13 @@ const ME = 'me';
 vi.mock('@/shared/api', () => ({
     serversService: { getServer: vi.fn() },
     rolesService: { listRoles: vi.fn() },
-    membersService: { listMembers: vi.fn(), banMember: vi.fn(), kickMember: vi.fn() },
+    membersService: {
+        listMembers: vi.fn(),
+        banMember: vi.fn(),
+        kickMember: vi.fn(),
+        listBans: vi.fn(),
+        revokeBan: vi.fn(),
+    },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -64,6 +71,13 @@ const MILTON: ServerMember = {
     roles: [],
 };
 
+const BAN_OF_MILTON: ServerBan = {
+    user_id: 'milton',
+    banned_by: ME,
+    reason: null,
+    created_at: '2026-10-01T12:00:00',
+};
+
 const renderPanel = async (
     myPermissions: number,
     ownerId = OWNER,
@@ -72,6 +86,7 @@ const renderPanel = async (
     vi.mocked(serversService.getServer).mockResolvedValue(server(myPermissions, ownerId));
     vi.mocked(rolesService.listRoles).mockResolvedValue([]);
     vi.mocked(membersService.listMembers).mockResolvedValue(members);
+    vi.mocked(membersService.listBans).mockResolvedValue([]);
     render(
         <MemoryRouter initialEntries={['/servers/srv']}>
             <Routes>
@@ -86,6 +101,7 @@ const renderPanel = async (
 const createTextChannel = () => screen.queryByTitle('Crear canal de texto');
 const createRole = () => screen.queryByTitle('Crear rol');
 const membersHeader = () => screen.queryByText(PERMISSION_COPY.membersTitle(0));
+const bansHeader = () => screen.queryByText(/^Baneados — /);
 // Por el prefijo y no por el nombre: acá los perfiles públicos están mockeados
 // vacíos, así que el nombre lo resuelve el fallback y no es lo que se mira.
 const banMember = () => screen.queryByTitle(/^Banear a /);
@@ -172,6 +188,36 @@ describe('ServerPanel: qué se ve según el permiso', () => {
 
         expect(banMember()).toBeInTheDocument();
         expect(kickMember()).not.toBeInTheDocument();
+    });
+
+    it('sin BAN_MEMBERS no aparece la sección de baneados ni se piden', async () => {
+        // Ocultar no es autorizar: el 403 de verdad está en `community`. Pero pedir la lista
+        // sin el bit sería un error en la consola en cada poll.
+        await renderPanel(VIEW_CHANNEL | KICK_MEMBERS | MANAGE_ROLES, OWNER, [MILTON]);
+
+        expect(bansHeader()).not.toBeInTheDocument();
+        expect(membersService.listBans).not.toHaveBeenCalled();
+    });
+
+    it('con BAN_MEMBERS aparece la sección de baneados', async () => {
+        await renderPanel(VIEW_CHANNEL | BAN_MEMBERS);
+
+        expect(await screen.findByText(PERMISSION_COPY.bansTitle(0))).toBeInTheDocument();
+        expect(membersService.listBans).toHaveBeenCalledWith('srv');
+    });
+
+    it('al banear desde Miembros, el baneado aparece en Baneados sin esperar al poll', async () => {
+        vi.mocked(membersService.banMember).mockResolvedValue(undefined);
+        await renderPanel(VIEW_CHANNEL | BAN_MEMBERS, OWNER, [MILTON]);
+        await screen.findByText(PERMISSION_COPY.bansTitle(0));
+        vi.mocked(membersService.listBans).mockResolvedValue([BAN_OF_MILTON]);
+        const user = userEvent.setup();
+
+        await user.click(banMember()!);
+        await user.click(screen.getByRole('button', { name: PERMISSION_COPY.banConfirm }));
+
+        expect(await screen.findByText(PERMISSION_COPY.bansTitle(1))).toBeInTheDocument();
+        expect(banMember()).not.toBeInTheDocument();
     });
 
     it('irse del servidor sigue decidiéndose por ser dueño, no por un bit', async () => {
