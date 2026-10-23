@@ -12,8 +12,13 @@ interface ChatPanelProps {
 
 export const ChatPanel = ({ channelId, channelName, topic, canSendMessages }: ChatPanelProps) => {
     const { user } = useAuth();
-    const { messages, pending, status, maxLength, send, retry, discard, rejected, clearRejected } =
-        useChannelMessages(channelId);
+    const {
+        messages, pending, status, maxLength,
+        send, retry, discard,
+        historyLoaded, historyError, retryHistory,
+        hasMore, loadingMore, loadMoreError, loadMore,
+        rejected, clearRejected,
+    } = useChannelMessages(channelId);
 
     // The caller keys this panel by channelId, so switching channels remounts it and resets
     // scroll position and the unsent draft. Keys here would be duplicated between siblings.
@@ -29,6 +34,14 @@ export const ChatPanel = ({ channelId, channelName, topic, canSendMessages }: Ch
                 canRetry={status === 'open'}
                 onRetry={retry}
                 onDiscard={discard}
+                historyLoaded={historyLoaded}
+                historyError={historyError}
+                onRetryHistory={retryHistory}
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                loadMoreError={loadMoreError}
+                onLoadMore={loadMore}
+                onRetryLoadMore={loadMore}
             />
             <MessageComposer
                 channelName={channelName}
