@@ -15,7 +15,9 @@ const NO_PARTICIPANTS: VoiceParticipant[] = [];
 const primaryButton =
     'px-5 py-2 rounded-md text-sm font-semibold text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-default';
 
-export const VoiceChannelPanel = ({ channel }: { channel: VoiceChannelRef }) => {
+// canJoin comes from the server permissions. Without it there is no "Unirse"; a call already going
+// on in this channel is still shown, because cutting it is the server's job.
+export const VoiceChannelPanel = ({ channel, canJoin }: { channel: VoiceChannelRef; canJoin: boolean }) => {
     const { call, attempt, available, audioBlocked, join, retry, startAudio } = useVoice();
     const inCall = call.status === 'connected' && call.channel.id === channel.id;
     const participants = useVoiceCallParticipants(inCall ? call.participants : NO_PARTICIPANTS);
@@ -65,6 +67,8 @@ export const VoiceChannelPanel = ({ channel }: { channel: VoiceChannelRef }) => 
 
                 {!available ? (
                     <p className="text-sm" style={{ color: '#b9bbbe' }}>{VOICE_JOIN_ERROR_TEXTS.unavailable}</p>
+                ) : !canJoin ? (
+                    <p className="text-sm" style={{ color: '#b9bbbe' }}>{VOICE_JOIN_ERROR_TEXTS.forbidden}</p>
                 ) : failed ? (
                     <>
                         <p role="alert" className="text-sm" style={{ color: '#f38688' }}>
