@@ -52,3 +52,24 @@ describe('useRoles updateRole', () => {
         ]);
     });
 });
+
+describe('useRoles addRole', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('relee la lista en vez de agregar el rol nuevo al final', async () => {
+        // Crear un rol lo pone abajo de la jerarquía y empuja un lugar a los
+        // demás (ADR-0001 de community), así que las posiciones que tiene el
+        // cliente quedan viejas. Agregarlo al arreglo mostraría el orden mal.
+        const result = await loaded([role('r1', 'everyone', true)]);
+        const nuevo = { ...role('r2', 'Moderador'), position: 1 };
+        const everyoneAbajo = { ...role('r1', 'everyone', true), position: 0 };
+        vi.mocked(rolesService.listRoles).mockResolvedValue([everyoneAbajo, nuevo]);
+
+        await act(async () => result.current.addRole());
+
+        expect(rolesService.listRoles).toHaveBeenCalledTimes(2);
+        expect(result.current.roles.map(r => r.name)).toEqual(['everyone', 'Moderador']);
+    });
+});

@@ -1,5 +1,6 @@
 export * from './http/client';
 export * from './http/errors';
+export * from './http/sessionExpiry';
 export type { AuthStorageStrategy } from './http/storage';
 
 export * from './auth/service';
@@ -8,6 +9,9 @@ export type * from './auth/types';
 export * from './users/service';
 export * from './users/publicProfileCache';
 export type * from './users/types';
+
+export * from './admin/service';
+export type * from './admin/types';
 
 export * from './servers/service';
 export type * from './servers/types';

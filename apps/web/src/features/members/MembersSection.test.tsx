@@ -328,6 +328,20 @@ describe('MembersSection', () => {
         expect(onMemberBanned).not.toHaveBeenCalled();
     });
 
+    it('no se puede cerrar mientras el baneo está en vuelo', async () => {
+        // Si se cierra con la request empezada y el backend la rechaza, el error
+        // no se ve nunca. El fondo y la X no miraban `banning`.
+        vi.mocked(membersService.banMember).mockReturnValue(new Promise(() => {}));
+        const { user } = renderSection({ canBan: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Banear a Milton'));
+        await user.click(screen.getByRole('button', { name: 'Banear' }));
+        await user.click(screen.getByLabelText('Cerrar'));
+
+        expect(screen.getByText(/no va a poder volver a entrar/)).toBeInTheDocument();
+    });
+
     it('does not ban when the dialog is dismissed', async () => {
         const { user, onMemberBanned } = renderSection({ canBan: true });
         await screen.findByText('Milton');

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Alert, FlatList, View, Text } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
@@ -14,6 +14,14 @@ interface MessageListProps {
   canRetry: boolean;
   onRetry: (clientMessageId: string) => void;
   onDiscard: (clientMessageId: string) => void;
+  historyLoaded: boolean;
+  historyError: boolean;
+  onRetryHistory: () => void;
+  hasMore: boolean;
+  loadingMore: boolean;
+  loadMoreError: boolean;
+  onLoadMore: () => void;
+  onRetryLoadMore: () => void;
 }
 
 // There is no tooltip on mobile: the correlationId (for searching the logs) is shown on long-press.
@@ -32,6 +40,14 @@ export const MessageList = ({
   canRetry,
   onRetry,
   onDiscard,
+  historyLoaded,
+  historyError,
+  onRetryHistory,
+  hasMore,
+  loadingMore,
+  loadMoreError,
+  onLoadMore,
+  onRetryLoadMore,
 }: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
   const pendingCountRef = useRef(pending.length);
@@ -59,6 +75,25 @@ export const MessageList = ({
     pendingCountRef.current = pending.length;
   }, [pending.length]);
 
+  if (!historyLoaded && !historyError) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator size="large" color="#7289da" />
+      </View>
+    );
+  }
+
+  if (historyError) {
+    return (
+      <View className="flex-1 items-center justify-center px-6">
+        <Text className="text-sm text-[#99aab5]">No se pudo cargar el historial.</Text>
+        <Text className="mt-2 text-sm text-[#7289da]" onPress={onRetryHistory}>
+          Reintentar
+        </Text>
+      </View>
+    );
+  }
+
   // Rendered outside the FlatList: ListEmptyComponent would come out upside down in an inverted list.
   if (data.length === 0) {
     return (
@@ -80,6 +115,19 @@ export const MessageList = ({
       // clientMessageId is unique per channel and keeps the row mounted when a pending message is confirmed.
       keyExtractor={(item) => item.message.clientMessageId}
       keyboardShouldPersistTaps="handled"
+      // In an inverted list, onEndReached fires when scrolling to the visual top (oldest messages).
+      onEndReached={hasMore ? onLoadMore : undefined}
+      onEndReachedThreshold={0.2}
+      ListFooterComponent={
+        loadingMore ? (
+          <ActivityIndicator size="small" color="#7289da" style={{ paddingVertical: 12 }} />
+        ) : loadMoreError ? (
+          <View className="items-center py-2 gap-1">
+            <Text className="text-xs text-center text-[#ed4245]">No se pudo cargar más mensajes.</Text>
+            <Text className="text-xs text-[#7289da]" onPress={onRetryLoadMore}>Reintentar</Text>
+          </View>
+        ) : null
+      }
       renderItem={({ item }) => {
         if (item.kind === 'confirmed') {
           const { authorId } = item.message;

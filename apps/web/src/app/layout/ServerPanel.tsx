@@ -70,6 +70,8 @@ export const ServerPanel = () => {
                         <RolesSection
                             serverId={serverId}
                             roles={roles}
+                            members={members}
+                            ownerId={server?.owner_id}
                             canManage={hasPermission(permissions, MANAGE_ROLES)}
                             onRoleCreated={addRole}
                             onRoleUpdated={updateRole}

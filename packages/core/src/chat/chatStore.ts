@@ -24,8 +24,17 @@ export interface PendingMessage {
     correlationId?: string;
 }
 
+export interface ChannelHistoryMeta {
+    loaded: boolean;
+    hasMore: boolean;
+    loadingMore: boolean;
+    error: boolean;
+    loadMoreError: boolean;
+}
+
 export interface ChatState {
     byChannel: Record<string, ChatMessage[]>;
+    historyByChannel: Record<string, ChannelHistoryMeta>;
     seenMessageIds: Record<string, true>;
     pending: Record<string, PendingMessage>;
     pendingOrder: string[];
@@ -41,12 +50,21 @@ export type ChatAction =
     | { type: 'timeout'; clientMessageId: string }
     | { type: 'sendFailed'; clientMessageId: string }
     | { type: 'connectionLost' }
-    | { type: 'discard'; clientMessageId: string };
+    | { type: 'discard'; clientMessageId: string }
+    | { type: 'historyLoaded'; channelId: string; messages: ChatMessage[]; hasMore: boolean }
+    | { type: 'historyFailed'; channelId: string }
+    | { type: 'historyRetry'; channelId: string }
+    | { type: 'loadingMoreHistory'; channelId: string }
+    | { type: 'moreHistoryLoaded'; channelId: string; messages: ChatMessage[]; hasMore: boolean }
+    | { type: 'loadMoreFailed'; channelId: string }
+    | { type: 'resyncLoaded'; channelId: string; messages: ChatMessage[] }
+    | { type: 'historyReset'; channelId: string };
 
 export const MAX_MESSAGES_PER_CHANNEL = 200;
 
 export const initialChatState: ChatState = {
     byChannel: {},
+    historyByChannel: {},
     seenMessageIds: {},
     pending: {},
     pendingOrder: [],
@@ -135,11 +153,19 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                 content: frame.content,
                 createdAt: frame.createdAt,
             };
-            const channelMessages = [...(state.byChannel[frame.channelId] ?? []), message].slice(-MAX_MESSAGES_PER_CHANNEL);
+            const prev = state.byChannel[frame.channelId] ?? [];
+            const appended = [...prev, message];
+            const channelMessages = appended.length > MAX_MESSAGES_PER_CHANNEL
+                ? appended.slice(-MAX_MESSAGES_PER_CHANNEL)
+                : appended;
+            const seen: Record<string, true> = { ...state.seenMessageIds, [frame.messageId]: true };
+            if (appended.length > MAX_MESSAGES_PER_CHANNEL) {
+                delete seen[appended[0].messageId];
+            }
             const next: ChatState = {
                 ...state,
                 byChannel: { ...state.byChannel, [frame.channelId]: channelMessages },
-                seenMessageIds: { ...state.seenMessageIds, [frame.messageId]: true },
+                seenMessageIds: seen,
             };
             if (!state.pending[frame.clientMessageId]) return next;
             return {
@@ -182,5 +208,122 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                 pendingOrder: without(state.pendingOrder, action.clientMessageId),
                 awaitingResponse: without(state.awaitingResponse, action.clientMessageId),
             };
+
+        case 'historyLoaded': {
+            const { channelId, messages, hasMore } = action;
+            const existing = state.byChannel[channelId] ?? [];
+            const newMsgs = messages.filter((m) => !state.seenMessageIds[m.messageId]);
+            const seen = { ...state.seenMessageIds };
+            newMsgs.forEach((m) => { seen[m.messageId] = true; });
+            const allMerged = [...newMsgs, ...existing];
+            const merged = allMerged.slice(-MAX_MESSAGES_PER_CHANNEL);
+            const dropped = allMerged.length - merged.length;
+            for (let i = 0; i < dropped; i++) {
+                delete seen[allMerged[i].messageId];
+            }
+            return {
+                ...state,
+                byChannel: { ...state.byChannel, [channelId]: merged },
+                historyByChannel: { ...state.historyByChannel, [channelId]: { loaded: true, hasMore, loadingMore: false, error: false, loadMoreError: false } },
+                seenMessageIds: seen,
+            };
+        }
+
+        case 'historyFailed':
+            return {
+                ...state,
+                historyByChannel: {
+                    ...state.historyByChannel,
+                    [action.channelId]: { loaded: false, hasMore: false, loadingMore: false, error: true, loadMoreError: false },
+                },
+            };
+
+        case 'historyRetry': {
+            const current = state.historyByChannel[action.channelId];
+            if (!current?.error) return state;
+            return {
+                ...state,
+                historyByChannel: {
+                    ...state.historyByChannel,
+                    [action.channelId]: { ...current, error: false, loaded: false },
+                },
+            };
+        }
+
+        case 'loadingMoreHistory': {
+            const current = state.historyByChannel[action.channelId];
+            if (!current) return state;
+            return {
+                ...state,
+                historyByChannel: { ...state.historyByChannel, [action.channelId]: { ...current, loadingMore: true, loadMoreError: false } },
+            };
+        }
+
+        case 'moreHistoryLoaded': {
+            const { channelId, messages, hasMore } = action;
+            const existing = state.byChannel[channelId] ?? [];
+            const newMsgs = messages.filter((m) => !state.seenMessageIds[m.messageId]);
+            const seen = { ...state.seenMessageIds };
+            newMsgs.forEach((m) => { seen[m.messageId] = true; });
+            // Older messages prepended; no slice so newest messages are never discarded from seenMessageIds.
+            const merged = [...newMsgs, ...existing];
+            return {
+                ...state,
+                byChannel: { ...state.byChannel, [channelId]: merged },
+                historyByChannel: { ...state.historyByChannel, [channelId]: { loaded: true, hasMore, loadingMore: false, error: false, loadMoreError: false } },
+                seenMessageIds: seen,
+            };
+        }
+
+        case 'loadMoreFailed': {
+            const current = state.historyByChannel[action.channelId];
+            if (!current) return state;
+            return {
+                ...state,
+                historyByChannel: {
+                    ...state.historyByChannel,
+                    [action.channelId]: { ...current, loadingMore: false, loadMoreError: true },
+                },
+            };
+        }
+
+        case 'resyncLoaded': {
+            const { channelId, messages } = action;
+            const existing = state.byChannel[channelId] ?? [];
+            const newMsgs = messages.filter((m) => !state.seenMessageIds[m.messageId]);
+            if (newMsgs.length === 0) return state;
+            const seen = { ...state.seenMessageIds };
+            newMsgs.forEach((m) => { seen[m.messageId] = true; });
+            const sorted = [...existing, ...newMsgs].sort((a, b) => {
+                const diff = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+                return diff !== 0 ? diff : a.messageId < b.messageId ? -1 : 1;
+            });
+            const merged = sorted.slice(-MAX_MESSAGES_PER_CHANNEL);
+            const dropped = sorted.length - merged.length;
+            for (let i = 0; i < dropped; i++) {
+                delete seen[sorted[i].messageId];
+            }
+            return {
+                ...state,
+                byChannel: { ...state.byChannel, [channelId]: merged },
+                seenMessageIds: seen,
+            };
+        }
+
+        case 'historyReset': {
+            const { channelId } = action;
+            const channelMessages = state.byChannel[channelId] ?? [];
+            const seen = { ...state.seenMessageIds };
+            channelMessages.forEach((m) => { delete seen[m.messageId]; });
+            return {
+                ...state,
+                byChannel: { ...state.byChannel, [channelId]: [] },
+                historyByChannel: {
+                    ...state.historyByChannel,
+                    [channelId]: { loaded: false, hasMore: false, loadingMore: false, error: false, loadMoreError: false },
+                },
+                seenMessageIds: seen,
+            };
+        }
     }
 };
