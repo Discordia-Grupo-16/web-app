@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, Text } from 'react-native';
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import type { Channel } from '@discordia/api';
 import { channelsService } from '@/shared/api';
@@ -25,11 +25,17 @@ const general = channel('c1', 'general');
 const lobby = channel('c2', 'lobby', 'voice');
 
 // onChannelsChange receives an updater: apply it to the channels the section was given.
-const renderSection = async (canManage = true) => {
+const renderSection = async (canManage = true, renderBelowChannel?: (ch: Channel) => React.ReactNode) => {
   const onChannelsChange = jest.fn();
   const user = userEvent.setup();
   await render(
-    <ChannelSection serverId="srv" channels={[general, lobby]} canManage={canManage} onChannelsChange={onChannelsChange} />,
+    <ChannelSection
+      serverId="srv"
+      channels={[general, lobby]}
+      canManage={canManage}
+      onChannelsChange={onChannelsChange}
+      renderBelowChannel={renderBelowChannel}
+    />,
   );
   const applied = () =>
     onChannelsChange.mock.calls.reduce((list: Channel[], [update]) => update(list), [general, lobby]);
@@ -62,8 +68,22 @@ describe('ChannelSection', () => {
     await user.press(screen.getByText('# general'));
     expect(mockPush).toHaveBeenCalledWith({
       pathname: '/server/[serverId]/channel/[channelId]',
-      params: { serverId: 'srv', channelId: 'c1', name: 'general' },
+      params: { serverId: 'srv', channelId: 'c1', name: 'general', type: 'text' },
     });
+  });
+
+  it('opens a voice channel in its call screen', async () => {
+    const { user } = await renderSection();
+    await user.press(screen.getByText('🔊 lobby'));
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/server/[serverId]/channel/[channelId]',
+      params: { serverId: 'srv', channelId: 'c2', name: 'lobby', type: 'voice' },
+    });
+  });
+
+  it('draws what it is given under each channel', async () => {
+    await renderSection(true, (ch) => (ch.id === 'c2' ? <Text>Ana en la llamada</Text> : null));
+    expect(screen.getByText('Ana en la llamada')).toBeOnTheScreen();
   });
 
   it('hides the management buttons for members who cannot manage', async () => {

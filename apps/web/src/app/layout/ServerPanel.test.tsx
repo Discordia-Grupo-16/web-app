@@ -33,6 +33,9 @@ vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
     useAuth: () => ({ user: { id: ME, name: 'Yo', avatarUrl: null } }),
     usePublicProfiles: () => new Map(),
+    // The voice call list under a channel has its own tests (ServerPanel.voice.test.tsx).
+    useVoice: () => ({ call: { status: 'idle' } }),
+    useVoiceCallParticipants: () => [],
 }));
 // Dependen de un contexto que este panel no provee y que no es lo que se mira acá.
 vi.mock('@/features/invitations', () => ({ InviteButton: () => null }));

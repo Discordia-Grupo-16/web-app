@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Alert, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { Channel } from '@discordia/api';
@@ -15,10 +15,12 @@ interface ChannelSectionProps {
   canManage: boolean;
   /** The section does not own the channels: the server does. */
   onChannelsChange: (update: (channels: Channel[]) => Channel[]) => void;
+  /** Drawn under a channel's row, e.g. who is in its call. */
+  renderBelowChannel?: (channel: Channel) => ReactNode;
 }
 
-// Text and voice channels of a server. Only text channels open (into the chat).
-export function ChannelSection({ serverId, channels, canManage, onChannelsChange }: ChannelSectionProps) {
+// Text and voice channels of a server. The channel route picks the chat or the call by the type it gets.
+export function ChannelSection({ serverId, channels, canManage, onChannelsChange, renderBelowChannel }: ChannelSectionProps) {
   const router = useRouter();
   const [createChannelType, setCreateChannelType] = useState<'text' | 'voice' | null>(null);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
@@ -29,7 +31,7 @@ export function ChannelSection({ serverId, channels, canManage, onChannelsChange
   const handleOpenChannel = (ch: Channel) => {
     router.push({
       pathname: '/server/[serverId]/channel/[channelId]',
-      params: { serverId, channelId: ch.id, name: ch.name },
+      params: { serverId, channelId: ch.id, name: ch.name, type: ch.type },
     });
   };
 
@@ -69,14 +71,16 @@ export function ChannelSection({ serverId, channels, canManage, onChannelsChange
         <Text className="text-[#72767d] text-xs px-1">Sin canales de texto.</Text>
       )}
       {textChannels.map(ch => (
-        <ChannelItem
-          key={ch.id}
-          channel={ch}
-          canManage={canManage}
-          onDelete={handleDeleteChannel}
-          onEdit={setEditingChannel}
-          onOpen={handleOpenChannel}
-        />
+        <Fragment key={ch.id}>
+          <ChannelItem
+            channel={ch}
+            canManage={canManage}
+            onDelete={handleDeleteChannel}
+            onEdit={setEditingChannel}
+            onOpen={handleOpenChannel}
+          />
+          {renderBelowChannel?.(ch)}
+        </Fragment>
       ))}
 
       <SectionHeader
@@ -88,7 +92,16 @@ export function ChannelSection({ serverId, channels, canManage, onChannelsChange
         <Text className="text-[#72767d] text-xs px-1">Sin canales de voz.</Text>
       )}
       {voiceChannels.map(ch => (
-        <ChannelItem key={ch.id} channel={ch} canManage={canManage} onDelete={handleDeleteChannel} onEdit={setEditingChannel} />
+        <Fragment key={ch.id}>
+          <ChannelItem
+            channel={ch}
+            canManage={canManage}
+            onDelete={handleDeleteChannel}
+            onEdit={setEditingChannel}
+            onOpen={handleOpenChannel}
+          />
+          {renderBelowChannel?.(ch)}
+        </Fragment>
       ))}
 
       {editingChannel && (
