@@ -5,13 +5,15 @@ interface ApiConfig {
     baseURL: string;
     timeout?: number;
     storage: AuthStorageStrategy;
+    /** The server rejected the session for good: the user has to log in again (login CA 4). */
+    onSessionExpired?: () => void;
 }
 
 interface CustomRequestConfig extends InternalAxiosRequestConfig {
     _retry?: boolean;
 }
 
-export function createApiClient({ baseURL, timeout, storage }: ApiConfig): AxiosInstance {
+export function createApiClient({ baseURL, timeout, storage, onSessionExpired }: ApiConfig): AxiosInstance {
     const api = axios.create({
         baseURL,
         timeout,
@@ -61,6 +63,9 @@ export function createApiClient({ baseURL, timeout, storage }: ApiConfig): Axios
                 : null;
 
             if (!refreshToken) {
+                // Only a request that carried a token says something about the session: a 401 for
+                // someone who never logged in (e.g. an invitation preview) is not an expiry.
+                if (originalRequest.headers?.Authorization) onSessionExpired?.();
                 return Promise.reject(error);
             }
 
@@ -106,7 +111,16 @@ export function createApiClient({ baseURL, timeout, storage }: ApiConfig): Axios
                 return api(originalRequest);
             } catch (refreshError) {
                 refreshSubscribers = [];
-                await storage.clearSession();
+                // Only the server refusing the refresh token ends the session. Without an answer
+                // (offline, timeout) or with a server error (5xx, 429) the token may still be good:
+                // keep the session and let the next request try again.
+                if (
+                    axios.isAxiosError(refreshError) &&
+                    (refreshError.response?.status === 401 || refreshError.response?.status === 403)
+                ) {
+                    await storage.clearSession();
+                    onSessionExpired?.();
+                }
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;
