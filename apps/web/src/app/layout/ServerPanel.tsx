@@ -1,18 +1,51 @@
 import { useParams } from 'react-router-dom';
-import { useAuth } from '@discordia/core';
+import type { Channel } from '@discordia/api';
+import {
+    BAN_MEMBERS,
+    KICK_MEMBERS,
+    MANAGE_CHANNELS,
+    MANAGE_ROLES,
+    NONE,
+    PERMISSION_COPY,
+    VIEW_CHANNEL,
+    hasPermission,
+    useAuth,
+    useVoice,
+    useVoiceCallParticipants,
+    type VoiceParticipant,
+} from '@discordia/core';
 import { ChannelList } from '@/features/channels';
+import { MembersSection, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
 import { RolesSection, useRoles } from '@/features/roles';
 import { LeaveServerButton, ServerHeader, useServer } from '@/features/servers';
+import { VoiceParticipantList } from '@/features/voice';
+
+const NO_PARTICIPANTS: VoiceParticipant[] = [];
 
 // Second column of the layout: the selected server with its channels and roles.
 export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
     const { server, loading: loadingServer, updateChannels } = useServer(serverId, channelId);
-    const { roles, loading: loadingRoles, addRole } = useRoles(serverId);
+    const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
+    const { members, loading: loadingMembers, setMemberRoles, removeMember } = useMembers(serverId);
 
-    const loading = loadingServer || loadingRoles;
+    const { call } = useVoice();
+    const callChannelId = call.status === 'connected' ? call.channel.id : null;
+    const callParticipants = useVoiceCallParticipants(call.status === 'connected' ? call.participants : NO_PARTICIPANTS);
+    // Only the channel of the call shows who is in it. Another server does not list that channel.
+    const renderBelowChannel = (channel: Channel) =>
+        channel.id === callChannelId ? <VoiceParticipantList participants={callParticipants} /> : null;
+
+    const loading = loadingServer || loadingRoles || loadingMembers;
+
+    // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
+    // showing a button that then disappears is worse than showing it one render late.
+    const permissions = server?.my_permissions ?? NONE;
+
+    // Leaving is not a permission but a condition: the owner cannot leave their own server, they
+    // delete it. That is why this is still an ownership check and not a bit.
     const isOwner = !!user && server?.owner_id === user.id;
 
     return (
@@ -29,20 +62,46 @@ export const ServerPanel = () => {
                 {loading && (
                     <p className="text-xs px-4 py-2" style={{ color: '#99aab5' }}>Cargando...</p>
                 )}
+                {serverId && !loading && !hasPermission(permissions, VIEW_CHANNEL) && (
+                    // La lista llega vacía porque `community` no manda los
+                    // canales sin VIEW_CHANNEL. Sin este texto, la pantalla no
+                    // explica nada.
+                    <p className="text-xs px-4 py-2" style={{ color: '#99aab5' }}>
+                        {PERMISSION_COPY.noViewChannel}
+                    </p>
+                )}
                 {serverId && !loading && (
                     <>
-                        <ChannelList
-                            serverId={serverId}
-                            channels={server?.channels ?? []}
-                            activeChannelId={channelId}
-                            canManage={isOwner}
-                            onChannelsChange={updateChannels}
-                        />
+                        {hasPermission(permissions, VIEW_CHANNEL) && (
+                            <ChannelList
+                                serverId={serverId}
+                                channels={server?.channels ?? []}
+                                activeChannelId={channelId}
+                                canManage={hasPermission(permissions, MANAGE_CHANNELS)}
+                                onChannelsChange={updateChannels}
+                                renderBelowChannel={renderBelowChannel}
+                            />
+                        )}
                         <RolesSection
                             serverId={serverId}
                             roles={roles}
-                            canManage={isOwner}
+                            members={members}
+                            ownerId={server?.owner_id}
+                            canManage={hasPermission(permissions, MANAGE_ROLES)}
                             onRoleCreated={addRole}
+                            onRoleUpdated={updateRole}
+                        />
+                        <MembersSection
+                            serverId={serverId}
+                            members={members}
+                            roles={roles}
+                            ownerId={server?.owner_id}
+                            canManage={hasPermission(permissions, MANAGE_ROLES)}
+                            canKick={hasPermission(permissions, KICK_MEMBERS)}
+                            canBan={hasPermission(permissions, BAN_MEMBERS)}
+                            onRolesChange={setMemberRoles}
+                            onMemberKicked={removeMember}
+                            onMemberBanned={removeMember}
                         />
                     </>
                 )}

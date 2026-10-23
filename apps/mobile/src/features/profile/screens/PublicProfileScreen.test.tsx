@@ -24,6 +24,8 @@ const server = (id: string, name: string): Server => ({
   owner_id: 'owner',
   avatar_url: null,
   created_at: '2026-10-01T00:00:00Z',
+  my_permissions: 7,
+  my_permission_names: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'CONNECT'],
   channels: [],
 });
 

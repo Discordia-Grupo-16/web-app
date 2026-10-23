@@ -17,6 +17,10 @@ jest.mock('@/features/chat', () => ({
   RealtimeProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('@/features/profile', () => ({ ProfileButton: () => null }));
+jest.mock('@/features/voice', () => ({
+  VoiceProvider: ({ children }: { children: React.ReactNode }) => children,
+  VoiceBar: () => null,
+}));
 
 const felipe = { id: '1', name: 'Felipe' };
 const credentials = { email: 'felipe@example.com', password: 'Password1' };

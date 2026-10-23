@@ -3,9 +3,11 @@ import {
     createAuthService,
     createChannelsService,
     createInvitationsService,
+    createMembersService,
     createRolesService,
     createServersService,
     createUserService,
+    createVoiceService,
 } from '@discordia/api';
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/shared/config/env';
 import { webAuthStorage } from '@/shared/session/authStorage';
@@ -24,4 +26,6 @@ export const userService = createUserService(api);
 export const serversService = createServersService(api);
 export const channelsService = createChannelsService(api);
 export const rolesService = createRolesService(api);
+export const membersService = createMembersService(api);
 export const invitationsService = createInvitationsService(api);
+export const voiceService = createVoiceService(api);

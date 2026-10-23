@@ -31,6 +31,13 @@ const READY_STATE_OPEN = 1;
 declare function setTimeout(handler: () => void, timeoutMs: number): number;
 declare function clearTimeout(id: number): void;
 
+/** chat.yaml: 4400-4499 are terminal, the client must not reconnect. */
+export const CLOSE_ACCOUNT_SUSPENDED = 4403;
+
+export function isTerminalCloseCode(code: number): boolean {
+    return code >= 4400 && code <= 4499;
+}
+
 export type ConnectionState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 
 export interface RealtimeClientConfig {
@@ -57,6 +64,7 @@ export interface RealtimeEventMap {
     ack: (frame: MessageAckFrame) => void;
     messageCreated: (frame: MessageCreatedFrame) => void;
     errorFrame: (frame: ErrorFrame) => void;
+    terminated: (event: { code: number; reason: string }) => void;
 }
 
 export interface RealtimeClient {
@@ -113,6 +121,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         ack: new Set(),
         messageCreated: new Set(),
         errorFrame: new Set(),
+        terminated: new Set(),
     };
 
     function emit<K extends keyof RealtimeEventMap>(
@@ -181,9 +190,17 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
             }
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
             if (attemptId !== connectAttemptId) return;
             socket = null;
+            // Terminal codes (4400-4499): the server rejected us for good, so
+            // retrying would loop. The app decides what to do (e.g. sign out).
+            if (isTerminalCloseCode(event.code)) {
+                clearReconnectTimer();
+                setState('closed');
+                emit('terminated', { code: event.code, reason: event.reason });
+                return;
+            }
             if (deliberateClose) return;
             scheduleReconnect();
         };

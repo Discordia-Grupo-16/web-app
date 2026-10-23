@@ -1,9 +1,10 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { LoginRegisterPage, ProtectedRoute } from '@/features/auth';
-import { ChannelView } from '@/features/chat';
 import { InvitePage } from '@/features/invitations';
 import App from './App';
 import { AppLayout } from './layout/AppLayout';
+import { ChannelRoute } from './layout/ChannelRoute';
+import { InviteLayout } from './layout/InviteLayout';
 import { RealtimeOutlet } from './layout/RealtimeOutlet';
 
 export const router = createBrowserRouter([
@@ -37,10 +38,13 @@ export const router = createBrowserRouter([
                       </div>
                     )
                   },
-                  { path: 'servers/:serverId/channels/:channelId', element: <ChannelView /> },
+                  { path: 'servers/:serverId/channels/:channelId', element: <ChannelRoute /> },
                 ],
               },
-              { path: 'invite/:code', element: <InvitePage /> },
+              {
+                element: <InviteLayout />,
+                children: [{ path: 'invite/:code', element: <InvitePage /> }],
+              },
             ],
           },
         ],
