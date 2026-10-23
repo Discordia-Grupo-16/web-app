@@ -11,8 +11,8 @@ interface UserProfileEditModalProps {
 export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalProps) => {
     const { user, updateUser } = useAuth();
 
-    const [newName, setName] = useState('');
-    const [newBio, setBio] = useState('');
+    const [newName, setName] = useState(user?.name || '');
+    const [newBio, setBio] = useState(user?.bio || '');
     const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -21,14 +21,6 @@ export const UserProfileEditModal = ({ isOpen, onClose }: UserProfileEditModalPr
     const nameIsTooLong = newName.trim().length > 80
     const bioIsTooLong = newBio.trim().length > 240
     const hasError = nameIsEmpty || nameIsTooLong || bioIsTooLong
-
-    useEffect(() => {
-        if (user) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            setName(user.name || '');
-            setBio(user.bio || '');
-        }
-    }, [isOpen, user]);
 
     useEffect(() => {
         return () => {
