@@ -20,7 +20,7 @@ const createPromptGate = () => {
 
 const withPermissionPrompt = (adapter: VoiceRoomAdapter, gate: ReturnType<typeof createPromptGate>): VoiceRoomAdapter => ({
   ...adapter,
-  enableMicrophone: () => gate.run(() => adapter.enableMicrophone()),
+  enableMicrophone: (...args) => gate.run(() => adapter.enableMicrophone(...args)),
 });
 
 // In Expo Go there is no adapter: the controller reports voice as unavailable.

@@ -5,11 +5,16 @@ import {
     Room,
     RoomEvent,
     Track,
+    TrackEvent,
+    type LocalTrack,
+    type LocalTrackPublication,
     type RemoteTrack,
 } from 'livekit-client';
 import {
     buildParticipantSnapshot,
     readServerReason,
+    type EnableMicrophoneOptions,
+    type MicLossCause,
     type MicResult,
     type RoomConnectFailure,
     type RoomDisconnectCause,
@@ -74,6 +79,10 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     const participantListeners = new Set<(snapshot: VoiceParticipant[]) => void>();
     const playbackListeners = new Set<(blocked: boolean) => void>();
     const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
+    const micLostListeners = new Set<(cause: MicLossCause) => void>();
+    // A mute asked by the user is not a lost microphone.
+    let muteRequested = false;
+    let unwatchMicrophone: (() => void) | null = null;
     let room: Room | null = null;
 
     const subscribe =
@@ -95,6 +104,45 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     };
     const detachAudio = (track: RemoteTrack) => track.detach().forEach((element) => element.remove());
 
+    // LiveKit switches to another microphone by itself when the current one goes away. It is lost only
+    // when LiveKit gives up: it mutes the ended track, or a muted track ends with no microphone left
+    // (or without permission), which LiveKit does not try to restart.
+    const watchMicrophone = (owner: Room, track: LocalTrack) => {
+        const emitLost = (cause: MicLossCause) => {
+            if (room === owner) micLostListeners.forEach((l) => l(cause));
+        };
+        let restarted = false;
+        const onMuted = async () => {
+            if (muteRequested || track.mediaStreamTrack.readyState !== 'ended') return;
+            emitLost((await microphonePermissionDenied()) ? 'blocked' : 'no-device');
+        };
+        const onEnded = async () => {
+            if (!track.isMuted) return;
+            restarted = false;
+            if (await microphonePermissionDenied()) {
+                if (!restarted) emitLost('blocked');
+                return;
+            }
+            const devices = await Room.getLocalDevices('audioinput', false).catch(() => []);
+            if (!restarted && devices.length === 0) emitLost('no-device');
+        };
+        const onRestarted = () => {
+            restarted = true;
+        };
+        track.on(TrackEvent.Muted, onMuted);
+        track.on(TrackEvent.Ended, onEnded);
+        track.on(TrackEvent.Restarted, onRestarted);
+        return () => {
+            track.off(TrackEvent.Muted, onMuted);
+            track.off(TrackEvent.Ended, onEnded);
+            track.off(TrackEvent.Restarted, onRestarted);
+        };
+    };
+    const stopWatchingMicrophone = () => {
+        unwatchMicrophone?.();
+        unwatchMicrophone = null;
+    };
+
     const createRoom = (): Room => {
         // disconnectOnPageLeave stays on its default (true): closing the tab sends the leave.
         const next = new Room();
@@ -114,8 +162,19 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
         next.on(RoomEvent.SignalReconnecting, () => emitReconnecting(true));
         next.on(RoomEvent.Reconnecting, () => emitReconnecting(true));
         next.on(RoomEvent.Reconnected, () => emitReconnecting(false));
+        next.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
+            if (room !== next || publication.source !== Track.Source.Microphone || !publication.track) return;
+            stopWatchingMicrophone();
+            unwatchMicrophone = watchMicrophone(next, publication.track);
+        });
+        next.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
+            if (room === next && publication.source === Track.Source.Microphone) stopWatchingMicrophone();
+        });
         next.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
-            if (room === next) room = null;
+            if (room === next) {
+                room = null;
+                stopWatchingMicrophone();
+            }
             const info: RoomDisconnectInfo = {
                 cause: disconnectCause(reason),
                 serverReason: readServerReason(next.localParticipant.attributes),
@@ -144,14 +203,27 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
         async disconnect() {
             const current = room;
             room = null;
+            stopWatchingMicrophone();
             await current?.disconnect();
         },
 
-        async enableMicrophone(): Promise<MicResult> {
+        async enableMicrophone(options?: EnableMicrophoneOptions): Promise<MicResult> {
             const current = room;
             if (!current) return 'no-device';
             try {
-                const publication = await current.localParticipant.setMicrophoneEnabled(true);
+                let publication: LocalTrackPublication | undefined;
+                if (options?.muted && !current.localParticipant.getTrackPublication(Track.Source.Microphone)) {
+                    // Muted before publishing, so the room never receives a sound from it.
+                    const [track] = await current.localParticipant.createTracks({ audio: true });
+                    if (room !== current) {
+                        track?.stop();
+                        return 'no-device';
+                    }
+                    await track.mute();
+                    publication = await current.localParticipant.publishTrack(track);
+                } else {
+                    publication = await current.localParticipant.setMicrophoneEnabled(true);
+                }
                 // The call was left while the browser was asking: the microphone must not stay on.
                 if (room !== current) {
                     publication?.track?.stop();
@@ -169,6 +241,18 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
         onDisconnected: subscribe(disconnectedListeners),
         onParticipantsChanged: subscribe(participantListeners),
         onReconnectingChanged: subscribe(reconnectingListeners),
+        onMicrophoneLost: subscribe(micLostListeners),
+
+        async muteMicrophone() {
+            const current = room;
+            if (!current) return;
+            muteRequested = true;
+            try {
+                await current.localParticipant.setMicrophoneEnabled(false);
+            } finally {
+                muteRequested = false;
+            }
+        },
         onAudioPlaybackBlocked: subscribe(playbackListeners),
 
         async startAudio() {

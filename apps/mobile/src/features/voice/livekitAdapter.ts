@@ -1,9 +1,21 @@
 import { PermissionsAndroid } from 'react-native';
 import { AndroidAudioTypePresets, AudioSession } from '@livekit/react-native';
-import { ConnectionError, ConnectionErrorReason, DisconnectReason, Room, RoomEvent } from 'livekit-client';
+import {
+  ConnectionError,
+  ConnectionErrorReason,
+  DisconnectReason,
+  Room,
+  RoomEvent,
+  Track,
+  TrackEvent,
+  type LocalTrack,
+  type LocalTrackPublication,
+} from 'livekit-client';
 import {
   buildParticipantSnapshot,
   readServerReason,
+  type EnableMicrophoneOptions,
+  type MicLossCause,
   type MicResult,
   type RoomConnectFailure,
   type RoomDisconnectCause,
@@ -73,6 +85,10 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
   const disconnectedListeners = new Set<(info: RoomDisconnectInfo) => void>();
   const participantListeners = new Set<(snapshot: VoiceParticipant[]) => void>();
   const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
+  const micLostListeners = new Set<(cause: MicLossCause) => void>();
+  // A mute asked by the user is not a lost microphone.
+  let muteRequested = false;
+  let unwatchMicrophone: (() => void) | null = null;
   let room: Room | null = null;
   let audioStarted = false;
   let pendingAudioStop: ReturnType<typeof setTimeout> | null = null;
@@ -112,6 +128,41 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
       };
     };
 
+  // LiveKit switches to another microphone by itself when the current one goes away. It is lost only
+  // when LiveKit gives up: it mutes the ended track, or a muted track ends with no microphone left.
+  // Revoking the permission on Android means leaving the app, which already cuts the call, so the
+  // cause is always 'no-device'.
+  const watchMicrophone = (owner: Room, track: LocalTrack) => {
+    const emitLost = () => {
+      if (room === owner) micLostListeners.forEach((l) => l('no-device'));
+    };
+    let restarted = false;
+    const onMuted = () => {
+      if (!muteRequested && track.mediaStreamTrack.readyState === 'ended') emitLost();
+    };
+    const onEnded = async () => {
+      if (!track.isMuted) return;
+      restarted = false;
+      const devices = await Room.getLocalDevices('audioinput', false).catch(() => []);
+      if (!restarted && devices.length === 0) emitLost();
+    };
+    const onRestarted = () => {
+      restarted = true;
+    };
+    track.on(TrackEvent.Muted, onMuted);
+    track.on(TrackEvent.Ended, onEnded);
+    track.on(TrackEvent.Restarted, onRestarted);
+    return () => {
+      track.off(TrackEvent.Muted, onMuted);
+      track.off(TrackEvent.Ended, onEnded);
+      track.off(TrackEvent.Restarted, onRestarted);
+    };
+  };
+  const stopWatchingMicrophone = () => {
+    unwatchMicrophone?.();
+    unwatchMicrophone = null;
+  };
+
   const createRoom = (): Room => {
     const next = new Room();
     const seen = new Map<string, number>();
@@ -127,9 +178,18 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     next.on(RoomEvent.SignalReconnecting, () => emitReconnecting(true));
     next.on(RoomEvent.Reconnecting, () => emitReconnecting(true));
     next.on(RoomEvent.Reconnected, () => emitReconnecting(false));
+    next.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
+      if (room !== next || publication.source !== Track.Source.Microphone || !publication.track) return;
+      stopWatchingMicrophone();
+      unwatchMicrophone = watchMicrophone(next, publication.track);
+    });
+    next.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
+      if (room === next && publication.source === Track.Source.Microphone) stopWatchingMicrophone();
+    });
     next.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
       if (room === next) {
         room = null;
+        stopWatchingMicrophone();
         stopAudioSoon();
       }
       const info: RoomDisconnectInfo = {
@@ -161,11 +221,12 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     async disconnect() {
       const current = room;
       room = null;
+      stopWatchingMicrophone();
       await current?.disconnect();
       if (current) stopAudioSoon();
     },
 
-    async enableMicrophone(): Promise<MicResult> {
+    async enableMicrophone(options?: EnableMicrophoneOptions): Promise<MicResult> {
       const current = room;
       if (!current) return 'no-device';
       const permission = await requestMicrophonePermission();
@@ -173,7 +234,19 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
       if (room !== current) return 'no-device';
       if (permission !== 'ok') return permission;
       try {
-        const publication = await current.localParticipant.setMicrophoneEnabled(true);
+        let publication: LocalTrackPublication | undefined;
+        if (options?.muted && !current.localParticipant.getTrackPublication(Track.Source.Microphone)) {
+          // Muted before publishing, so the room never receives a sound from it.
+          const [track] = await current.localParticipant.createTracks({ audio: true });
+          if (room !== current) {
+            track?.stop();
+            return 'no-device';
+          }
+          await track.mute();
+          publication = await current.localParticipant.publishTrack(track);
+        } else {
+          publication = await current.localParticipant.setMicrophoneEnabled(true);
+        }
         if (room !== current) {
           publication?.track?.stop();
           return 'no-device';
@@ -187,5 +260,17 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     onDisconnected: subscribe(disconnectedListeners),
     onParticipantsChanged: subscribe(participantListeners),
     onReconnectingChanged: subscribe(reconnectingListeners),
+    onMicrophoneLost: subscribe(micLostListeners),
+
+    async muteMicrophone() {
+      const current = room;
+      if (!current) return;
+      muteRequested = true;
+      try {
+        await current.localParticipant.setMicrophoneEnabled(false);
+      } finally {
+        muteRequested = false;
+      }
+    },
   };
 };

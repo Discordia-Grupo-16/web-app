@@ -14,12 +14,15 @@ vi.mock('@discordia/core', async (importOriginal) => ({
 const general = { id: 'c1', serverId: 's1', name: 'General' };
 const juegos = { id: 'c2', serverId: 's1', name: 'Juegos' };
 
-const connected = (extra: { reconnecting?: boolean } = {}) => ({
+const connected = (
+    extra: { reconnecting?: boolean; micAvailable?: boolean; muted?: boolean; micPending?: boolean } = {},
+) => ({
     status: 'connected' as const,
     channel: general,
-    micAvailable: true,
+    micAvailable: extra.micAvailable ?? true,
     micBlocked: false,
-    muted: false,
+    muted: extra.muted ?? false,
+    micPending: extra.micPending ?? false,
     reconnecting: extra.reconnecting ?? false,
     participants: [],
 });
@@ -41,7 +44,7 @@ describe('VoiceBar', () => {
 
     it('links to the channel of the call', () => {
         vi.mocked(useVoice).mockReturnValue(
-            voiceValue({ call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, reconnecting: false, participants: [] } }),
+            voiceValue({ call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, participants: [] } }),
         );
         renderBar();
 
@@ -94,7 +97,8 @@ describe('VoiceBar', () => {
 
         await userEvent.click(screen.getByRole('button', { name: 'Volver a unirse' }));
 
-        expect(value.join).toHaveBeenCalledWith(general);
+        expect(value.rejoin).toHaveBeenCalled();
+        expect(value.join).not.toHaveBeenCalled();
     });
 
     it.each(['other_device', 'kicked'] as const)('does not offer to rejoin after %s', (reason) => {
@@ -102,5 +106,60 @@ describe('VoiceBar', () => {
         renderBar();
 
         expect(screen.queryByRole('button', { name: 'Volver a unirse' })).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ['active', {}, 'Silenciar micrófono', 'false'],
+        ['muted', { muted: true }, 'Activar micrófono', 'true'],
+        ['without microphone', { micAvailable: false, muted: true }, 'Activar micrófono', 'true'],
+    ] as const)('shows the microphone %s', (_label, state, name, pressed) => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connected(state) }));
+        renderBar();
+
+        expect(screen.getByRole('button', { name })).toHaveAttribute('aria-pressed', pressed);
+    });
+
+    it('tells that there is no microphone (CA2 de SCRUM-53, Silenciar micrófono propio)', () => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connected({ micAvailable: false, muted: true }) }));
+        renderBar();
+
+        expect(screen.getByRole('button', { name: 'Activar micrófono' })).toHaveAccessibleDescription(
+            'Estás conectado sin micrófono: los demás no te escuchan.',
+        );
+    });
+
+    it('mutes from the bar (CA1 de SCRUM-53, Silenciar micrófono propio)', async () => {
+        const value = voiceValue({ call: connected() });
+        vi.mocked(useVoice).mockReturnValue(value);
+        renderBar();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Silenciar micrófono' }));
+
+        expect(value.toggleMute).toHaveBeenCalled();
+    });
+
+    it('waits while the microphone is being turned on', () => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connected({ muted: true, micPending: true }) }));
+        renderBar();
+
+        const button = screen.getByRole('button', { name: 'Activar micrófono' });
+        expect(button).toBeDisabled();
+        expect(button).toHaveAttribute('aria-busy', 'true');
+    });
+
+    it('waits for a join in progress before letting the user mute', () => {
+        vi.mocked(useVoice).mockReturnValue(
+            voiceValue({ call: connected(), attempt: { status: 'connecting', channel: juegos } }),
+        );
+        renderBar();
+
+        expect(screen.getByRole('button', { name: 'Silenciar micrófono' })).toBeDisabled();
+    });
+
+    it('has no microphone button without a call', () => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue());
+        renderBar();
+
+        expect(screen.queryByRole('button', { name: /micrófono/ })).not.toBeInTheDocument();
     });
 });

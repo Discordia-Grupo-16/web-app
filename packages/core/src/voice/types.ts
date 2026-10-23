@@ -14,6 +14,13 @@ export type VoiceServerReason =
 export type VoiceClientReason = 'connection_lost' | 'app_backgrounded';
 export type VoiceDisconnectReason = VoiceServerReason | VoiceClientReason;
 export type MicResult = 'ok' | 'denied' | 'blocked' | 'no-device';
+// Why the microphone is gone: the permission was revoked ('blocked') or no input device is left.
+export type MicLossCause = 'blocked' | 'no-device';
+
+export interface EnableMicrophoneOptions {
+    // Publish the new track already muted. Ignored when a track is already published. Default: false.
+    muted?: boolean;
+}
 
 export interface VoiceChannelRef {
     id: string;
@@ -37,6 +44,7 @@ export type VoiceCall =
           micAvailable: boolean;
           micBlocked: boolean;
           muted: boolean;
+          micPending: boolean; // true while the microphone is being turned on (permission prompt or device)
           reconnecting: boolean; // true while LiveKit is reconnecting; false when it connects
           participants: VoiceParticipant[];
       }
@@ -63,7 +71,15 @@ export type RoomConnectFailure = 'unavailable' | 'network';
 export interface VoiceRoomAdapter {
     connect(url: string, token: string): Promise<void>; // rejects with { kind: RoomConnectFailure }
     disconnect(): Promise<void>; // also aborts a reconnection in progress
-    enableMicrophone(): Promise<MicResult>; // 'no-device' if the room stopped being the current one
+    // Turns the microphone on: unmutes the published track (LiveKit reacquires it if it ended) or
+    // creates and publishes one, already muted if options.muted. 'no-device' if the room stopped
+    // being the current one.
+    enableMicrophone(options?: EnableMicrophoneOptions): Promise<MicResult>;
+    // Mutes the published microphone track and keeps it published. Does nothing without one.
+    muteMicrophone(): Promise<void>;
+    // LiveKit was left without a microphone in the current room: no input device remains or the
+    // permission was revoked. Not emitted when LiveKit switches to another device by itself.
+    onMicrophoneLost(listener: (cause: MicLossCause) => void): () => void;
     onDisconnected(listener: (info: RoomDisconnectInfo) => void): () => void;
     onParticipantsChanged(listener: (snapshot: VoiceParticipant[]) => void): () => void;
     // true on SignalReconnecting or Reconnecting, false on Reconnected. A failed reconnection
@@ -95,10 +111,17 @@ export interface VoiceContextValue {
     attempt: VoiceJoinAttempt | null;
     available: boolean; // false when the adapter is null
     audioBlocked: boolean; // web: the browser blocked playback
-    join: (channel: VoiceChannelRef) => void; // also from 'disconnected': rejoins
+    // A channel's "Unirse". From 'idle' or 'disconnected' it is always a join from scratch.
+    join: (channel: VoiceChannelRef) => void;
+    // "Volver a unirse": joins call.channel again keeping an intentional mute. Only with a
+    // 'disconnected' call whose reason passes canRejoin; otherwise does nothing.
+    rejoin: () => void;
     // Ends a connected call and leaves it idle. Never shows an error and never calls the backend.
     // Does nothing without a connected call or while a join is in progress.
     leave: () => void;
+    // Mutes an active microphone at once, or turns it on (asking for the permission when needed).
+    // Does nothing without a connected call, while a join is in progress or while micPending.
+    toggleMute: () => void;
     retry: () => void; // retries a retryable failed attempt
     dismiss: () => void; // clears a failed attempt or a disconnected call
     startAudio: () => void;

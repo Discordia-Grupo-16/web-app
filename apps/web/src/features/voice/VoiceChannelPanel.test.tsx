@@ -20,6 +20,7 @@ const connectedTo = (channel: VoiceChannelRef, extra: { micAvailable?: boolean; 
     micAvailable: extra.micAvailable ?? true,
     micBlocked: extra.micBlocked ?? false,
     muted: !(extra.micAvailable ?? true),
+    micPending: false,
     reconnecting: false,
     participants: [],
 });

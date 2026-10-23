@@ -14,12 +14,15 @@ const render = (ui: React.ReactElement) => rntlRender(<SafeAreaProvider initialM
 const general: VoiceChannelRef = { id: 'c1', serverId: 's1', name: 'General' };
 const juegos: VoiceChannelRef = { id: 'c2', serverId: 's1', name: 'Juegos' };
 
-const connected = (extra: { reconnecting?: boolean } = {}) => ({
+const connected = (
+  extra: { reconnecting?: boolean; micAvailable?: boolean; muted?: boolean; micPending?: boolean } = {},
+) => ({
   status: 'connected' as const,
   channel: general,
-  micAvailable: true,
+  micAvailable: extra.micAvailable ?? true,
   micBlocked: false,
-  muted: false,
+  muted: extra.muted ?? false,
+  micPending: extra.micPending ?? false,
   reconnecting: extra.reconnecting ?? false,
   participants: [],
 });
@@ -38,7 +41,7 @@ describe('VoiceBar', () => {
   it('takes you back to the call screen', async () => {
     jest.mocked(useVoice).mockReturnValue(
       voiceValue({
-        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, reconnecting: false, participants: [] },
+        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, participants: [] },
       }),
     );
     await render(<VoiceBar />);
@@ -99,7 +102,8 @@ describe('VoiceBar', () => {
 
     await userEvent.setup().press(screen.getByRole('button', { name: 'Volver a unirse' }));
 
-    expect(value.join).toHaveBeenCalledWith(general);
+    expect(value.rejoin).toHaveBeenCalled();
+    expect(value.join).not.toHaveBeenCalled();
   });
 
   it.each(['other_device', 'kicked'] as const)('does not offer to rejoin after %s', async (reason) => {
@@ -107,5 +111,64 @@ describe('VoiceBar', () => {
     await render(<VoiceBar />);
 
     expect(screen.queryByRole('button', { name: 'Volver a unirse' })).toBeNull();
+  });
+
+  it.each([
+    ['active', {}, 'Silenciar micrófono', false],
+    ['muted', { muted: true }, 'Activar micrófono', true],
+    ['without microphone', { micAvailable: false, muted: true }, 'Activar micrófono', true],
+  ] as const)('shows the microphone %s', async (_label, state, name, selected) => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected(state) }));
+    await render(<VoiceBar />);
+
+    const button = screen.getByRole('button', { name });
+    if (selected) expect(button).toBeSelected();
+    else expect(button).not.toBeSelected();
+  });
+
+  it('tells that there is no microphone (CA2 de SCRUM-53, Silenciar micrófono propio)', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected({ micAvailable: false, muted: true }) }));
+    await render(<VoiceBar />);
+
+    expect(screen.getByRole('button', { name: 'Activar micrófono' }).props.accessibilityHint).toBe(
+      'Estás conectado sin micrófono: los demás no te escuchan.',
+    );
+  });
+
+  it('mutes from the bar without opening the call (CA1 de SCRUM-53, Silenciar micrófono propio)', async () => {
+    const value = voiceValue({ call: connected() });
+    jest.mocked(useVoice).mockReturnValue(value);
+    await render(<VoiceBar />);
+
+    await userEvent.setup().press(screen.getByRole('button', { name: 'Silenciar micrófono' }));
+
+    expect(value.toggleMute).toHaveBeenCalled();
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('waits while the microphone is being turned on', async () => {
+    const value = voiceValue({ call: connected({ muted: true, micPending: true }) });
+    jest.mocked(useVoice).mockReturnValue(value);
+    await render(<VoiceBar />);
+
+    const button = screen.getByRole('button', { name: 'Activar micrófono' });
+    expect(button).toBeDisabled();
+    expect(button).toBeBusy();
+    await userEvent.setup().press(button);
+    expect(value.toggleMute).not.toHaveBeenCalled();
+  });
+
+  it('waits for a join in progress before letting the user mute', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected(), attempt: { status: 'connecting', channel: juegos } }));
+    await render(<VoiceBar />);
+
+    expect(screen.getByRole('button', { name: 'Silenciar micrófono' })).toBeDisabled();
+  });
+
+  it('has no microphone button without a call', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue());
+    await render(<VoiceBar />);
+
+    expect(screen.queryByRole('button', { name: /micrófono/ })).toBeNull();
   });
 });

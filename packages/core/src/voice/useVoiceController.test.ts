@@ -4,10 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VoiceToken } from '@discordia/api';
 import { useVoiceController } from './useVoiceController';
 import type {
+    EnableMicrophoneOptions,
+    MicLossCause,
     MicResult,
     RoomDisconnectInfo,
     VoiceChannelRef,
     VoiceControllerOptions,
+    VoiceCall,
     VoiceParticipant,
     VoiceRoomAdapter,
 } from './types';
@@ -34,6 +37,7 @@ const createFakeAdapter = () => {
     const participants = new Set<(snapshot: VoiceParticipant[]) => void>();
     const playback = new Set<(blocked: boolean) => void>();
     const reconnecting = new Set<(value: boolean) => void>();
+    const micLost = new Set<(cause: MicLossCause) => void>();
     const subscribe = <T>(set: Set<T>) => (listener: T) => {
         set.add(listener);
         return () => set.delete(listener);
@@ -42,10 +46,12 @@ const createFakeAdapter = () => {
     const adapter = {
         connect: vi.fn(async (_url: string, _token: string) => undefined),
         disconnect: vi.fn(async () => undefined),
-        enableMicrophone: vi.fn(async () => mic),
+        enableMicrophone: vi.fn(async (_options?: EnableMicrophoneOptions) => mic),
         onDisconnected: subscribe(disconnected),
         onParticipantsChanged: subscribe(participants),
         onReconnectingChanged: subscribe(reconnecting),
+        muteMicrophone: vi.fn(async () => undefined),
+        onMicrophoneLost: subscribe(micLost),
         onAudioPlaybackBlocked: subscribe(playback),
         startAudio: vi.fn(async () => undefined),
     } satisfies VoiceRoomAdapter;
@@ -58,6 +64,7 @@ const createFakeAdapter = () => {
         emitParticipants: (snapshot: VoiceParticipant[]) => act(() => participants.forEach((l) => l(snapshot))),
         emitPlaybackBlocked: (blocked: boolean) => act(() => playback.forEach((l) => l(blocked))),
         emitReconnecting: (value: boolean) => act(() => reconnecting.forEach((l) => l(value))),
+        emitMicrophoneLost: (cause: MicLossCause) => act(() => micLost.forEach((l) => l(cause))),
     };
 };
 
@@ -99,6 +106,7 @@ describe('useVoiceController', () => {
             micAvailable: true,
             micBlocked: false,
             muted: false,
+            micPending: false,
             reconnecting: false,
             participants: [ana, me],
         });
@@ -509,6 +517,274 @@ describe('useVoiceController', () => {
             expect(result.current.value.call).toEqual({ status: 'disconnected', channel: A, reason: 'app_backgrounded' });
             expect(result.current.value.attempt).toBeNull();
             expect(fake.adapter.connect).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('muting the microphone (SCRUM-53, Silenciar micrófono propio)', () => {
+        const deferred = <T,>() => {
+            let resolve: (value: T) => void = () => undefined;
+            const promise = new Promise<T>((r) => (resolve = r));
+            return { promise, resolve };
+        };
+        const lastMicOptions = () => fake.adapter.enableMicrophone.mock.lastCall;
+        const connectedCall = (result: ReturnType<typeof render>['result']) => {
+            const { call } = result.current.value;
+            expect(call.status).toBe('connected');
+            return call as Extract<VoiceCall, { status: 'connected' }>;
+        };
+        const joinMuted = async (result: ReturnType<typeof render>['result'], channel: VoiceChannelRef) => {
+            await joinAndWait(result, channel);
+            await waitFor(() => expect(connectedCall(result).micPending).toBe(false));
+            act(() => result.current.value.toggleMute());
+            expect(connectedCall(result)).toMatchObject({ micAvailable: true, muted: true });
+        };
+
+        it('mutes an active microphone at once (CA1 de SCRUM-53, Silenciar micrófono propio)', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            await waitFor(() => expect(connectedCall(result).muted).toBe(false));
+
+            act(() => result.current.value.toggleMute());
+
+            expect(connectedCall(result).muted).toBe(true);
+            expect(fake.adapter.muteMicrophone).toHaveBeenCalledTimes(1);
+        });
+
+        it('turns the microphone back on only once it answers (CA2 de SCRUM-53, Silenciar micrófono propio)', async () => {
+            const { result } = render();
+            await joinMuted(result, A);
+            const mic = deferred<MicResult>();
+            fake.adapter.enableMicrophone.mockImplementationOnce(() => mic.promise);
+
+            act(() => result.current.value.toggleMute());
+            expect(connectedCall(result)).toMatchObject({ micPending: true, muted: true });
+            await act(async () => mic.resolve('ok'));
+
+            expect(connectedCall(result)).toMatchObject({ micPending: false, muted: false, micAvailable: true });
+        });
+
+        it.each([
+            ['ok', { micAvailable: true, muted: false, micBlocked: false }],
+            ['denied', { micAvailable: false, muted: true, micBlocked: false }],
+            ['blocked', { micAvailable: false, muted: true, micBlocked: true }],
+            ['no-device', { micAvailable: false, muted: true, micBlocked: false }],
+        ] as const)('turns on a missing microphone: %s', async (answer, expected) => {
+            fake.setMic('denied');
+            const { result } = render();
+            await joinAndWait(result, A);
+            await waitFor(() => expect(connectedCall(result).micAvailable).toBe(false));
+            fake.setMic(answer);
+
+            act(() => result.current.value.toggleMute());
+
+            await waitFor(() => expect(connectedCall(result)).toMatchObject({ ...expected, micPending: false }));
+            expect(fake.adapter.enableMicrophone).toHaveBeenCalledTimes(2);
+        });
+
+        it('does nothing without a call', () => {
+            const { result } = render();
+
+            act(() => result.current.value.toggleMute());
+
+            expect(result.current.value.call).toEqual({ status: 'idle' });
+            expect(fake.adapter.muteMicrophone).not.toHaveBeenCalled();
+            expect(fake.adapter.enableMicrophone).not.toHaveBeenCalled();
+        });
+
+        it('does nothing while switching rooms', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            await waitFor(() => expect(connectedCall(result).micPending).toBe(false));
+            const token = deferred<VoiceToken>();
+            requestToken.mockImplementationOnce(() => token.promise);
+            act(() => result.current.value.join(B));
+
+            act(() => result.current.value.toggleMute());
+
+            expect(connectedCall(result)).toMatchObject({ channel: A, muted: false });
+            expect(fake.adapter.muteMicrophone).not.toHaveBeenCalled();
+            expect(requestToken).toHaveBeenCalledTimes(2);
+        });
+
+        it('does nothing while the microphone is being turned on', async () => {
+            const { result } = render();
+            const mic = deferred<MicResult>();
+            fake.adapter.enableMicrophone.mockImplementationOnce(() => mic.promise);
+            await joinAndWait(result, A);
+            expect(connectedCall(result).micPending).toBe(true);
+
+            act(() => result.current.value.toggleMute());
+
+            expect(fake.adapter.muteMicrophone).not.toHaveBeenCalled();
+            expect(fake.adapter.enableMicrophone).toHaveBeenCalledTimes(1);
+        });
+
+        it('ignores a microphone answer that arrives after leaving and joining again', async () => {
+            const { result } = render();
+            await joinMuted(result, A);
+            const mic = deferred<MicResult>();
+            fake.adapter.enableMicrophone.mockImplementationOnce(() => mic.promise);
+            act(() => result.current.value.toggleMute());
+            act(() => result.current.value.leave());
+            fake.setMic('denied');
+            await joinAndWait(result, A);
+            await waitFor(() => expect(connectedCall(result).micAvailable).toBe(false));
+
+            await act(async () => mic.resolve('ok'));
+
+            expect(connectedCall(result)).toMatchObject({ micAvailable: false, muted: true });
+        });
+
+        it.each([
+            ['no-device', false],
+            ['blocked', true],
+        ] as const)('goes without microphone when it is lost: %s', async (cause, micBlocked) => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            await waitFor(() => expect(connectedCall(result).muted).toBe(false));
+
+            fake.emitMicrophoneLost(cause);
+
+            expect(connectedCall(result)).toMatchObject({ micAvailable: false, muted: true, micBlocked, micPending: false });
+        });
+
+        it('ignores a lost microphone without a call', () => {
+            const { result } = render();
+
+            fake.emitMicrophoneLost('no-device');
+
+            expect(result.current.value.call).toEqual({ status: 'idle' });
+        });
+
+        it('keeps the mute when switching rooms', async () => {
+            const { result } = render();
+            await joinMuted(result, A);
+
+            await joinAndWait(result, B);
+
+            expect(lastMicOptions()).toEqual([{ muted: true }]);
+            await waitFor(() => expect(connectedCall(result)).toMatchObject({ channel: B, muted: true, micAvailable: true }));
+        });
+
+        it('does not ask for the microphone again when switching rooms without one', async () => {
+            fake.setMic('blocked');
+            const { result } = render();
+            await joinAndWait(result, A);
+            await waitFor(() => expect(connectedCall(result).micAvailable).toBe(false));
+
+            await joinAndWait(result, B);
+
+            expect(fake.adapter.enableMicrophone).toHaveBeenCalledTimes(1);
+            expect(connectedCall(result)).toMatchObject({ channel: B, micAvailable: false, micBlocked: true, micPending: false });
+        });
+
+        it('switches rooms with an active microphone as before', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+
+            await joinAndWait(result, B);
+
+            expect(lastMicOptions()).toEqual([]);
+        });
+
+        it('joins from scratch with an active microphone, even the channel that was cut while muted', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            expect(lastMicOptions()).toEqual([]);
+            await joinMuted(result, B);
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+
+            await joinAndWait(result, B);
+
+            expect(lastMicOptions()).toEqual([]);
+        });
+
+        it('rejoins muted after a lost connection when it was muted', async () => {
+            const { result } = render();
+            await joinMuted(result, A);
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+
+            act(() => result.current.value.rejoin());
+
+            await waitFor(() => expect(connectedCall(result)).toMatchObject({ channel: A, muted: true, micAvailable: true }));
+            expect(lastMicOptions()).toEqual([{ muted: true }]);
+        });
+
+        it('rejoins muted after leaving the app when it was muted', async () => {
+            const { result } = render();
+            await joinMuted(result, A);
+            act(() => result.current.disconnectWithReason('app_backgrounded'));
+
+            act(() => result.current.value.rejoin());
+
+            await waitFor(() => expect(connectedCall(result).channel).toEqual(A));
+            expect(lastMicOptions()).toEqual([{ muted: true }]);
+        });
+
+        it('rejoins with an active microphone when it was active', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+
+            act(() => result.current.value.rejoin());
+
+            await waitFor(() => expect(connectedCall(result)).toMatchObject({ channel: A, muted: false }));
+            expect(lastMicOptions()).toEqual([]);
+        });
+
+        it('rejoins trying the microphone when it was missing', async () => {
+            fake.setMic('denied');
+            const { result } = render();
+            await joinAndWait(result, A);
+            await waitFor(() => expect(connectedCall(result).micAvailable).toBe(false));
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+            fake.setMic('ok');
+
+            act(() => result.current.value.rejoin());
+
+            await waitFor(() => expect(connectedCall(result)).toMatchObject({ channel: A, micAvailable: true, muted: false }));
+            expect(lastMicOptions()).toEqual([]);
+        });
+
+        it('does not rejoin after another device took the call', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitDisconnected({ cause: 'duplicate_identity', serverReason: 'other_device' });
+
+            act(() => result.current.value.rejoin());
+
+            expect(requestToken).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not rejoin with a connected call or without one', async () => {
+            const { result } = render();
+            act(() => result.current.value.rejoin());
+            await joinAndWait(result, A);
+
+            act(() => result.current.value.rejoin());
+
+            expect(requestToken).toHaveBeenCalledTimes(1);
+        });
+
+        it('forgets the mute once the notice is dismissed', async () => {
+            const { result } = render();
+            await joinMuted(result, A);
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+            act(() => result.current.value.dismiss());
+
+            await joinAndWait(result, A);
+
+            expect(lastMicOptions()).toEqual([]);
+        });
+
+        it('keeps the microphone state while reconnecting', async () => {
+            const { result } = render();
+            await joinMuted(result, A);
+
+            fake.emitReconnecting(true);
+            fake.emitReconnecting(false);
+
+            expect(connectedCall(result)).toMatchObject({ muted: true, micAvailable: true, micPending: false });
         });
     });
 });
