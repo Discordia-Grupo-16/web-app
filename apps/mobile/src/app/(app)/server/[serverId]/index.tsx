@@ -4,6 +4,7 @@ import { useLocalSearchParams } from 'expo-router';
 import type { Channel } from '@discordia/api';
 import {
   BAN_MEMBERS,
+  KICK_MEMBERS,
   MANAGE_CHANNELS,
   MANAGE_ROLES,
   NONE,
@@ -91,8 +92,10 @@ export default function ServerScreen() {
           roles={roles}
           ownerId={server.owner_id}
           canManage={canManageRoles}
+          canKick={hasPermission(permissions, KICK_MEMBERS)}
           canBan={hasPermission(permissions, BAN_MEMBERS)}
           onRolesChange={setMemberRoles}
+          onMemberKicked={removeMember}
           onMemberBanned={removeMember}
         />
         <InvitationsSection serverId={server.id} canManage={isOwner} />

@@ -13,6 +13,7 @@ const setup = () => {
     const apiClient = {
         get: vi.fn(async () => ({ data: [member] })),
         put: vi.fn(async () => ({ data: undefined })),
+        delete: vi.fn(async () => ({ data: undefined })),
     };
     return { apiClient, service: createMembersService(apiClient as unknown as AxiosInstance) };
 };
@@ -56,5 +57,15 @@ describe('createMembersService banMember', () => {
         await service.banMember('srv', 'u1', '   ');
 
         expect(sentForm(apiClient).has('reason')).toBe(false);
+    });
+});
+
+describe('createMembersService kickMember', () => {
+    it('deletes the member path of the server', async () => {
+        const { apiClient, service } = setup();
+
+        await service.kickMember('srv', 'u1');
+
+        expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/servers/srv/members/u1');
     });
 });

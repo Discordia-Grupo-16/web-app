@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     BAN_MEMBERS,
+    KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
     PERMISSION_COPY,
@@ -19,7 +20,7 @@ const ME = 'me';
 vi.mock('@/shared/api', () => ({
     serversService: { getServer: vi.fn() },
     rolesService: { listRoles: vi.fn() },
-    membersService: { listMembers: vi.fn(), banMember: vi.fn() },
+    membersService: { listMembers: vi.fn(), banMember: vi.fn(), kickMember: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -88,6 +89,7 @@ const membersHeader = () => screen.queryByText(PERMISSION_COPY.membersTitle(0));
 // Por el prefijo y no por el nombre: acá los perfiles públicos están mockeados
 // vacíos, así que el nombre lo resuelve el fallback y no es lo que se mira.
 const banMember = () => screen.queryByTitle(/^Banear a /);
+const kickMember = () => screen.queryByTitle(/^Expulsar a /);
 
 describe('ServerPanel: qué se ve según el permiso', () => {
     beforeEach(() => {
@@ -154,6 +156,22 @@ describe('ServerPanel: qué se ve según el permiso', () => {
         await renderPanel(VIEW_CHANNEL | BAN_MEMBERS, OWNER, [MILTON]);
 
         expect(banMember()).toBeInTheDocument();
+    });
+
+    it('KICK_MEMBERS habilita solo expulsar', async () => {
+        // Expulsar y banear son dos bits distintos: tener uno no da el otro, en los dos
+        // sentidos. Si el panel pasara el mismo booleano a las dos acciones, esto lo encuentra.
+        await renderPanel(VIEW_CHANNEL | KICK_MEMBERS, OWNER, [MILTON]);
+
+        expect(kickMember()).toBeInTheDocument();
+        expect(banMember()).not.toBeInTheDocument();
+    });
+
+    it('BAN_MEMBERS por su cuenta no habilita expulsar', async () => {
+        await renderPanel(VIEW_CHANNEL | BAN_MEMBERS, OWNER, [MILTON]);
+
+        expect(banMember()).toBeInTheDocument();
+        expect(kickMember()).not.toBeInTheDocument();
     });
 
     it('irse del servidor sigue decidiéndose por ser dueño, no por un bit', async () => {

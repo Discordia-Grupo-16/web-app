@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Ban, Crown, Pencil } from 'lucide-react';
+import { Ban, Crown, Pencil, UserMinus } from 'lucide-react';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
 import { BanMemberDialog } from './BanMemberDialog';
+import { KickMemberDialog } from './KickMemberDialog';
 import { MemberRolesModal } from './MemberRolesModal';
 
 interface MembersSectionProps {
@@ -12,8 +13,10 @@ interface MembersSectionProps {
     roles: Role[];
     ownerId: string | undefined;
     canManage: boolean;
+    canKick: boolean;
     canBan: boolean;
     onRolesChange: (userId: string, roles: Role[]) => void;
+    onMemberKicked: (userId: string) => void;
     onMemberBanned: (userId: string) => void;
 }
 
@@ -23,13 +26,16 @@ export const MembersSection = ({
     roles,
     ownerId,
     canManage,
+    canKick,
     canBan,
     onRolesChange,
+    onMemberKicked,
     onMemberBanned,
 }: MembersSectionProps) => {
     const { user } = useAuth();
     const { openProfile } = useProfileViewer();
     const [editing, setEditing] = useState<string | null>(null);
+    const [kicking, setKicking] = useState<string | null>(null);
     const [banning, setBanning] = useState<string | null>(null);
 
     // `community` only returns ids: the names are `identity`'s, resolved in one request.
@@ -100,6 +106,19 @@ export const MembersSection = ({
 
                         {/* Neither the owner nor oneself is a valid target: the backend
                             refuses both, because nobody is above them in the hierarchy. */}
+                        {canKick && !isOwner && user_id !== user?.id && (
+                            <button
+                                onClick={() => setKicking(user_id)}
+                                className="opacity-0 group-hover/member:opacity-100 transition-opacity p-1 rounded shrink-0"
+                                style={{ color: '#8e9297' }}
+                                title={PERMISSION_COPY.kickMember(nameOf(user_id))}
+                                onMouseEnter={e => (e.currentTarget.style.color = '#faa61a')}
+                                onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                            >
+                                <UserMinus size={13} />
+                            </button>
+                        )}
+
                         {canBan && !isOwner && user_id !== user?.id && (
                             <button
                                 onClick={() => setBanning(user_id)}
@@ -124,6 +143,16 @@ export const MembersSection = ({
                     roles={roles}
                     onClose={() => setEditing(null)}
                     onRolesChange={onRolesChange}
+                />
+            )}
+
+            {kicking && (
+                <KickMemberDialog
+                    serverId={serverId}
+                    userId={kicking}
+                    memberName={nameOf(kicking)}
+                    onClose={() => setKicking(null)}
+                    onKicked={onMemberKicked}
                 />
             )}
 

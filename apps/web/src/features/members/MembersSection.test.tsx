@@ -9,7 +9,7 @@ import { MembersSection } from './MembersSection';
 
 vi.mock('@/shared/api', () => ({
     rolesService: { assignRole: vi.fn(), removeRole: vi.fn() },
-    membersService: { banMember: vi.fn() },
+    membersService: { banMember: vi.fn(), kickMember: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -45,6 +45,7 @@ interface Options {
     members?: ServerMember[];
     roles?: Role[];
     canManage?: boolean;
+    canKick?: boolean;
     canBan?: boolean;
 }
 
@@ -52,9 +53,11 @@ const renderSection = ({
     members = [member('milton')],
     roles = [MODERADOR, ADMIN],
     canManage = true,
+    canKick = false,
     canBan = false,
 }: Options = {}) => {
     const onRolesChange = vi.fn();
+    const onMemberKicked = vi.fn();
     const onMemberBanned = vi.fn();
     const openProfile = vi.fn();
     const source: PublicProfileSource = {
@@ -70,14 +73,16 @@ const renderSection = ({
                     roles={roles}
                     ownerId="owner"
                     canManage={canManage}
+                    canKick={canKick}
                     canBan={canBan}
                     onRolesChange={onRolesChange}
+                    onMemberKicked={onMemberKicked}
                     onMemberBanned={onMemberBanned}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
     );
-    return { onRolesChange, onMemberBanned, openProfile, user: userEvent.setup() };
+    return { onRolesChange, onMemberKicked, onMemberBanned, openProfile, user: userEvent.setup() };
 };
 
 describe('MembersSection', () => {
@@ -171,6 +176,80 @@ describe('MembersSection', () => {
         await user.click(screen.getByTitle('Editar roles de Milton'));
 
         expect(screen.getByText(/todavía no tiene roles/)).toBeInTheDocument();
+    });
+
+    it('offers no kick to whoever lacks KICK_MEMBERS', async () => {
+        renderSection({ canKick: false });
+        await screen.findByText('Milton');
+
+        expect(screen.queryByTitle('Expulsar a Milton')).not.toBeInTheDocument();
+    });
+
+    it('never offers to kick the owner, who the backend refuses', async () => {
+        // Rendering it would mean a button whose only possible outcome is a 403.
+        renderSection({ members: [member('owner')], canKick: true });
+        await screen.findByText('Bruno');
+
+        expect(screen.queryByTitle('Expulsar a Bruno')).not.toBeInTheDocument();
+    });
+
+    it('never offers to kick oneself', async () => {
+        renderSection({ members: [member('me')], canKick: true });
+
+        expect(screen.queryByTitle(/Expulsar a/)).not.toBeInTheDocument();
+    });
+
+    it('warns that the kicked member can come back with an invitation', async () => {
+        // It is what sets a kick apart from a ban, and the half a moderator may get wrong.
+        const { user } = renderSection({ canKick: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Expulsar a Milton'));
+
+        expect(screen.getByText(/Puede volver a entrar con una nueva invitación/)).toBeInTheDocument();
+    });
+
+    it('kicks and takes the member off the list', async () => {
+        vi.mocked(membersService.kickMember).mockResolvedValue(undefined);
+        const { user, onMemberKicked } = renderSection({ canKick: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Expulsar a Milton'));
+        await user.click(screen.getByRole('button', { name: 'Expulsar' }));
+
+        expect(membersService.kickMember).toHaveBeenCalledWith('srv', 'milton');
+        expect(onMemberKicked).toHaveBeenCalledWith('milton');
+    });
+
+    it('shows why the backend refused a kick and keeps the member on the list', async () => {
+        // The hierarchy lives in `community`: this screen does not know the roles of the
+        // caller, so the only honest thing it can do is repeat the refusal.
+        vi.mocked(membersService.kickMember).mockRejectedValue({
+            response: {
+                data: {
+                    detail: 'No podés moderar a un miembro con jerarquía igual o superior a la tuya',
+                },
+            },
+        });
+        const { user, onMemberKicked } = renderSection({ canKick: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Expulsar a Milton'));
+        await user.click(screen.getByRole('button', { name: 'Expulsar' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(/jerarquía igual o superior/);
+        expect(onMemberKicked).not.toHaveBeenCalled();
+    });
+
+    it('does not kick when the dialog is dismissed', async () => {
+        const { user, onMemberKicked } = renderSection({ canKick: true });
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Expulsar a Milton'));
+        await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+        expect(membersService.kickMember).not.toHaveBeenCalled();
+        expect(onMemberKicked).not.toHaveBeenCalled();
     });
 
     it('offers no ban to whoever lacks BAN_MEMBERS', async () => {
