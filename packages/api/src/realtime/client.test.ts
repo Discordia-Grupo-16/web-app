@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRealtimeClient } from './client';
+import { CLOSE_ACCOUNT_SUSPENDED, createRealtimeClient, isTerminalCloseCode } from './client';
 import type { WebSocketLike } from './client';
 
 // Fake WebSocket implementing exactly WebSocketLike, with test-only helpers
@@ -427,6 +427,94 @@ describe('reconnection', () => {
 
         await vi.advanceTimersByTimeAsync(100);
         expect(FakeWebSocket.instances).toHaveLength(2);
+    });
+});
+
+describe('terminal close codes (4400-4499)', () => {
+    async function openClient() {
+        const client = createRealtimeClient(baseConfig());
+        client.connect();
+        await flush();
+        latestSocket().open();
+        return client;
+    }
+
+    it('4403 goes closed, emits terminated with code and reason, and never opens another socket', async () => {
+        const client = await openClient();
+        const onTerminated = vi.fn();
+        client.on('terminated', onTerminated);
+
+        latestSocket().remoteClose(CLOSE_ACCOUNT_SUSPENDED, 'account_suspended');
+
+        expect(client.getState()).toBe('closed');
+        expect(onTerminated).toHaveBeenCalledTimes(1);
+        expect(onTerminated).toHaveBeenCalledWith({ code: 4403, reason: 'account_suspended' });
+
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(FakeWebSocket.instances).toHaveLength(1);
+    });
+
+    it.each([1001, 1006])('a close with code %i is not terminal: it reconnects and does not emit terminated', async (code) => {
+        const client = await openClient();
+        const onTerminated = vi.fn();
+        client.on('terminated', onTerminated);
+
+        latestSocket().remoteClose(code);
+        expect(client.getState()).toBe('reconnecting');
+
+        await vi.advanceTimersByTimeAsync(100);
+        expect(FakeWebSocket.instances).toHaveLength(2);
+        expect(onTerminated).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        [4399, false],
+        [4400, true],
+        [4499, true],
+        [4500, false],
+    ])('code %i: terminal = %s', async (code, terminal) => {
+        expect(isTerminalCloseCode(code)).toBe(terminal);
+
+        const client = await openClient();
+        const onTerminated = vi.fn();
+        client.on('terminated', onTerminated);
+
+        latestSocket().remoteClose(code);
+        expect(client.getState()).toBe(terminal ? 'closed' : 'reconnecting');
+
+        await vi.advanceTimersByTimeAsync(100);
+        expect(onTerminated).toHaveBeenCalledTimes(terminal ? 1 : 0);
+        expect(FakeWebSocket.instances).toHaveLength(terminal ? 1 : 2);
+    });
+
+    it('a terminal close from a superseded attempt is ignored: no terminated, current socket unaffected', async () => {
+        const client = await openClient();
+        const staleSocket = latestSocket();
+        const onTerminated = vi.fn();
+        client.on('terminated', onTerminated);
+
+        client.disconnect();
+        client.connect();
+        await flush();
+        latestSocket().open();
+
+        staleSocket.remoteClose(CLOSE_ACCOUNT_SUSPENDED, 'account_suspended');
+
+        expect(onTerminated).not.toHaveBeenCalled();
+        expect(client.getState()).toBe('open');
+    });
+
+    it('connect() after terminated opens a new socket (e.g. another login)', async () => {
+        const client = await openClient();
+        latestSocket().remoteClose(CLOSE_ACCOUNT_SUSPENDED, 'account_suspended');
+        expect(client.getState()).toBe('closed');
+
+        client.connect();
+        await flush();
+
+        expect(FakeWebSocket.instances).toHaveLength(2);
+        latestSocket().open();
+        expect(client.getState()).toBe('open');
     });
 });
 

@@ -32,6 +32,12 @@
       "expo-secure-store",
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Discordia necesita acceso a tu galería para que puedas cambiar tu avatar."
+        }
+      ]
     ]
   }
 }

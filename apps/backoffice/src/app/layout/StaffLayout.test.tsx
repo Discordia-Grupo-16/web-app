@@ -35,11 +35,10 @@ describe('StaffLayout', () => {
         expect(screen.getByText('ana@discordia.dev')).toBeInTheDocument();
     });
 
-    it('keeps Usuarios disabled until SCRUM-85', () => {
+    it('links Usuarios to /users', () => {
         renderLayout();
 
-        expect(screen.getByText('Usuarios')).toHaveAttribute('aria-disabled', 'true');
-        expect(screen.queryByRole('link', { name: 'Usuarios' })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Usuarios' })).toHaveAttribute('href', '/users');
     });
 
     it('signs out and goes back to the login', async () => {
