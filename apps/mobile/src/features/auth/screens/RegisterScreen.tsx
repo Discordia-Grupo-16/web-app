@@ -91,23 +91,6 @@ export function RegisterScreen() {
               </View>
             )}
 
-            {/* Campo Nombre */}
-            <View className="mb-4">
-              <Text className="text-xs font-semibold uppercase tracking-wider text-[#99aab5] mb-2">
-                Nombre de usuario
-              </Text>
-              <TextInput
-                className="w-full px-4 py-3 rounded-lg bg-[#23272a] text-white text-sm border border-transparent"
-                placeholder="Tu apodo o nombre"
-                placeholderTextColor="#99aab5"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                autoCorrect={false}
-                textContentType="name"
-              />
-            </View>
-
             {/* Campo Email */}
             <View className="mb-4">
               <Text className="text-xs font-semibold uppercase tracking-wider text-[#99aab5] mb-2">
@@ -123,6 +106,23 @@ export function RegisterScreen() {
                 autoCorrect={false}
                 keyboardType="email-address"
                 textContentType="emailAddress"
+              />
+            </View>
+
+            {/* Campo Nombre */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold uppercase tracking-wider text-[#99aab5] mb-2">
+                Nombre completo o apodo
+              </Text>
+              <TextInput
+                className="w-full px-4 py-3 rounded-lg bg-[#23272a] text-white text-sm border border-transparent"
+                placeholder="ej. Jane Doe"
+                placeholderTextColor="#99aab5"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                autoCorrect={false}
+                textContentType="name"
               />
             </View>
 

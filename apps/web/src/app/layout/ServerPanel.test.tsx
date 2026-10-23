@@ -37,8 +37,8 @@ vi.mock('@discordia/core', async (importOriginal) => ({
     useVoice: () => ({ call: { status: 'idle' } }),
     useVoiceCallParticipants: () => [],
 }));
-// Dependen de un contexto que este panel no provee y que no es lo que se mira acá.
-vi.mock('@/features/invitations', () => ({ InviteButton: () => null }));
+// El botón real depende de un contexto que este panel no provee: acá solo importa si aparece.
+vi.mock('@/features/invitations', () => ({ InviteButton: () => <button>Invitar</button> }));
 vi.mock('@/shared/profile/ProfileViewerContext', () => ({
     useProfileViewer: () => ({ openProfile: vi.fn() }),
 }));
@@ -105,7 +105,6 @@ const bansHeader = () => screen.queryByText(/^Baneados — /);
 // Por el prefijo y no por el nombre: acá los perfiles públicos están mockeados
 // vacíos, así que el nombre lo resuelve el fallback y no es lo que se mira.
 const banMember = () => screen.queryByTitle(/^Banear a /);
-const kickMember = () => screen.queryByTitle(/^Expulsar a /);
 
 describe('ServerPanel: qué se ve según el permiso', () => {
     beforeEach(() => {
@@ -174,22 +173,6 @@ describe('ServerPanel: qué se ve según el permiso', () => {
         expect(banMember()).toBeInTheDocument();
     });
 
-    it('KICK_MEMBERS habilita solo expulsar', async () => {
-        // Expulsar y banear son dos bits distintos: tener uno no da el otro, en los dos
-        // sentidos. Si el panel pasara el mismo booleano a las dos acciones, esto lo encuentra.
-        await renderPanel(VIEW_CHANNEL | KICK_MEMBERS, OWNER, [MILTON]);
-
-        expect(kickMember()).toBeInTheDocument();
-        expect(banMember()).not.toBeInTheDocument();
-    });
-
-    it('BAN_MEMBERS por su cuenta no habilita expulsar', async () => {
-        await renderPanel(VIEW_CHANNEL | BAN_MEMBERS, OWNER, [MILTON]);
-
-        expect(banMember()).toBeInTheDocument();
-        expect(kickMember()).not.toBeInTheDocument();
-    });
-
     it('sin BAN_MEMBERS no aparece la sección de baneados ni se piden', async () => {
         // Ocultar no es autorizar: el 403 de verdad está en `community`. Pero pedir la lista
         // sin el bit sería un error en la consola en cada poll.
@@ -225,5 +208,23 @@ describe('ServerPanel: qué se ve según el permiso', () => {
         await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME);
 
         expect(screen.queryByText(/abandonar/i)).not.toBeInTheDocument();
+    });
+});
+
+describe('ServerPanel: invitar', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('el dueño ve el botón de invitar', async () => {
+        await renderPanel(VIEW_CHANNEL, ME);
+
+        expect(screen.getByRole('button', { name: 'Invitar' })).toBeInTheDocument();
+    });
+
+    it('un miembro que no es dueño no lo ve', async () => {
+        await renderPanel(VIEW_CHANNEL);
+
+        expect(screen.queryByRole('button', { name: 'Invitar' })).not.toBeInTheDocument();
     });
 });

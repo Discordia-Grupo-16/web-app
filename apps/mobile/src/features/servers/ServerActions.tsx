@@ -11,7 +11,7 @@ interface ServerActionsProps {
   onLeavingChange: (leaving: boolean) => void;
 }
 
-// Members can leave the server; the owner can delete it.
+// Members can leave the server. Deleting it is hidden until SCRUM-34.
 export function ServerActions({ server, isOwner, onLeavingChange }: ServerActionsProps) {
   const router = useRouter();
 
@@ -33,24 +33,6 @@ export function ServerActions({ server, isOwner, onLeavingChange }: ServerAction
     ]);
   };
 
-  const handleDeleteServer = () => {
-    Alert.alert('Eliminar servidor', `¿Eliminar "${server.name}"? Esta acción es permanente.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar', style: 'destructive', onPress: async () => {
-          try {
-            onLeavingChange(true);
-            await serversService.deleteServer(server.id);
-            router.back();
-          } catch (err) {
-            onLeavingChange(false);
-            Alert.alert('Error', getErrorDetail(err) || 'No se pudo eliminar el servidor.');
-          }
-        },
-      },
-    ]);
-  };
-
   return (
     <View className="gap-3 mt-4">
       {!isOwner && (
@@ -59,14 +41,6 @@ export function ServerActions({ server, isOwner, onLeavingChange }: ServerAction
           className="bg-[#2c2f33] py-3 rounded-xl items-center border border-[#ed4245]"
         >
           <Text className="text-[#ed4245] font-bold">Abandonar servidor</Text>
-        </TouchableOpacity>
-      )}
-      {isOwner && (
-        <TouchableOpacity
-          onPress={handleDeleteServer}
-          className="bg-[#ed4245]/10 py-3 rounded-xl items-center border border-[#ed4245]"
-        >
-          <Text className="text-[#ed4245] font-bold">Eliminar servidor</Text>
         </TouchableOpacity>
       )}
     </View>

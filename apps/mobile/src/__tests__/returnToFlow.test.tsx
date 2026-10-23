@@ -87,6 +87,8 @@ describe('return to the pending destination after authenticating', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.mocked(authService.login).mockResolvedValue({ token: 'access', refreshToken: 'refresh', user: felipe } as never);
+    // The invitation never answers, so the flow stays on the invite screen to check where it lands.
+    jest.mocked(invitationsService.joinServer).mockReturnValue(new Promise(() => undefined));
   });
 
   it('sends an invitation opened without a session through the login and back to it', async () => {
@@ -101,9 +103,9 @@ describe('return to the pending destination after authenticating', () => {
     await user.press(screen.getByText('Iniciar Sesión'));
 
     await waitFor(() => expect(app.pathname()).toBe('/invite/abc123'));
-    expect(screen.getByDisplayValue('abc123')).toBeOnTheScreen();
-    // The link only brings the code: joining is still the user's decision.
-    expect(invitationsService.joinServer).not.toHaveBeenCalled();
+    // Back from the login, the link joins on its own.
+    await waitFor(() => expect(invitationsService.joinServer).toHaveBeenCalledWith('abc123'));
+    expect(screen.getByText('Procesando invitación…')).toBeOnTheScreen();
   });
 
   it('keeps the destination when the user goes from the login to the register screen', async () => {
@@ -116,7 +118,7 @@ describe('return to the pending destination after authenticating', () => {
     await waitFor(() => expect(app.pathname()).toBe('/register'));
     expect(app.params()).toEqual({ returnTo: '/invite/abc123' });
 
-    await user.type(screen.getByPlaceholderText('Tu apodo o nombre'), 'Felipe');
+    await user.type(screen.getByPlaceholderText('ej. Jane Doe'), 'Felipe');
     await user.type(screen.getByPlaceholderText('tu@correo.com'), credentials.email);
     await user.type(screen.getByPlaceholderText('••••••••'), credentials.password);
     await user.press(screen.getByText('Continuar'));

@@ -1,6 +1,9 @@
 import type { User } from "@discordia/api";
+import { useAuth } from "@discordia/core";
 
 export const ProfilePopup = ({ user, onClose, onEditProfile }: { user: User; onClose: () => void; onEditProfile: () => void }) => {
+    const { signOut } = useAuth();
+
     return (
         <>
             <div
@@ -84,6 +87,15 @@ export const ProfilePopup = ({ user, onClose, onEditProfile }: { user: User; onC
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(114,137,218,0.15)' }}
                     >
                         Editar perfil
+                    </button>
+
+                    {/* Without a token ProtectedRoute redirects to the login, so no manual navigation. */}
+                    <button
+                        onClick={() => { void signOut() }}
+                        className="mt-2 w-full py-2 rounded-lg text-xs font-semibold text-white transition-colors duration-150 cursor-pointer"
+                        style={{ background: '#ed4245' }}
+                    >
+                        Cerrar sesión
                     </button>
                 </div>
             </div>

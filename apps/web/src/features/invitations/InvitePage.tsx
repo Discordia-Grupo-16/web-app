@@ -1,14 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { invitationErrorMessage } from '@discordia/core';
 import { invitationsService } from '@/shared/api';
 
 type Status = 'loading' | 'success' | 'error';
-
-const ERROR_MESSAGES: Record<number, string> = {
-    404: 'La invitación no existe.',
-    410: 'Esta invitación ya no es válida (expirada o sin usos disponibles).',
-    403: 'No podés unirte a este servidor.',
-};
 
 export const InvitePage = () => {
     const { code } = useParams<{ code: string }>();
@@ -25,8 +20,7 @@ export const InvitePage = () => {
                 setStatus('success');
             })
             .catch(err => {
-                const statusCode: number = err?.response?.status;
-                setErrorMsg(ERROR_MESSAGES[statusCode] ?? 'Ocurrió un error al procesar la invitación.');
+                setErrorMsg(invitationErrorMessage(err?.response?.status));
                 setStatus('error');
             });
     }, [code]);

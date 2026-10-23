@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import type { Invitation } from '@discordia/api';
+import * as Clipboard from 'expo-clipboard';
 import { invitationsService } from '@/shared/api';
 import { InvitationsSection } from './InvitationsSection';
 
@@ -8,6 +9,12 @@ jest.mock('@/shared/api', () => ({
   invitationsService: { listInvitations: jest.fn(), createInvitation: jest.fn(), revokeInvitation: jest.fn() },
 }));
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
+let mockWebUrl = 'https://discordia.test/';
+jest.mock('@/shared/config/env', () => ({
+  get WEB_URL() {
+    return mockWebUrl;
+  },
+}));
 
 const invitation = (code: string): Invitation => ({
   id: `inv-${code}`,
@@ -38,6 +45,7 @@ const openModal = async () => {
 describe('InvitationsSection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockWebUrl = 'https://discordia.test/';
     jest.spyOn(Alert, 'alert').mockImplementation(() => {});
   });
 
@@ -77,5 +85,28 @@ describe('InvitationsSection', () => {
 
     expect(invitationsService.revokeInvitation).toHaveBeenCalledWith('srv', 'abc123');
     expect(screen.queryByText('abc123')).not.toBeOnTheScreen();
+  });
+
+  it('shows the invite link and copies it instead of the bare code', async () => {
+    jest.mocked(invitationsService.listInvitations).mockResolvedValue([invitation('abc123')]);
+    const user = await openModal();
+
+    expect(screen.getByText('https://discordia.test/invite/abc123')).toBeOnTheScreen();
+    await user.press(screen.getByText('Copiar'));
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith('https://discordia.test/invite/abc123');
+    expect(Alert.alert).toHaveBeenCalledWith('Copiado', 'Link copiado.');
+  });
+
+  it('shows and copies only the code when the web url is not configured', async () => {
+    mockWebUrl = '';
+    jest.mocked(invitationsService.listInvitations).mockResolvedValue([invitation('abc123')]);
+    const user = await openModal();
+
+    expect(screen.queryByText('/invite/abc123')).not.toBeOnTheScreen();
+    await user.press(screen.getByText('Copiar'));
+
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith('abc123');
+    expect(Alert.alert).toHaveBeenCalledWith('Copiado', 'Código copiado.');
   });
 });
