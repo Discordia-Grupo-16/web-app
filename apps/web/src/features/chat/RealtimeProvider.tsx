@@ -3,6 +3,7 @@ import { createRealtimeClient } from '@discordia/api';
 import { RealtimeContext, useAuth, useRealtimeController } from '@discordia/core';
 import { TOKEN_KEY, webAuthStorage } from '@/shared/session/authStorage';
 import { WS_URL } from '@/shared/config/env';
+import { api } from '@/shared/api';
 import { newClientMessageId } from './clientMessageId';
 
 export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
@@ -14,7 +15,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         }
         return createRealtimeClient({ url: WS_URL, getToken: webAuthStorage.getToken });
     });
-    const { value } = useRealtimeController({ client, token, newClientMessageId });
+    const { value } = useRealtimeController({ client, token, newClientMessageId, api, logger: console });
 
     // Logout in another tab of the same browser: cut this tab's socket without touching the local session.
     useEffect(() => {

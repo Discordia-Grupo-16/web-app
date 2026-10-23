@@ -41,6 +41,14 @@ const renderList = async (
         canRetry
         onRetry={jest.fn()}
         onDiscard={jest.fn()}
+        historyLoaded
+        historyError={false}
+        onRetryHistory={jest.fn()}
+        hasMore={false}
+        loadingMore={false}
+        loadMoreError={false}
+        onLoadMore={jest.fn()}
+        onRetryLoadMore={jest.fn()}
       />
     </PublicProfilesProvider>,
   );
