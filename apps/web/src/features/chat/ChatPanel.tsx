@@ -7,9 +7,10 @@ interface ChatPanelProps {
     channelId: string;
     channelName: string;
     topic: string | null;
+    canSendMessages: boolean;
 }
 
-export const ChatPanel = ({ channelId, channelName, topic }: ChatPanelProps) => {
+export const ChatPanel = ({ channelId, channelName, topic, canSendMessages }: ChatPanelProps) => {
     const { user } = useAuth();
     const { messages, pending, status, maxLength, send, retry, discard, rejected, clearRejected } =
         useChannelMessages(channelId);
@@ -36,6 +37,7 @@ export const ChatPanel = ({ channelId, channelName, topic }: ChatPanelProps) => 
                 onSend={send}
                 rejected={rejected}
                 onRejectedHandled={clearRejected}
+                canSendMessages={canSendMessages}
             />
         </div>
     );

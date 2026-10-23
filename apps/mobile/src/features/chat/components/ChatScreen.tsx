@@ -9,9 +9,10 @@ import { MessageList } from './MessageList';
 interface ChatScreenProps {
   channelId: string;
   channelName: string;
+  canSendMessages: boolean;
 }
 
-export const ChatScreen = ({ channelId, channelName }: ChatScreenProps) => {
+export const ChatScreen = ({ channelId, channelName, canSendMessages }: ChatScreenProps) => {
   const { user } = useAuth();
   const headerHeight = useHeaderHeight();
   const { messages, pending, status, maxLength, send, retry, discard, rejected, clearRejected } =
@@ -37,6 +38,7 @@ export const ChatScreen = ({ channelId, channelName }: ChatScreenProps) => {
           onSend={send}
           rejected={rejected}
           onRejectedHandled={clearRejected}
+          canSendMessages={canSendMessages}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>

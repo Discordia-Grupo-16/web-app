@@ -4,7 +4,7 @@ import type { PublicProfiles, PublicUser } from '@discordia/api';
 // The slice of the user service the hooks need: the app hands over its single userService, so the
 // cache is shared by every screen.
 export interface PublicProfileSource {
-    getPublicProfiles: (ids: string[]) => Promise<PublicProfiles>;
+    getPublicProfiles: (ids: string[], options?: { fresh?: boolean }) => Promise<PublicProfiles>;
     peekPublicProfile: (id: string) => PublicUser | null | undefined;
 }
 

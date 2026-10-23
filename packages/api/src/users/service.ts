@@ -34,7 +34,8 @@ export const createUserService = (apiClient: AxiosInstance) => {
             return data;
         },
 
-        getPublicProfiles: (ids: string[]): Promise<PublicProfiles> => publicProfiles.get(ids),
+        getPublicProfiles: (ids: string[], options?: { fresh?: boolean }): Promise<PublicProfiles> =>
+            publicProfiles.get(ids, options),
         peekPublicProfile: publicProfiles.peek,
         clearPublicProfiles: publicProfiles.clear,
     };
