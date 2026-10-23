@@ -49,8 +49,20 @@ export function BanMemberDialog({
     }
   };
 
+  /**
+   * Ignora el pedido de cierre mientras el baneo está en vuelo.
+   *
+   * El fondo, la X y el botón atrás de Android no miraban `banning`, así que
+   * se podía cerrar el diálogo con la request empezada: si el backend la
+   * rechazaba, el error no se veía nunca. Los botones de Cancelar y Banear ya
+   * lo miraban; esto los iguala.
+   */
+  const close = () => {
+    if (!banning) onClose();
+  };
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
       <View className="flex-1 justify-end bg-black/60">
         <View className="bg-[#36393f] rounded-t-2xl p-6">
           <Text className="text-white font-black text-xl mb-1">
@@ -77,7 +89,7 @@ export function BanMemberDialog({
           {error ? <Text className="text-[#ed4245] text-sm mt-3">{error}</Text> : null}
 
           <View className="flex-row justify-end items-center gap-4 mt-6">
-            <TouchableOpacity onPress={onClose} disabled={banning} className="py-2 px-3">
+            <TouchableOpacity onPress={close} disabled={banning} className="py-2 px-3">
               <Text className="text-[#b9bbbe] text-sm">{PERMISSION_COPY.banCancel}</Text>
             </TouchableOpacity>
             <TouchableOpacity

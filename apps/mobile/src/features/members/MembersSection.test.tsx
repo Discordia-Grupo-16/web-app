@@ -325,6 +325,26 @@ describe('MembersSection: el perfil público', () => {
     expect(onMemberBanned).not.toHaveBeenCalled();
   });
 
+  it('no se puede cerrar con el botón atrás mientras el baneo está en vuelo', async () => {
+    // El equivalente del fondo y la X de la web: `onRequestClose` es el botón
+    // atrás de Android y no miraba `banning`. Si se cierra con la request
+    // empezada y el backend la rechaza, el error no se ve nunca.
+    (membersService.banMember as jest.Mock).mockReturnValue(new Promise(() => {}));
+    const { user } = await renderSection({ canBan: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.banMember('Milton')));
+    await user.press(screen.getByText(PERMISSION_COPY.banConfirm));
+    // `fireEvent` sube por los ancestros buscando el handler, así que
+    // disparándolo sobre el título llega al `onRequestClose` del Modal. RNTL 14
+    // ya no expone queries por tipo de componente.
+    await act(async () => {
+      fireEvent(screen.getByText(PERMISSION_COPY.banMemberTitle), 'requestClose');
+    });
+
+    expect(screen.getByText(PERMISSION_COPY.banMemberWarning('Milton'))).toBeOnTheScreen();
+  });
+
   it('no banea si se cancela el diálogo', async () => {
     const { user, onMemberBanned } = await renderSection({ canBan: true });
     await screen.findByText('Milton');

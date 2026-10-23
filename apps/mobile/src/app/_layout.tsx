@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, PublicProfilesProvider } from '@discordia/core';
 import { mobileAuthStorage } from '@/shared/session/authStorage';
 import { authService, userService } from '@/shared/api';
+import { sessionExpiry } from '@/shared/session/sessionExpiry';
 
 // The public profile cache is per session: drop it before logging out.
 const signOut = async () => {
@@ -15,7 +16,7 @@ const signOut = async () => {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider storage={mobileAuthStorage} onSignOut={signOut}>
+      <AuthProvider storage={mobileAuthStorage} onSignOut={signOut} sessionExpiry={sessionExpiry}>
         <PublicProfilesProvider source={userService}>
           <Slot />
         </PublicProfilesProvider>

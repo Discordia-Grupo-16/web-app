@@ -41,11 +41,23 @@ export const BanMemberDialog = ({ serverId, userId, memberName, onClose, onBanne
         }
     };
 
+    /**
+     * Ignora el pedido de cierre mientras el baneo está en vuelo.
+     *
+     * El fondo, la X y el botón atrás de Android no miraban `banning`, así que
+     * se podía cerrar el diálogo con la request empezada: si el backend la
+     * rechazaba, el error no se veía nunca. Los botones de Cancelar y Banear ya
+     * lo miraban; esto los iguala.
+     */
+    const close = () => {
+        if (!banning) onClose();
+    };
+
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center"
             style={{ background: 'rgba(0,0,0,0.7)' }}
-            onClick={onClose}
+            onClick={close}
         >
             <div
                 className="relative w-full max-w-md rounded-2xl p-8 shadow-2xl"
@@ -53,7 +65,7 @@ export const BanMemberDialog = ({ serverId, userId, memberName, onClose, onBanne
                 onClick={e => e.stopPropagation()}
             >
                 <button
-                    onClick={onClose}
+                    onClick={close}
                     className="absolute top-4 right-4 transition-colors"
                     style={{ color: '#99aab5' }}
                     aria-label="Cerrar"
@@ -93,7 +105,7 @@ export const BanMemberDialog = ({ serverId, userId, memberName, onClose, onBanne
 
                 <div className="flex justify-end gap-3 mt-6">
                     <button
-                        onClick={onClose}
+                        onClick={close}
                         disabled={banning}
                         className="text-sm px-4 py-2 rounded"
                         style={{ color: '#b9bbbe' }}

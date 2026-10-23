@@ -76,6 +76,8 @@ export default function ServerScreen() {
         <RolesSection
           serverId={server.id}
           roles={roles}
+          members={members}
+          ownerId={server.owner_id}
           canManage={canManageRoles}
           onRoleCreated={addRole}
           onRoleUpdated={updateRole}

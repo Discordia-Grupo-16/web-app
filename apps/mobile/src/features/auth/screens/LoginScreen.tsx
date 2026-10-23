@@ -9,11 +9,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { Link, useRouter } from 'expo-router';
+import { Link, useRouter, type Href } from 'expo-router';
 import { useAuth, validateLoginInput } from '@discordia/core';
 import { authService } from '@/shared/api';
+import { consumeLoginNotice } from '@/shared/session/loginNotice';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { getApiErrorMessage } from '@discordia/api';
+import { buildAuthHref, HOME_ROUTE, REGISTER_ROUTE, useReturnTo } from '../returnTo';
 
 export function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -21,10 +23,14 @@ export function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Lazy initializer: consumed once on mount, so a later visit to the screen does not show it again.
+  const [notice, setNotice] = useState(consumeLoginNotice);
   const { signIn } = useAuth();
   const router = useRouter();
+  const returnTo = useReturnTo();
 
   const handleLogin = async () => {
+    setNotice(null);
     const validation = validateLoginInput({ email, password });
     if (!validation.isValid) {
       setError(validation.error);
@@ -40,7 +46,7 @@ export function LoginScreen() {
       });
 
       await signIn(token, user, refreshToken);
-      router.replace('/(app)');
+      router.replace((returnTo ?? HOME_ROUTE) as Href);
 
     } catch (err: unknown) {
       setError(
@@ -81,6 +87,16 @@ export function LoginScreen() {
                 Nos alegra verte de nuevo.
               </Text>
             </View>
+
+            {notice && (
+              <View
+                accessible
+                accessibilityRole="alert"
+                className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/40"
+              >
+                <Text className="text-red-400 text-xs font-medium">{notice}</Text>
+              </View>
+            )}
 
             {error && (
               <View className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/40">
@@ -155,7 +171,7 @@ export function LoginScreen() {
             {/* Enlace Registro */}
             <View className="mt-4 flex-row items-center">
               <Text className="text-xs text-[#99aab5]">¿Necesitas una cuenta? </Text>
-              <Link href="/(auth)/register" asChild>
+              <Link href={buildAuthHref(REGISTER_ROUTE, returnTo)} asChild>
                 <TouchableOpacity>
                   <Text className="text-xs font-semibold text-[#7289da]">
                     Regístrate

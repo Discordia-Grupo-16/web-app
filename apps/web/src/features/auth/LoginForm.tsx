@@ -4,8 +4,16 @@ import { useNavigate } from "react-router-dom";
 import { useAuth, validateLoginInput } from "@discordia/core";
 import { getApiErrorMessage } from "@discordia/api";
 import { authService } from '@/shared/api';
+import { useReturnTo } from './returnTo';
 
-export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
+interface LoginFormProps {
+    onSwitch: () => void
+    // Message shown above the form errors (e.g. "account suspended"); hidden once the user submits.
+    notice?: string | null
+    onSubmitAttempt?: () => void
+}
+
+export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps) => {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -14,9 +22,11 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
 
     const { signIn } = useAuth()
     const navigate = useNavigate()
+    const returnTo = useReturnTo()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
+        onSubmitAttempt?.()
         setError(null)
 
         const validation = validateLoginInput({ email, password })
@@ -33,7 +43,7 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
                 password,
             })
             await signIn(token, user, refreshToken)
-            navigate('/')
+            navigate(returnTo, { replace: true })
         } catch (err: unknown) {
             setError(getApiErrorMessage(err, 'Credenciales inválidas o error al iniciar sesión.'))
         } finally {
@@ -68,6 +78,15 @@ export const LoginForm = ({ onSwitch }: { onSwitch: () => void }) => {
                         Nos alegra verte de nuevo.
                     </p>
                 </div>
+
+                {notice && (
+                    <div
+                        role="alert"
+                        className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium"
+                    >
+                        {notice}
+                    </div>
+                )}
 
                 {error && (
                     <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium">
