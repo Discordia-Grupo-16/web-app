@@ -25,3 +25,16 @@ declare var FormData: {
 
 declare function setTimeout(handler: () => void, timeoutMs?: number): number;
 declare function clearTimeout(id: number | undefined): void;
+
+interface AbortSignal {
+    readonly aborted: boolean;
+}
+interface AbortController {
+    readonly signal: AbortSignal;
+    abort(): void;
+}
+declare var AbortController: {
+    prototype: AbortController;
+    new (): AbortController;
+};
+

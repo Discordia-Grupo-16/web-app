@@ -24,3 +24,5 @@ export interface publicUsersResponse {
 // null means "not available": the account does not exist or is suspended, and the API does not
 // say which. The UI shows "Usuario no disponible".
 export type PublicProfiles = Map<string, PublicUser | null>;
+
+export type AvatarUpload = File | { uri: string; name: string; type: string };
