@@ -27,13 +27,9 @@ export const StaffLayout = () => {
                     <NavLink to="/" end className={navLinkClass}>
                         Inicio
                     </NavLink>
-                    <span
-                        aria-disabled="true"
-                        title="Disponible con SCRUM-85"
-                        className="block rounded-lg px-3 py-2 text-sm font-semibold text-discord-muted/40 cursor-not-allowed"
-                    >
+                    <NavLink to="/users" className={navLinkClass}>
                         Usuarios
-                    </span>
+                    </NavLink>
                 </nav>
             </aside>
 
