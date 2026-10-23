@@ -15,9 +15,10 @@ interface Props {
 /**
  * Confirms banning a member (SCRUM-69).
  *
- * The confirmation is not ceremony: unlike taking a role away, this one cannot
- * be undone from the interface — there is no unban endpoint — so the dialog
- * spells out that an invitation will not bring them back.
+ * The confirmation is not ceremony: unlike taking a role away, this one is not
+ * undone with a click — undoing it needs the bans section, and banning again
+ * requires them to be a member — so the dialog spells out that an invitation
+ * will not bring them back.
  */
 export const BanMemberDialog = ({ serverId, userId, memberName, onClose, onBanned }: Props) => {
     const [reason, setReason] = useState('');
