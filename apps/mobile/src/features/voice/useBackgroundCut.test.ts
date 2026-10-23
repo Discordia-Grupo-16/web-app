@@ -26,7 +26,7 @@ describe('useBackgroundCut', () => {
 
   it('cuts the call when the app goes to the background', async () => {
     const cut = jest.fn();
-    await render({ inCall: true, cut });
+    await render({ active: true, cut });
 
     await changeAppState('background');
 
@@ -35,7 +35,7 @@ describe('useBackgroundCut', () => {
 
   it('does nothing in the background without a call', async () => {
     const cut = jest.fn();
-    await render({ inCall: false, cut });
+    await render({ active: false, cut });
 
     await changeAppState('background');
 
@@ -44,7 +44,7 @@ describe('useBackgroundCut', () => {
 
   it('does nothing when the app is only inactive', async () => {
     const cut = jest.fn();
-    await render({ inCall: true, cut });
+    await render({ active: true, cut });
 
     await changeAppState('inactive');
 
@@ -53,9 +53,9 @@ describe('useBackgroundCut', () => {
 
   it('does not reconnect when the app comes back', async () => {
     const cut = jest.fn();
-    const { rerender } = await render({ inCall: true, cut });
+    const { rerender } = await render({ active: true, cut });
     await changeAppState('background');
-    await rerender({ inCall: false, cut });
+    await rerender({ active: false, cut });
 
     await changeAppState('active');
 
@@ -64,7 +64,7 @@ describe('useBackgroundCut', () => {
 
   it('does not cut while a permission prompt is open', async () => {
     const cut = jest.fn();
-    const { result } = await render({ inCall: true, cut });
+    const { result } = await render({ active: true, cut });
     let answer: (value: string) => void = () => undefined;
 
     const pending = result.current.runWithPermissionPrompt(
@@ -80,7 +80,7 @@ describe('useBackgroundCut', () => {
 
   it('cuts again once the permission prompt is answered', async () => {
     const cut = jest.fn();
-    const { result } = await render({ inCall: true, cut });
+    const { result } = await render({ active: true, cut });
 
     await act(() => result.current.runWithPermissionPrompt(async () => 'granted'));
     await changeAppState('background');
@@ -90,7 +90,7 @@ describe('useBackgroundCut', () => {
 
   it('cuts again once the permission prompt fails', async () => {
     const cut = jest.fn();
-    const { result } = await render({ inCall: true, cut });
+    const { result } = await render({ active: true, cut });
 
     await act(async () => {
       await expect(result.current.runWithPermissionPrompt(() => Promise.reject(new Error('boom')))).rejects.toThrow(

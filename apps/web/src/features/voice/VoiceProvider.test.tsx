@@ -14,6 +14,7 @@ const adapter = {
     enableMicrophone: vi.fn(async () => 'ok' as const),
     onDisconnected: () => () => undefined,
     onParticipantsChanged: () => () => undefined,
+    onReconnectingChanged: () => () => undefined,
 } satisfies VoiceRoomAdapter;
 
 vi.mock('./livekitAdapter', () => ({ createLivekitAdapter: vi.fn(() => adapter) }));

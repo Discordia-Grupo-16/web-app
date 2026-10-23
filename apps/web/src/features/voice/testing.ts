@@ -7,6 +7,7 @@ export const voiceValue = (overrides: Partial<VoiceContextValue> = {}): VoiceCon
     available: true,
     audioBlocked: false,
     join: vi.fn(),
+    leave: vi.fn(),
     retry: vi.fn(),
     dismiss: vi.fn(),
     startAudio: vi.fn(),

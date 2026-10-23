@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 
 export interface BackgroundCutOptions {
-  inCall: boolean;
+  /** A connected call or a join in progress. */
+  active: boolean;
   /** Calls disconnectWithReason('app_backgrounded'). */
   cut: () => void;
 }
@@ -15,18 +16,18 @@ export interface BackgroundCut {
 // Leaving the app cuts the call, and coming back does not reconnect it. Only 'background' counts, like the
 // realtime socket: 'inactive' also fires for system dialogs. A permission dialog may still send the app to
 // the background on some Android versions, so while one is open the change is ignored.
-export const useBackgroundCut = ({ inCall, cut }: BackgroundCutOptions): BackgroundCut => {
+export const useBackgroundCut = ({ active, cut }: BackgroundCutOptions): BackgroundCut => {
   const promptsOpen = useRef(0);
-  const latest = useRef({ inCall, cut });
+  const latest = useRef({ active, cut });
 
   useEffect(() => {
-    latest.current = { inCall, cut };
-  }, [inCall, cut]);
+    latest.current = { active, cut };
+  }, [active, cut]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
       if (next !== 'background' || promptsOpen.current > 0) return;
-      if (latest.current.inCall) latest.current.cut();
+      if (latest.current.active) latest.current.cut();
     });
     return () => sub.remove();
   }, []);
