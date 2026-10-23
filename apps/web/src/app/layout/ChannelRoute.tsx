@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
 import type { Server } from '@discordia/api';
-import { NONE, SEND_MESSAGES, hasPermission } from '@discordia/core';
+import { NONE, SEND_MESSAGES, canJoinVoice, hasPermission } from '@discordia/core';
 import { ChatPanel } from '@/features/chat';
 import { VoiceChannelPanel } from '@/features/voice';
 import { serversService } from '@/shared/api';
@@ -66,6 +66,7 @@ export const ChannelRoute = () => {
                 <VoiceChannelPanel
                     key={channel.id}
                     channel={{ id: channel.id, serverId: channel.server_id, name: channel.name }}
+                    canJoin={canJoinVoice(server?.my_permissions ?? NONE)}
                 />
             ) : (
                 <ChatPanel
