@@ -6,7 +6,7 @@ import { NONE, canJoinVoice } from '@discordia/core';
 import { ChannelScreen } from '@/features/chat';
 import { VoiceChannelScreen } from '@/features/voice';
 import { serversService } from '@/shared/api';
-import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 type ChannelParams = { serverId: string; channelId: string; name?: string; type?: Channel['type'] };
 type ChannelInfo = Pick<Channel, 'name' | 'type'>;
@@ -44,11 +44,15 @@ export default function ChannelRoute() {
   }, [isText, serverId, channelId, router]);
 
   // Losing CONNECT takes "Unirse" away without a reload. A deleted channel cuts the call by itself.
-  useFocusedPolling(() => {
-    if (channel?.type !== 'voice') return;
-    serversService.getServer(serverId)
-      .then((server) => setPermissions(server.my_permissions ?? NONE))
-      .catch(() => undefined);
+  useLiveRefresh({
+    resources: ['server', 'channels', 'permissions'],
+    serverId,
+    refresh: () => {
+      if (channel?.type !== 'voice') return;
+      serversService.getServer(serverId)
+        .then((server) => setPermissions(server.my_permissions ?? NONE))
+        .catch(() => undefined);
+    },
   });
 
   useEffect(() => {

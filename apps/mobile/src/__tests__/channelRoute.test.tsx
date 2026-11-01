@@ -15,6 +15,8 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
   useNavigation: () => mockNavigation,
   useRouter: () => mockRouter,
+  // useLiveRefresh follows the focus with it; this screen is never unfocused here.
+  useFocusEffect: () => undefined,
 }));
 jest.mock('@/shared/api', () => ({ serversService: { getServer: jest.fn() } }));
 // The real poll runs on an interval while the screen is focused; here each tick is fired by hand.

@@ -3,7 +3,7 @@ import { Alert } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import { isGoneError, type Channel, type Server } from '@discordia/api';
 import { serversService } from '@/shared/api';
-import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 // Loads the server, titles the screen with its name and keeps its channels fresh. Goes back when the
 // server cannot be loaded or disappears (deleted, or we were removed).
@@ -41,14 +41,14 @@ export const useServerDetails = (serverId: string | undefined) => {
   }, [serverId, navigation, router]);
 
   // Channels created or deleted from another client, and permissions changed by someone else,
-  // show up on focus and on the next poll.
+  // arrive as a notice, and show up on focus.
   const goneRef = useRef(false);
-  useFocusedPolling(() => {
+  const refresh = () => {
     if (!serverId || goneRef.current) return;
     serversService.getServer(serverId)
       .then(srv => {
         // Only the fields that change behind our back: replacing the whole server would throw
-        // away a channel the user just created but the poll has not seen yet.
+        // away a channel the user just created but this answer has not seen yet.
         setServer(prev => prev && prev.id === srv.id ? {
           ...prev,
           channels: srv.channels,
@@ -62,13 +62,14 @@ export const useServerDetails = (serverId: string | undefined) => {
         Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o ya no sos miembro.');
         router.back();
       });
-  });
+  };
+  useLiveRefresh({ resources: ['server', 'channels', 'permissions'], serverId, refresh });
 
   const updateChannels = useCallback((update: (channels: Channel[]) => Channel[]) => {
     setServer(prev => prev ? { ...prev, channels: update(prev.channels) } : prev);
   }, []);
 
-  // While we leave or delete the server ourselves, the poll must not report it as gone.
+  // While we leave or delete the server ourselves, the refresh must not report it as gone.
   const setLeaving = useCallback((leaving: boolean) => {
     goneRef.current = leaving;
   }, []);
