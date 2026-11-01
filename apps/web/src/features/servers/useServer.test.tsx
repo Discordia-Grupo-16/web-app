@@ -1,8 +1,9 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import type { Server } from '@discordia/api';
+import type { InvalidateFrame, Server } from '@discordia/api';
+import { RealtimeContext, type RealtimeContextValue } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import { useServer } from './useServer';
 
@@ -84,5 +85,70 @@ describe('useServer', () => {
         result.current.updateChannels(() => []);
 
         await waitFor(() => expect(result.current.server?.channels).toEqual([]));
+    });
+
+    describe('with realtime', () => {
+        // Only what useServerEvents reads from the context: who listens to the notices.
+        const withNotices = () => {
+            const handlers = new Set<(frame: InvalidateFrame) => void>();
+            const value = {
+                status: 'open',
+                onInvalidate: (handler: (frame: InvalidateFrame) => void) => {
+                    handlers.add(handler);
+                    return () => {
+                        handlers.delete(handler);
+                    };
+                },
+                onReconnect: () => () => {},
+            } as unknown as RealtimeContextValue;
+            return {
+                notice: (frame: Omit<InvalidateFrame, 'type'>) =>
+                    act(() => handlers.forEach((h) => h({ type: 'invalidate', ...frame }))),
+                wrapper: ({ children }: { children: ReactNode }) => (
+                    <MemoryRouter>
+                        <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>
+                    </MemoryRouter>
+                ),
+            };
+        };
+
+        it('picks up a permission someone else revoked as soon as the notice arrives, without waiting for a poll', async () => {
+            vi.mocked(serversService.getServer).mockResolvedValue(server);
+            const { notice, wrapper: realtimeWrapper } = withNotices();
+            const { result } = renderHook(() => useServer('srv', 'c1'), { wrapper: realtimeWrapper });
+            await waitFor(() => expect(result.current.server).not.toBeNull());
+            vi.mocked(serversService.getServer).mockResolvedValue({ ...server, my_permissions: 1 });
+            vi.mocked(serversService.getServer).mockClear();
+            vi.useFakeTimers();
+
+            try {
+                notice({ serverId: 'srv', resources: ['permissions', 'channels'] });
+                // Coalescing window plus the longest random delay.
+                await act(() => vi.advanceTimersByTimeAsync(1400));
+            } finally {
+                vi.useRealTimers();
+            }
+
+            await waitFor(() => expect(result.current.server?.my_permissions).toBe(1));
+            expect(serversService.getServer).toHaveBeenCalledTimes(1);
+        });
+
+        it('ignores a notice about another server', async () => {
+            vi.mocked(serversService.getServer).mockResolvedValue(server);
+            const { notice, wrapper: realtimeWrapper } = withNotices();
+            const { result } = renderHook(() => useServer('srv', 'c1'), { wrapper: realtimeWrapper });
+            await waitFor(() => expect(result.current.server).not.toBeNull());
+            vi.mocked(serversService.getServer).mockClear();
+            vi.useFakeTimers();
+
+            try {
+                notice({ serverId: 'other', resources: ['permissions', 'channels'] });
+                await act(() => vi.advanceTimersByTimeAsync(1400));
+            } finally {
+                vi.useRealTimers();
+            }
+
+            expect(serversService.getServer).not.toHaveBeenCalled();
+        });
     });
 });

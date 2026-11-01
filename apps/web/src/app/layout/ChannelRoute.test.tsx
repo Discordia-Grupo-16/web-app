@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONNECT, PERMISSION_COPY, SEND_MESSAGES, VIEW_CHANNEL } from '@discordia/core';
 import type { Channel, Server } from '@discordia/api';
+import { CurrentServerProvider } from '@/features/servers';
 import { serversService } from '@/shared/api';
 import { ChannelRoute } from './ChannelRoute';
 
@@ -51,7 +52,10 @@ const renderAt = (channelId: string) =>
     render(
         <MemoryRouter initialEntries={[`/servers/srv/channels/${channelId}`]}>
             <Routes>
-                <Route path="/servers/:serverId/channels/:channelId" element={<ChannelRoute />} />
+                <Route
+                    path="/servers/:serverId/channels/:channelId"
+                    element={<CurrentServerProvider><ChannelRoute /></CurrentServerProvider>}
+                />
             </Routes>
         </MemoryRouter>,
     );
