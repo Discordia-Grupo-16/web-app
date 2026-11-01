@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sessionExpiry } from '@/shared/session/sessionExpiry';
 
-const { createApiClient } = vi.hoisted(() => ({ createApiClient: vi.fn(() => ({})) }));
+const { createApiClient } = vi.hoisted(() => ({
+    createApiClient: vi.fn<(config: { onSessionExpired: () => void }) => object>(() => ({})),
+}));
 
 vi.mock('@discordia/api', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/api')>()),
@@ -13,7 +15,7 @@ describe('shared api wiring', () => {
 
     it('tells the session expiry signal when the HTTP client loses the session', async () => {
         await import('./index');
-        const { onSessionExpired } = createApiClient.mock.calls[0][0] as { onSessionExpired: () => void };
+        const { onSessionExpired } = createApiClient.mock.calls[0][0];
         const listener = vi.fn();
         sessionExpiry.subscribe(listener);
 
