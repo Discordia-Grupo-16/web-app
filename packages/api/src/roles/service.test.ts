@@ -16,9 +16,9 @@ const role: Role = {
 
 const setup = () => {
     const apiClient = {
-        get: vi.fn(async () => ({ data: [role] })),
-        post: vi.fn(async () => ({ data: role })),
-        patch: vi.fn(async () => ({ data: role })),
+        get: vi.fn(async () => ({ data: { data: [role] } })),
+        post: vi.fn(async () => ({ data: { data: role } })),
+        patch: vi.fn(async () => ({ data: { data: role } })),
         put: vi.fn(async () => ({ data: undefined })),
         delete: vi.fn(async () => ({ data: undefined })),
     };

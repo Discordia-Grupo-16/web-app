@@ -10,8 +10,8 @@ export const createMembersService = (apiClient: AxiosInstance) => ({
      */
     listMembers: (serverId: string): Promise<ServerMember[]> =>
         apiClient
-            .get<ServerMember[]>(`/api/v1/servers/${serverId}/members/`)
-            .then(r => r.data),
+            .get<{ data: ServerMember[] }>(`/api/v1/servers/${serverId}/members/`)
+            .then(r => r.data.data),
 
     /**
      * Bans a member: they lose access and no invitation lets them back in
@@ -47,8 +47,8 @@ export const createMembersService = (apiClient: AxiosInstance) => ({
      */
     listBans: (serverId: string): Promise<ServerBan[]> =>
         apiClient
-            .get<ServerBan[]>(`/api/v1/servers/${serverId}/bans/`)
-            .then(r => r.data),
+            .get<{ data: ServerBan[] }>(`/api/v1/servers/${serverId}/bans/`)
+            .then(r => r.data.data),
 
     /**
      * Revokes a ban (SCRUM-70): the user can join again with a valid
