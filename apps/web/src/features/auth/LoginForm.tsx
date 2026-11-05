@@ -8,12 +8,13 @@ import { useReturnTo } from './returnTo';
 
 interface LoginFormProps {
     onSwitch: () => void
+    onForgotPassword?: () => void
     // Message shown above the form errors (e.g. "account suspended"); hidden once the user submits.
     notice?: string | null
     onSubmitAttempt?: () => void
 }
 
-export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps) => {
+export const LoginForm = ({ onSwitch, onForgotPassword, notice, onSubmitAttempt }: LoginFormProps) => {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -136,6 +137,7 @@ export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps)
                             </label>
                             <button
                                 type="button"
+                                onClick={onForgotPassword}
                                 className="text-xs font-medium transition-colors hover:underline"
                                 style={{ fontFamily: 'Open Sans, sans-serif', color: '#7289da' }}
                             >
