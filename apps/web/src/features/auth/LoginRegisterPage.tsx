@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { consumeLoginNotice } from '@/shared/session/loginNotice'
+import { consumeLoginNoticeWithTone } from '@/shared/session/loginNotice'
 import { ForgotPasswordForm } from './ForgotPasswordForm'
 import { LoginForm } from './LoginForm'
 import { RegisterForm } from './RegisterForm'
@@ -14,7 +14,7 @@ export const LoginRegisterPage = () => {
         (location.state as { forgotPassword?: boolean } | null)?.forgotPassword === true,
     )
     // Lazy initializer: consumed once on mount, so re-renders keep it and a later visit does not.
-    const [notice, setNotice] = useState(consumeLoginNotice)
+    const [notice, setNotice] = useState(consumeLoginNoticeWithTone)
 
     return (
         <div
@@ -32,7 +32,8 @@ export const LoginRegisterPage = () => {
                     <LoginForm
                         onSwitch={() => setIsLogin(false)}
                         onForgotPassword={() => setIsForgot(true)}
-                        notice={notice}
+                        notice={notice?.message}
+                        noticeTone={notice?.tone}
                         onSubmitAttempt={() => setNotice(null)}
                     />
                 ) : (

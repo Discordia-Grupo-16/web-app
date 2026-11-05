@@ -74,7 +74,7 @@ export const ResetPasswordPage = () => {
         setLoading(true)
         try {
             await authService.confirmPasswordReset(tokenRef.current ?? '', password)
-            setLoginNotice(UPDATED_MESSAGE)
+            setLoginNotice(UPDATED_MESSAGE, 'success')
             navigate('/home', { replace: true })
         } catch (err: unknown) {
             if (httpStatus(err) === 400) {

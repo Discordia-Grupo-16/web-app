@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ResetPasswordPage } from './ResetPasswordPage';
 import { authService } from '@/shared/api';
-import { consumeLoginNotice } from '@/shared/session/loginNotice';
+import { consumeLoginNoticeWithTone } from '@/shared/session/loginNotice';
 
 const navigate = vi.fn();
 
@@ -33,7 +33,7 @@ const badLink = { isAxiosError: true, response: { status: 400, data: {} } };
 describe('ResetPasswordPage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        consumeLoginNotice();
+        consumeLoginNoticeWithTone();
     });
 
     it('checks the token from the fragment and removes it from the address bar', async () => {
@@ -92,7 +92,10 @@ describe('ResetPasswordPage', () => {
 
         await waitFor(() => expect(navigate).toHaveBeenCalledWith('/home', { replace: true }));
         expect(confirm).toHaveBeenCalledWith('abc123', 'Nueva1234');
-        expect(consumeLoginNotice()).toBe('Actualizamos tu contraseña. Iniciá sesión.');
+        expect(consumeLoginNoticeWithTone()).toEqual({
+            message: 'Actualizamos tu contraseña. Iniciá sesión.',
+            tone: 'success',
+        });
     });
 
     it('falls back to the invalid-link state when the token expires while typing', async () => {
