@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-do
 import { LoginPage, StaffRoute } from '@/features/auth';
 import { HomePage } from '@/features/dashboard';
 import { UsersPage } from '@/features/users';
+import { ServersPage } from '@/features/servers';
 import App from './App';
 import { StaffLayout } from './layout/StaffLayout';
 
@@ -19,6 +20,7 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <HomePage /> },
               { path: 'users', element: <UsersPage /> },
+              { path: 'servers', element: <ServersPage /> }
             ],
           },
         ],
