@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
@@ -47,6 +48,7 @@ interface Options {
     canManage?: boolean;
     canKick?: boolean;
     canBan?: boolean;
+    renderMemberActions?: (member: ServerMember) => ReactNode;
 }
 
 const renderSection = ({
@@ -55,6 +57,7 @@ const renderSection = ({
     canManage = true,
     canKick = false,
     canBan = false,
+    renderMemberActions,
 }: Options = {}) => {
     const onRolesChange = vi.fn();
     const onMemberKicked = vi.fn();
@@ -78,6 +81,7 @@ const renderSection = ({
                     onRolesChange={onRolesChange}
                     onMemberKicked={onMemberKicked}
                     onMemberBanned={onMemberBanned}
+                    renderMemberActions={renderMemberActions}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
@@ -351,6 +355,16 @@ describe('MembersSection', () => {
 
         expect(membersService.banMember).not.toHaveBeenCalled();
         expect(onMemberBanned).not.toHaveBeenCalled();
+    });
+
+    it('draws the extra actions of each row', async () => {
+        renderSection({
+            members: [member('milton'), member('owner')],
+            renderMemberActions: (m) => <button>Acción de {m.user_id}</button>,
+        });
+
+        expect(await screen.findByRole('button', { name: 'Acción de milton' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Acción de owner' })).toBeInTheDocument();
     });
 
     it('opens the public profile of the member that was clicked', async () => {

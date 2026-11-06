@@ -133,7 +133,14 @@ export const ServerPanel = () => {
                 )}
             </div>
 
-            {serverId && !isOwner && <LeaveServerButton serverId={serverId} />}
+            {serverId && !isOwner && (
+                <LeaveServerButton
+                    serverId={serverId}
+                    isOwner={false}
+                    pendingTransferTo={null}
+                    onTransferRequested={() => undefined}
+                />
+            )}
         </aside>
     );
 };

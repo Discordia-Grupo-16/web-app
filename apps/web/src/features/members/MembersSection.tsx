@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Ban, Crown, Pencil, UserMinus } from 'lucide-react';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
@@ -18,6 +18,8 @@ interface MembersSectionProps {
     onRolesChange: (userId: string, roles: Role[]) => void;
     onMemberKicked: (userId: string) => void;
     onMemberBanned: (userId: string) => void;
+    /** Extra actions drawn at the end of each row, such as transferring the ownership. */
+    renderMemberActions?: (member: ServerMember) => ReactNode;
 }
 
 export const MembersSection = ({

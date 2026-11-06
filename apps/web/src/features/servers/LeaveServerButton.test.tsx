@@ -13,12 +13,33 @@ vi.mock('react-router-dom', async (importOriginal) => ({
     useNavigate: () => navigate,
 }));
 
-const renderButton = () =>
+interface Options {
+    isOwner?: boolean;
+    pendingTransferTo?: string | null;
+    onDeleteRequested?: () => void;
+}
+
+const onTransferRequested = vi.fn();
+
+const renderButton = ({ isOwner = false, pendingTransferTo = null, onDeleteRequested }: Options = {}) =>
     render(
         <MemoryRouter>
-            <LeaveServerButton serverId="srv" />
+            <LeaveServerButton
+                serverId="srv"
+                isOwner={isOwner}
+                pendingTransferTo={pendingTransferTo}
+                onTransferRequested={onTransferRequested}
+                onDeleteRequested={onDeleteRequested}
+            />
         </MemoryRouter>,
     );
+
+const OWNER_MESSAGE = 'Para abandonar el servidor, primero transferí la propiedad o eliminá el servidor.';
+
+const confirmLeaving = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(screen.getByRole('button', { name: 'Abandonar servidor' }));
+    await user.click(screen.getByRole('button', { name: 'Abandonar' }));
+};
 
 describe('LeaveServerButton', () => {
     beforeEach(() => {
@@ -58,6 +79,64 @@ describe('LeaveServerButton', () => {
         await user.click(screen.getByRole('button', { name: 'Abandonar' }));
 
         expect(alert).toHaveBeenCalledWith('Error al abandonar el servidor');
+        expect(navigate).not.toHaveBeenCalled();
+    });
+
+    describe('as the owner', () => {
+        it('does not leave and says to transfer the ownership first', async () => {
+            renderButton({ isOwner: true });
+            const user = userEvent.setup();
+
+            await confirmLeaving(user);
+
+            expect(serversService.leaveServer).not.toHaveBeenCalled();
+            expect(screen.getByText(OWNER_MESSAGE)).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Transferir propiedad' })).toBeInTheDocument();
+        });
+
+        it('names the recipient of the pending transfer', async () => {
+            renderButton({ isOwner: true, pendingTransferTo: 'Beto' });
+            const user = userEvent.setup();
+
+            await confirmLeaving(user);
+
+            expect(screen.getByText(`${OWNER_MESSAGE} Ya hay una transferencia pendiente a Beto.`)).toBeInTheDocument();
+        });
+
+        it('takes the owner to transfer the ownership', async () => {
+            renderButton({ isOwner: true });
+            const user = userEvent.setup();
+
+            await confirmLeaving(user);
+            await user.click(screen.getByRole('button', { name: 'Transferir propiedad' }));
+
+            expect(onTransferRequested).toHaveBeenCalled();
+        });
+
+        it('offers deleting the server only when it can be deleted', async () => {
+            const onDeleteRequested = vi.fn();
+            const { unmount } = renderButton({ isOwner: true });
+            const user = userEvent.setup();
+            await confirmLeaving(user);
+            expect(screen.queryByRole('button', { name: 'Eliminar servidor' })).not.toBeInTheDocument();
+            unmount();
+
+            renderButton({ isOwner: true, onDeleteRequested });
+            await confirmLeaving(user);
+            await user.click(screen.getByRole('button', { name: 'Eliminar servidor' }));
+
+            expect(onDeleteRequested).toHaveBeenCalled();
+        });
+    });
+
+    it('shows the owner message when the backend says the user is the owner', async () => {
+        vi.mocked(serversService.leaveServer).mockRejectedValue({ response: { status: 409 } });
+        renderButton();
+        const user = userEvent.setup();
+
+        await confirmLeaving(user);
+
+        expect(await screen.findByText(OWNER_MESSAGE)).toBeInTheDocument();
         expect(navigate).not.toHaveBeenCalled();
     });
 });

@@ -4,7 +4,18 @@ import { LogOut } from 'lucide-react';
 import { serversService } from '@/shared/api';
 import { ConfirmModal } from '@/shared/ui/ConfirmModal';
 
-export const LeaveServerButton = ({ serverId }: { serverId: string }) => {
+interface LeaveServerButtonProps {
+    serverId: string;
+    isOwner: boolean;
+    /** Name of the recipient when a transfer is pending; null when there is none. */
+    pendingTransferTo: string | null;
+    /** Takes the owner to the members list, where the ownership is transferred. */
+    onTransferRequested: () => void;
+    /** Deleting the server (SCRUM-34). Without it, "Eliminar servidor" is not offered. */
+    onDeleteRequested?: () => void;
+}
+
+export const LeaveServerButton = ({ serverId }: LeaveServerButtonProps) => {
     const navigate = useNavigate();
     const [pendingLeave, setPendingLeave] = useState(false);
 
