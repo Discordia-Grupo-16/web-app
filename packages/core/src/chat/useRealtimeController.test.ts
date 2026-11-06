@@ -339,4 +339,81 @@ describe('useRealtimeController', () => {
 
         expect(result.current.value.state.byChannel[CHANNEL]?.map((m) => m.messageId)).toEqual(['m2']);
     });
+
+    it('hands the invalidate frames of the client to whoever subscribed, until they unsubscribe', () => {
+        const { result } = render();
+        const handler = vi.fn();
+        const off = result.current.value.onInvalidate(handler);
+
+        const frame = { type: 'invalidate' as const, serverId: 's1', resources: ['channels'] };
+        fake.emit('invalidate', frame);
+        expect(handler).toHaveBeenCalledWith(frame);
+
+        off();
+        fake.emit('invalidate', frame);
+        expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets subscribe to invalidate without a client: nothing ever arrives and unsubscribing is safe', () => {
+        const { result } = render({ client: null });
+
+        const off = result.current.value.onInvalidate(vi.fn());
+
+        expect(off).not.toThrow();
+    });
+
+    it('does not fire onReconnect on the first open', () => {
+        const { result } = render();
+        const handler = vi.fn();
+        result.current.value.onReconnect(handler);
+
+        fake.emit('stateChange', 'connecting');
+        fake.emit('stateChange', 'open');
+
+        expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('fires onReconnect when the socket opens again after a drop', () => {
+        const { result } = render();
+        const handler = vi.fn();
+        result.current.value.onReconnect(handler);
+        fake.emit('stateChange', 'open');
+
+        fake.emit('stateChange', 'reconnecting');
+        fake.emit('stateChange', 'open');
+
+        expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it('fires onReconnect when the app comes back from the background (suspend, then open)', () => {
+        const { result } = render();
+        const handler = vi.fn();
+        result.current.value.onReconnect(handler);
+        fake.emit('stateChange', 'open');
+
+        act(() => result.current.suspend());
+        fake.emit('stateChange', 'closed');
+        fake.emit('stateChange', 'open');
+
+        expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops firing onReconnect after unsubscribing, and one failing handler does not stop the others', () => {
+        const { result } = render();
+        const unsubscribed = vi.fn();
+        const failing = vi.fn(() => {
+            throw new Error('boom');
+        });
+        const healthy = vi.fn();
+        result.current.value.onReconnect(unsubscribed)();
+        result.current.value.onReconnect(failing);
+        result.current.value.onReconnect(healthy);
+        fake.emit('stateChange', 'open');
+
+        fake.emit('stateChange', 'reconnecting');
+        fake.emit('stateChange', 'open');
+
+        expect(unsubscribed).not.toHaveBeenCalled();
+        expect(healthy).toHaveBeenCalledTimes(1);
+    });
 });

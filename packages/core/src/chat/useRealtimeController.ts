@@ -67,6 +67,9 @@ export const useRealtimeController = ({
     const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
     // True from suspend() until the socket reconnects (see suspend).
     const resuming = useRef(false);
+    const reconnectHandlers = useRef(new Set<() => void>());
+    // False until the socket opens once: the first open is not a "coming back".
+    const hasOpened = useRef(false);
     const historyFetching = useRef(new Set<string>());
     const loadMoreFetching = useRef(new Set<string>());
     const syncAbortRef = useRef<AbortController | null>(null);
@@ -104,6 +107,16 @@ export const useRealtimeController = ({
                 dispatch({ type: 'connectionLost' });
             }
             if (next === 'open') {
+                if (hasOpened.current) {
+                    for (const handler of reconnectHandlers.current) {
+                        try {
+                            handler();
+                        } catch (err) {
+                            logger.error('reconnect handler failed', err);
+                        }
+                    }
+                }
+                hasOpened.current = true;
                 // Cancel any in-progress resync and start a fresh one.
                 syncAbortRef.current?.abort();
                 const abort = new AbortController();
@@ -345,9 +358,27 @@ export const useRealtimeController = ({
         }
     }, [api, logger]);
 
+    const onInvalidate = useCallback<RealtimeContextValue['onInvalidate']>(
+        (handler) => (client ? client.on('invalidate', handler) : () => {}),
+        [client],
+    );
+
+    const onReconnect = useCallback<RealtimeContextValue['onReconnect']>((handler) => {
+        reconnectHandlers.current.add(handler);
+        return () => {
+            reconnectHandlers.current.delete(handler);
+        };
+    }, []);
+
     const value = useMemo<RealtimeContextValue>(
-        () => ({ status, state, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, retryHistory, loadMoreHistory }),
-        [status, state, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, retryHistory, loadMoreHistory],
+        () => ({
+            status, state, maxLength, send, retry, discard, lastRejected, clearRejected,
+            loadHistory, retryHistory, loadMoreHistory, onInvalidate, onReconnect,
+        }),
+        [
+            status, state, maxLength, send, retry, discard, lastRejected, clearRejected,
+            loadHistory, retryHistory, loadMoreHistory, onInvalidate, onReconnect,
+        ],
     );
 
     return { value, suspend };

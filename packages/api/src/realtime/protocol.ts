@@ -23,6 +23,34 @@ export interface MessageCreatedFrame {
     clientMessageId: string;
 }
 
+/**
+ * What a client has to fetch again (ADR-0017). The set is open: the server may add values, and a
+ * client ignores the ones it does not know, so `resources` is typed as plain strings.
+ */
+export type InvalidateResource =
+    | 'servers'
+    | 'server'
+    | 'channels'
+    | 'permissions'
+    | 'members'
+    | 'bans'
+    | 'profile'
+    | 'ownershipTransfers';
+
+/**
+ * Something the client has loaded went stale. It carries no data: the client asks again over HTTP,
+ * because the source is `community` or `identity`, not `chat`. A repeated or out-of-order notice
+ * only costs a refetch.
+ */
+export interface InvalidateFrame {
+    type: 'invalidate';
+    /** Absent when the resources are not a server's (`servers`, `profile`). */
+    serverId?: string;
+    resources: string[];
+    /** Whose profile changed. Present only when a profile is the cause. */
+    userId?: string;
+}
+
 export type RealtimeErrorCode =
     | 'CHANNEL_NOT_FOUND'
     | 'FORBIDDEN'
@@ -40,4 +68,4 @@ export interface ErrorFrame {
     };
 }
 
-export type ServerFrame = MessageAckFrame | MessageCreatedFrame | ErrorFrame;
+export type ServerFrame = MessageAckFrame | MessageCreatedFrame | InvalidateFrame | ErrorFrame;
