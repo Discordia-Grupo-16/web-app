@@ -33,6 +33,7 @@ export const MembersSection = ({
     onRolesChange,
     onMemberKicked,
     onMemberBanned,
+    renderMemberActions,
 }: MembersSectionProps) => {
     const { user } = useAuth();
     const { openProfile } = useProfileViewer();
@@ -58,7 +59,8 @@ export const MembersSection = ({
                 </span>
             </div>
 
-            {members.map(({ user_id, roles: memberRoles }) => {
+            {members.map((rowMember) => {
+                const { user_id, roles: memberRoles } = rowMember;
                 const isOwner = user_id === ownerId;
                 // The highest role is the one that names the member in the list: it is the
                 // one the backend's hierarchy uses, and the list comes ordered by position.
@@ -133,6 +135,8 @@ export const MembersSection = ({
                                 <Ban size={13} />
                             </button>
                         )}
+
+                        {renderMemberActions?.(rowMember)}
                     </div>
                 );
             })}
