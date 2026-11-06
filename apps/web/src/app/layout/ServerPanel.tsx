@@ -18,7 +18,7 @@ import { ChannelList } from '@/features/channels';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
 import { RolesSection, useRoles } from '@/features/roles';
-import { LeaveServerButton, ServerHeader, useServer } from '@/features/servers';
+import { LeaveServerButton, ServerHeader, useCurrentServer } from '@/features/servers';
 import { VoiceParticipantList } from '@/features/voice';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
@@ -27,7 +27,7 @@ const NO_PARTICIPANTS: VoiceParticipant[] = [];
 export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
-    const { server, loading: loadingServer, updateChannels } = useServer(serverId, channelId);
+    const { server, loading: loadingServer, updateChannels } = useCurrentServer();
     const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
     const { members, loading: loadingMembers, setMemberRoles, removeMember } = useMembers(serverId);
 

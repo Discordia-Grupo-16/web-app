@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isGoneError, type Channel, type Server } from '@discordia/api';
 import { serversService } from '@/shared/api';
-import { usePolling } from '@/shared/hooks/usePolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 // Loads the server in the URL and keeps its channels fresh. Leaves it when it is gone (deleted, or we
 // were removed), and falls back to the server view when the open channel disappears.
@@ -40,18 +40,18 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
     }, [serverId, navigate]);
 
     // Channels created or deleted from another client, and permissions changed by someone else,
-    // show up on the next poll.
+    // arrive as a notice.
     const currentServerIdRef = useRef(serverId);
     useEffect(() => {
         currentServerIdRef.current = serverId;
     }, [serverId]);
 
-    usePolling(() => {
+    const refreshServer = useCallback(() => {
         if (!serverId) return;
         serversService.getServer(serverId)
             .then(srv => {
                 // Only the fields that change behind our back: replacing the whole server would
-                // throw away a channel the user just created but the poll has not seen yet.
+                // throw away a channel the user just created but this answer has not seen yet.
                 setServer(prev => prev && prev.id === srv.id ? {
                     ...prev,
                     channels: srv.channels,
@@ -62,7 +62,14 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
             .catch(err => {
                 if (isGoneError(err) && currentServerIdRef.current === serverId) navigate('/');
             });
-    }, !!serverId);
+    }, [serverId, navigate]);
+
+    useLiveRefresh({
+        resources: ['server', 'channels', 'permissions'],
+        serverId,
+        refresh: refreshServer,
+        enabled: !!serverId,
+    });
 
     // The open channel was deleted from another client: fall back to the server view.
     useEffect(() => {

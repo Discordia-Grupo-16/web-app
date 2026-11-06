@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react';
 import { serversService } from '@/shared/api';
 import type { Server } from '@discordia/api';
 import { CreateServerModal } from './CreateServerModal';
-import { usePolling } from '@/shared/hooks/usePolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 export const ServerSidebar = () => {
     const [servers, setServers] = useState<Server[]>([]);
@@ -29,8 +29,8 @@ export const ServerSidebar = () => {
         refreshServers();
     }, [refreshServers, serverId]);
 
-    // Servers deleted, or joined, from another client show up on the next poll.
-    usePolling(refreshServers);
+    // Servers deleted, or joined, from another client arrive as a notice of `servers`.
+    useLiveRefresh({ resources: ['servers'], refresh: refreshServers });
 
     const handleCreated = (server: Server) => {
         localChangeRef.current += 1;

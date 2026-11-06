@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ServerBan } from '@discordia/api';
 import { membersService } from '@/shared/api';
-import { usePolling } from '@/shared/hooks/usePolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 /**
  * The bans of a server, for the bans section (SCRUM-70).
@@ -16,7 +16,7 @@ export const useBans = (serverId: string | undefined, enabled: boolean) => {
     const [error, setError] = useState(false);
 
     // What the list belongs to right now. The initial load is protected by `isMounted`, but
-    // `reload` and the poll are not tied to an effect: their answer is compared against this
+    // `reload` and the refresh are not tied to an effect: their answer is compared against this
     // when it arrives, so switching servers with one in flight does not paint the old list.
     const current = useRef({ serverId, enabled });
     useEffect(() => {
@@ -70,9 +70,9 @@ export const useBans = (serverId: string | undefined, enabled: boolean) => {
             .catch(console.error);
     }, [serverId, enabled]);
 
-    // Nothing about bans is pushed over the socket: a ban made by another
-    // moderator shows up with the poll.
-    usePolling(reload, !!serverId && enabled);
+    // A ban made by another moderator arrives as a notice of `bans`. Revoking one has no event
+    // yet, so that one still shows up with the backup poll.
+    useLiveRefresh({ resources: ['bans'], serverId, refresh: reload, enabled: !!serverId && enabled });
 
     /**
      * Drops a revoked ban from the list. The DELETE answers 204 without a body,

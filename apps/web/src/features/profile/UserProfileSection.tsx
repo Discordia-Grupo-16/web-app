@@ -4,7 +4,7 @@ import { UserProfileEditModal } from './UserProfileEditModal';
 import { useAuth } from "@discordia/core";
 import { LogoutIcon } from "@discordia/ui";
 import { userService } from "@/shared/api";
-import { usePolling } from "@/shared/hooks/usePolling"
+import { useLiveRefresh } from "@/shared/hooks/useLiveRefresh"
 
 export const UserProfileSection = () => {
     const [showProfile, setShowProfile] = useState(false)
@@ -28,7 +28,7 @@ export const UserProfileSection = () => {
         refreshProfile();
     }, [refreshProfile]);
 
-    usePolling(refreshProfile);
+    useLiveRefresh({ resources: ['profile'], refresh: refreshProfile });
 
     if (!user) {
         return <div>Cargando...</div>;

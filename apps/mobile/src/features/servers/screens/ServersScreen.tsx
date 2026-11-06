@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { serversService } from '@/shared/api';
 import type { Server } from '@discordia/api';
-import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 import { getErrorDetail } from '@discordia/api';
 
 export function ServersScreen() {
@@ -23,14 +23,18 @@ export function ServersScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Servers deleted or joined elsewhere (or left from the server screen) show up on focus and
-  // on the next poll. A response from before a local change (creating a server) is dropped.
+  // Servers deleted or joined elsewhere (or left from the server screen) arrive as a notice of
+  // `servers`, and show up on focus. A response from before a local change (creating a server) is
+  // dropped.
   const localChangeRef = useRef(0);
-  useFocusedPolling(() => {
-    const startedAt = localChangeRef.current;
-    serversService.getServers()
-      .then(list => { if (localChangeRef.current === startedAt) setServers(list); })
-      .catch(() => { /* keep the current list; the next tick retries */ });
+  useLiveRefresh({
+    resources: ['servers'],
+    refresh: () => {
+      const startedAt = localChangeRef.current;
+      serversService.getServers()
+        .then(list => { if (localChangeRef.current === startedAt) setServers(list); })
+        .catch(() => { /* keep the current list; the next tick retries */ });
+    },
   });
 
   return (

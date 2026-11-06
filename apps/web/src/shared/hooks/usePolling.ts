@@ -1,10 +1,11 @@
 import { useEffect, useRef } from 'react';
 
-// Chat doesn't push server or channel changes over the socket, so views that list them poll
-// while the tab is visible, and once more when the tab becomes visible again.
+// The default is the old polling for views that nothing pushes. Views that get realtime notices
+// (see useLiveRefresh) keep it as a slow safety net instead.
 export const POLL_INTERVAL_MS = 5000;
 
-export const usePolling = (tick: () => void, enabled = true) => {
+// Polls while the tab is visible, and once more when the tab becomes visible again.
+export const usePolling = (tick: () => void, enabled = true, intervalMs = POLL_INTERVAL_MS) => {
     const tickRef = useRef(tick);
     useEffect(() => {
         tickRef.current = tick;
@@ -15,11 +16,11 @@ export const usePolling = (tick: () => void, enabled = true) => {
         const run = () => {
             if (document.visibilityState === 'visible') tickRef.current();
         };
-        const interval = window.setInterval(run, POLL_INTERVAL_MS);
+        const interval = window.setInterval(run, intervalMs);
         document.addEventListener('visibilitychange', run);
         return () => {
             window.clearInterval(interval);
             document.removeEventListener('visibilitychange', run);
         };
-    }, [enabled]);
+    }, [enabled, intervalMs]);
 };
