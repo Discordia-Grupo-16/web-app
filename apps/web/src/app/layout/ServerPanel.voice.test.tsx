@@ -6,7 +6,7 @@ import { VIEW_CHANNEL, useVoice, type VoiceContextValue } from '@discordia/core'
 import { useCurrentServer } from '@/features/servers';
 import { ServerPanel } from './ServerPanel';
 
-vi.mock('@/shared/api', () => ({ channelsService: {} }));
+vi.mock('@/shared/api', () => ({ channelsService: {}, ownershipSource: {} }));
 vi.mock('@/features/invitations', () => ({ InviteButton: () => null }));
 vi.mock('@/features/roles', () => ({
     RolesSection: () => null,
@@ -27,6 +27,8 @@ vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
     useAuth: () => ({ user: { id: 'me', name: 'Milton' } }),
     useVoice: vi.fn(),
+    // The ownership transfer of the panel has its own tests (ServerPanel.test.tsx).
+    useOutgoingOwnershipTransfer: () => ({ view: { kind: 'none' }, busy: null, error: null, reload: vi.fn() }),
     useVoiceCallParticipants: (participants: { userId: string }[]) =>
         participants.map(p => ({ userId: p.userId, name: `Nombre ${p.userId}`, loading: false, muted: false })),
 }));
