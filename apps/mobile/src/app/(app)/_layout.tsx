@@ -6,6 +6,7 @@ import type { User } from '@discordia/api';
 import { ProfileButton } from '@/features/profile';
 import { RealtimeProvider } from '@/features/chat';
 import { buildAuthHref, LOGIN_ROUTE } from '@/features/auth';
+import { IncomingTransferBanner } from '@/features/ownership';
 import { VoiceBar, VoiceProvider } from '@/features/voice';
 import { readStatesService } from '@/shared/api';
 
@@ -42,6 +43,8 @@ export default function AppLayout() {
       <UnreadProvider service={readStatesService} logger={console}>
         <VoiceProvider>
           <View className="flex-1 bg-[#23272a]">
+            {/* On top of every screen with a session, like the web: a transfer waits wherever the user is. */}
+            <IncomingTransferBanner />
             <Stack
               screenOptions={{
                 headerStyle: { backgroundColor: '#2f3136' },
