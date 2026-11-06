@@ -33,6 +33,7 @@ export function MembersSection({
   onRolesChange,
   onMemberKicked,
   onMemberBanned,
+  renderMemberActions,
 }: MembersSectionProps) {
   const { user } = useAuth();
   const router = useRouter();
@@ -55,7 +56,8 @@ export function MembersSection({
         </Text>
       </View>
 
-      {members.map(({ user_id, roles: memberRoles }) => {
+      {members.map((rowMember) => {
+        const { user_id, roles: memberRoles } = rowMember;
         const isOwner = user_id === ownerId;
         // The highest role is the one that names the member in the list: it is the one the
         // backend's hierarchy uses, and the list comes ordered by position.
@@ -126,6 +128,8 @@ export function MembersSection({
                 <Text className="text-[#ed4245] text-xs">Banear ›</Text>
               </TouchableOpacity>
             )}
+
+            {renderMemberActions?.(rowMember)}
           </View>
         );
       })}
