@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CONNECT, PERMISSION_COPY, SEND_MESSAGES, VIEW_CHANNEL } from '@discordia/core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CONNECT, PERMISSION_COPY, SEND_MESSAGES, UnreadContext, VIEW_CHANNEL } from '@discordia/core';
 import type { Channel, Server } from '@discordia/api';
 import { CurrentServerProvider } from '@/features/servers';
 import { serversService } from '@/shared/api';
@@ -48,17 +48,26 @@ const server = (myPermissions = VIEW_CHANNEL | SEND_MESSAGES | CONNECT): Server 
     channels: [channel('c1', 'general', 'text'), channel('c2', 'lobby', 'voice')],
 });
 
+const setActiveChannel = vi.fn();
+
 const renderAt = (channelId: string) =>
     render(
-        <MemoryRouter initialEntries={[`/servers/srv/channels/${channelId}`]}>
-            <Routes>
-                <Route
-                    path="/servers/:serverId/channels/:channelId"
-                    element={<CurrentServerProvider><ChannelRoute /></CurrentServerProvider>}
-                />
-            </Routes>
-        </MemoryRouter>,
+        <UnreadContext.Provider value={{ state: { byChannel: {} }, setActiveChannel, markAllRead: vi.fn() }}>
+            <MemoryRouter initialEntries={[`/servers/srv/channels/${channelId}`]}>
+                <Routes>
+                    <Route
+                        path="/servers/:serverId/channels/:channelId"
+                        element={<CurrentServerProvider><ChannelRoute /></CurrentServerProvider>}
+                    />
+                </Routes>
+            </MemoryRouter>
+        </UnreadContext.Provider>,
     );
+
+const setVisibility = (state: DocumentVisibilityState) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    document.dispatchEvent(new Event('visibilitychange'));
+};
 
 describe('ChannelRoute', () => {
     beforeEach(() => {
@@ -155,5 +164,31 @@ describe('ChannelRoute y CONNECT (CA2 de SCRUM-51, Unirse a canal de voz de serv
 
         await waitFor(() => expect(screen.getByText('sin permiso para unirse')).toBeInTheDocument());
         expect(screen.queryByRole('button', { name: 'Unirse' })).not.toBeInTheDocument();
+    });
+
+    describe('reading the channel', () => {
+        afterEach(() => setVisibility('visible'));
+
+        it('reports a text channel as open and visible while the user looks at it', async () => {
+            renderAt('c1');
+            await screen.findByText('chat de general');
+
+            expect(setActiveChannel).toHaveBeenLastCalledWith('c1', true);
+        });
+
+        it('does not report it as visible while the tab is in the background', async () => {
+            setVisibility('hidden');
+            renderAt('c1');
+            await screen.findByText('chat de general');
+
+            expect(setActiveChannel).toHaveBeenLastCalledWith('c1', false);
+        });
+
+        it('a voice channel is never read: it has no messages', async () => {
+            renderAt('c2');
+            await screen.findByText('voz de lobby en srv');
+
+            expect(setActiveChannel).not.toHaveBeenCalledWith('c2', true);
+        });
     });
 });
