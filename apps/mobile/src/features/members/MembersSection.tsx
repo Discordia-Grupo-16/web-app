@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
@@ -18,6 +18,8 @@ interface MembersSectionProps {
   onRolesChange: (userId: string, roles: Role[]) => void;
   onMemberKicked: (userId: string) => void;
   onMemberBanned: (userId: string) => void;
+  /** Extra actions drawn at the end of each row, such as transferring the ownership. */
+  renderMemberActions?: (member: ServerMember) => ReactNode;
 }
 
 export function MembersSection({

@@ -9,6 +9,12 @@ interface ServerActionsProps {
   isOwner: boolean;
   /** Called with true before leaving or deleting, and with false if it fails. */
   onLeavingChange: (leaving: boolean) => void;
+  /** Name of the recipient when a transfer is pending; null when there is none. */
+  pendingTransferTo: string | null;
+  /** Takes the owner to the members section, where the ownership is transferred. */
+  onTransferRequested: () => void;
+  /** Deleting the server (SCRUM-34). Without it, "Eliminar servidor" is not offered. */
+  onDeleteRequested?: () => void;
 }
 
 // Members can leave the server. Deleting it is hidden until SCRUM-34.

@@ -124,7 +124,13 @@ export default function ServerScreen() {
           />
         )}
         <InvitationsSection serverId={server.id} canManage={isOwner} />
-        <ServerActions server={server} isOwner={isOwner} onLeavingChange={setLeaving} />
+        <ServerActions
+          server={server}
+          isOwner={isOwner}
+          onLeavingChange={setLeaving}
+          pendingTransferTo={null}
+          onTransferRequested={() => undefined}
+        />
       </ScrollView>
     </SafeAreaView>
   );

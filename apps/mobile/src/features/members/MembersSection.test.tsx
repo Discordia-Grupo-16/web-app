@@ -1,3 +1,4 @@
+import { Text } from 'react-native';
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { PERMISSION_COPY, PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
@@ -47,6 +48,7 @@ interface Options {
   canManage?: boolean;
   canKick?: boolean;
   canBan?: boolean;
+  renderMemberActions?: (member: ServerMember) => React.ReactNode;
 }
 
 const renderSection = async ({
@@ -55,6 +57,7 @@ const renderSection = async ({
   canManage = true,
   canKick = false,
   canBan = false,
+  renderMemberActions,
 }: Options = {}) => {
   const onRolesChange = jest.fn();
   const onMemberKicked = jest.fn();
@@ -77,6 +80,7 @@ const renderSection = async ({
         onRolesChange={onRolesChange}
         onMemberKicked={onMemberKicked}
         onMemberBanned={onMemberBanned}
+        renderMemberActions={renderMemberActions}
       />
     </PublicProfilesProvider>,
   );
@@ -375,5 +379,15 @@ describe('MembersSection: el perfil público', () => {
     await user.press(await screen.findByText('Milton'));
 
     expect(mockPush).toHaveBeenCalled();
+  });
+
+  it('draws the extra actions of each row', async () => {
+    await renderSection({
+      members: [member('milton'), member('owner')],
+      renderMemberActions: (m) => <Text>Acción de {m.user_id}</Text>,
+    });
+
+    expect(await screen.findByText('Acción de milton')).toBeOnTheScreen();
+    expect(screen.getByText('Acción de owner')).toBeOnTheScreen();
   });
 });
