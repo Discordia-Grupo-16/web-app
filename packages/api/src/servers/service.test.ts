@@ -16,7 +16,7 @@ const server: Server = {
 };
 
 const setup = () => {
-    const apiClient = { get: vi.fn(async () => ({ data: [server] })) };
+    const apiClient = { get: vi.fn(async () => ({ data: { data: [server] } })) };
     return { apiClient, service: createServersService(apiClient as unknown as AxiosInstance) };
 };
 
