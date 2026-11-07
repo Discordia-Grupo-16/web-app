@@ -13,7 +13,7 @@ const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?';
 export const VoiceParticipantList = ({ participants, variant = 'compact' }: VoiceParticipantListProps) => {
   const roomy = variant === 'roomy';
   return (
-    <View accessibilityLabel="Participantes de la llamada" className={roomy ? 'gap-1' : 'pl-8 pr-2 pb-1'}>
+    <View accessibilityLabel="Participantes del canal" className={roomy ? 'gap-1' : 'pl-8 pr-2 pb-1'}>
       {participants.map((p) => (
         <View
           key={p.userId}
