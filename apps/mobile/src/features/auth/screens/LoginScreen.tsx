@@ -15,7 +15,13 @@ import { authService } from '@/shared/api';
 import { consumeLoginNotice } from '@/shared/session/loginNotice';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { getApiErrorMessage } from '@discordia/api';
-import { buildAuthHref, HOME_ROUTE, REGISTER_ROUTE, useReturnTo } from '../returnTo';
+import {
+  buildAuthHref,
+  FORGOT_PASSWORD_ROUTE,
+  HOME_ROUTE,
+  REGISTER_ROUTE,
+  useReturnTo,
+} from '../returnTo';
 
 export function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -128,11 +134,13 @@ export function LoginScreen() {
                 <Text className="text-xs font-semibold uppercase tracking-wider text-[#99aab5]">
                   Contraseña
                 </Text>
-                <TouchableOpacity>
-                  <Text className="text-xs font-medium text-[#7289da]">
-                    ¿Olvidaste tu contraseña?
-                  </Text>
-                </TouchableOpacity>
+                <Link href={buildAuthHref(FORGOT_PASSWORD_ROUTE, returnTo)} asChild>
+                  <TouchableOpacity>
+                    <Text className="text-xs font-medium text-[#7289da]">
+                      ¿Olvidaste tu contraseña?
+                    </Text>
+                  </TouchableOpacity>
+                </Link>
               </View>
 
               <View className="relative justify-center">
