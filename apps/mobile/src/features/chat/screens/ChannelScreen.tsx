@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { NONE, SEND_MESSAGES, hasPermission } from '@discordia/core';
+import { NONE, SEND_MESSAGES, hasPermission, useMarkChannelRead } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import { isGoneError } from '@discordia/api';
 import { ChatScreen } from '../components/ChatScreen';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
+import { useScreenVisible } from '@/shared/hooks/useScreenVisible';
 
 export function ChannelScreen() {
   const { serverId, channelId, name } = useLocalSearchParams<{ serverId: string; channelId: string; name?: string }>();
@@ -67,6 +68,12 @@ export function ChannelScreen() {
       });
   };
   useLiveRefresh({ resources: ['server', 'channels', 'permissions'], serverId, refresh });
+
+  // Reading is what the user does with a text channel in front of them. The mobile app only opens
+  // text channels here, and a screen underneath another one, or the app in the background, does
+  // not read what arrives.
+  const visible = useScreenVisible();
+  useMarkChannelRead(channelId, visible);
 
   if (channelName === null || permissions === null) {
     return (
