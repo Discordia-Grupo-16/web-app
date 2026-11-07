@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 import type { ChatState } from './chatStore';
-import type { ConnectionState, InvalidateFrame } from '@discordia/api';
+import type { ConnectionState, InvalidateFrame, VoiceParticipantsUpdatedFrame } from '@discordia/api';
 
 export type RealtimeStatus = ConnectionState | 'disabled';
 
@@ -28,6 +28,12 @@ export interface RealtimeContextValue {
      * go through here so none of them touches the RealtimeClient. Returns the unsubscribe function.
      */
     onInvalidate: (handler: (frame: InvalidateFrame) => void) => () => void;
+    /**
+     * Subscribes to the frames that say who is connected to a voice channel (SCRUM-54). They carry
+     * the data, unlike the notices above. A frame of any server arrives: the subscriber filters by
+     * server and by `syncedAt`. Returns the unsubscribe function.
+     */
+    onVoiceParticipants: (handler: (frame: VoiceParticipantsUpdatedFrame) => void) => () => void;
     /**
      * Subscribes to the socket coming back after it had been open before: a reconnection, or the
      * app returning from the background. Notices that went by in the meantime are lost (the bus has
