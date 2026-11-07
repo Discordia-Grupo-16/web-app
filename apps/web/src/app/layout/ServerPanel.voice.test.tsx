@@ -115,7 +115,7 @@ describe('ServerPanel', () => {
     it('lists nobody without a call', () => {
         renderPanel('s1', {});
 
-        expect(screen.queryByRole('list', { name: 'Participantes de la llamada' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('list', { name: 'Participantes del canal' })).not.toBeInTheDocument();
     });
 
     describe('roster of the channels I am not in', () => {
