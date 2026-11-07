@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PublicProfiles, User, VoiceParticipantsUpdatedFrame, VoiceRoomParticipants } from '@discordia/api';
 import { UNAVAILABLE_USER_NAME } from '../chat/authorName';
 import { RealtimeContext, type RealtimeContextValue } from '../chat/realtimeContext';
+import { NOTICE_COALESCE_MS, NOTICE_MAX_JITTER_MS } from '../chat/useServerEvents';
 import { PublicProfilesProvider, type PublicProfileSource } from '../profiles/PublicProfilesProvider';
 import { useAuth } from '../session/AuthProvider';
 import { useServerVoiceRoster, useVoiceRosterViews, type VoiceRoster } from './useServerVoiceRoster';
@@ -68,25 +69,49 @@ describe('useServerVoiceRoster', () => {
     let realtime: ReturnType<typeof createFakeRealtime>;
     let getSnapshot: ReturnType<typeof vi.fn<(serverId: string) => Promise<VoiceRoomParticipants[]>>>;
 
+    // Fake timers for the whole suite: the reconnection waits a random delay. Testing Library's
+    // waitFor does not advance them under Vitest, hence `until`.
     beforeEach(() => {
+        vi.useFakeTimers();
         realtime = createFakeRealtime();
         getSnapshot = vi.fn(async () => []);
     });
 
     // Vitest runs here without globals, so Testing Library does not unmount by itself, and a hook
     // left mounted keeps its document listener for the next test.
-    afterEach(cleanup);
+    afterEach(() => {
+        cleanup();
+        vi.useRealTimers();
+    });
 
-    const render = (serverId: string | undefined | null = SERVER) =>
-        renderHook((props: { serverId: string | undefined }) => useServerVoiceRoster(props.serverId, getSnapshot), {
-            wrapper: ({ children }: { children: ReactNode }) => (
-                <RealtimeContext.Provider value={realtime.value}>{children}</RealtimeContext.Provider>
-            ),
-            initialProps: { serverId: serverId ?? undefined },
-        });
+    // random: () => 0 leaves only the coalescing window, so the delay is exactly 300 ms.
+    const render = (serverId: string | undefined | null = SERVER, random: () => number = () => 0) =>
+        renderHook(
+            (props: { serverId: string | undefined }) => useServerVoiceRoster(props.serverId, getSnapshot, random),
+            {
+                wrapper: ({ children }: { children: ReactNode }) => (
+                    <RealtimeContext.Provider value={realtime.value}>{children}</RealtimeContext.Provider>
+                ),
+                initialProps: { serverId: serverId ?? undefined },
+            },
+        );
 
-    // The initial snapshot has been asked for and applied.
-    const settled = async () => waitFor(() => expect(getSnapshot).toHaveBeenCalled());
+    const advance = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
+
+    // Lets the pending promises settle, then checks.
+    const until = async (assertion: () => void) => {
+        await advance(0);
+        assertion();
+    };
+
+    // The initial snapshot has been asked for.
+    const settled = () => until(() => expect(getSnapshot).toHaveBeenCalled());
+
+    // The socket comes back and the delay before asking passes.
+    const reconnect = async () => {
+        realtime.reconnect();
+        await advance(NOTICE_COALESCE_MS);
+    };
 
     describe('snapshot', () => {
         it('asks for the snapshot of the server on mount and fills the map with it', async () => {
@@ -94,20 +119,59 @@ describe('useServerVoiceRoster', () => {
 
             const { result } = render();
 
-            await waitFor(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA, BETO]));
+            await until(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA, BETO]));
             expect(getSnapshot).toHaveBeenCalledWith(SERVER);
         });
 
         it('asks again when the socket comes back and takes what changed meanwhile', async () => {
             getSnapshot.mockResolvedValueOnce([room(VOICE_A, [ANA, BETO], '2026-11-05T10:00:05Z')]);
             const { result } = render();
-            await waitFor(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA, BETO]));
+            await until(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA, BETO]));
 
             getSnapshot.mockResolvedValueOnce([room(VOICE_A, [ANA], '2026-11-05T10:00:09Z')]);
-            realtime.reconnect();
+            await reconnect();
 
-            await waitFor(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
+            await until(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
             expect(getSnapshot).toHaveBeenCalledTimes(2);
+        });
+
+        it('waits the coalescing window plus a random delay before asking again after a reconnection', async () => {
+            render(SERVER, () => 0.5);
+            await settled();
+            getSnapshot.mockClear();
+
+            realtime.reconnect();
+            await advance(NOTICE_COALESCE_MS + NOTICE_MAX_JITTER_MS / 2 - 1);
+            expect(getSnapshot).not.toHaveBeenCalled();
+
+            await advance(1);
+            expect(getSnapshot).toHaveBeenCalledTimes(1);
+        });
+
+        it('turns several reconnections into one request', async () => {
+            render();
+            await settled();
+            getSnapshot.mockClear();
+
+            realtime.reconnect();
+            await advance(100);
+            realtime.reconnect();
+            realtime.reconnect();
+            await advance(NOTICE_COALESCE_MS);
+
+            expect(getSnapshot).toHaveBeenCalledTimes(1);
+        });
+
+        it('drops a pending request after a reconnection when it unmounts', async () => {
+            const { unmount } = render();
+            await settled();
+            getSnapshot.mockClear();
+
+            realtime.reconnect();
+            unmount();
+            await advance(NOTICE_COALESCE_MS + NOTICE_MAX_JITTER_MS);
+
+            expect(getSnapshot).not.toHaveBeenCalled();
         });
 
         it('asks again when the tab becomes visible, and not while it is hidden', async () => {
@@ -129,12 +193,12 @@ describe('useServerVoiceRoster', () => {
         it('takes out a channel the snapshot no longer lists: it is empty', async () => {
             getSnapshot.mockResolvedValueOnce([room(VOICE_A, [ANA], '2026-11-05T10:00:05Z')]);
             const { result } = render();
-            await waitFor(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
+            await until(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
 
             getSnapshot.mockResolvedValueOnce([]);
-            realtime.reconnect();
+            await reconnect();
 
-            await waitFor(() => expect(result.current.has(VOICE_A)).toBe(false));
+            await until(() => expect(result.current.has(VOICE_A)).toBe(false));
         });
 
         it('does not let an older snapshot overwrite a newer frame, per channel', async () => {
@@ -143,7 +207,7 @@ describe('useServerVoiceRoster', () => {
                 room(VOICE_B, [BETO], '2026-11-05T10:00:05Z'),
             ]);
             const { result } = render();
-            await waitFor(() => expect(result.current.size).toBe(2));
+            await until(() => expect(result.current.size).toBe(2));
 
             realtime.send(frame(VOICE_A, [ANA], '2026-11-05T10:00:20Z'));
             // A snapshot read before that frame: A is older, B is newer.
@@ -151,9 +215,9 @@ describe('useServerVoiceRoster', () => {
                 room(VOICE_A, [ANA, BETO], '2026-11-05T10:00:10Z'),
                 room(VOICE_B, [ANA], '2026-11-05T10:00:11Z'),
             ]);
-            realtime.reconnect();
+            await reconnect();
 
-            await waitFor(() => expect(idsOf(result.current, VOICE_B)).toEqual([ANA]));
+            await until(() => expect(idsOf(result.current, VOICE_B)).toEqual([ANA]));
             expect(idsOf(result.current, VOICE_A)).toEqual([ANA]);
         });
 
@@ -163,7 +227,7 @@ describe('useServerVoiceRoster', () => {
 
             let answer: (rooms: VoiceRoomParticipants[]) => void = () => undefined;
             getSnapshot.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
-            realtime.reconnect();
+            await reconnect();
             realtime.send(frame(VOICE_A, [ANA], '2026-11-05T10:00:05Z'));
             await act(async () => answer([]));
 
@@ -176,10 +240,10 @@ describe('useServerVoiceRoster', () => {
 
             let first: (rooms: VoiceRoomParticipants[]) => void = () => undefined;
             getSnapshot.mockReturnValueOnce(new Promise((resolve) => (first = resolve)));
-            realtime.reconnect();
+            await reconnect();
             getSnapshot.mockResolvedValueOnce([room(VOICE_A, [ANA], '2026-11-05T10:00:09Z')]);
-            realtime.reconnect();
-            await waitFor(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
+            await reconnect();
+            await until(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
 
             await act(async () => first([]));
 
@@ -193,9 +257,9 @@ describe('useServerVoiceRoster', () => {
             expect(result.current.size).toBe(0);
 
             getSnapshot.mockResolvedValueOnce([room(VOICE_A, [ANA], '2026-11-05T10:00:05Z')]);
-            realtime.reconnect();
+            await reconnect();
 
-            await waitFor(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
+            await until(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
         });
     });
 
@@ -206,7 +270,7 @@ describe('useServerVoiceRoster', () => {
                 room(VOICE_B, [BETO], '2026-11-05T10:00:05Z'),
             ]);
             const { result } = render();
-            await waitFor(() => expect(result.current.size).toBe(2));
+            await until(() => expect(result.current.size).toBe(2));
 
             realtime.send(frame(VOICE_A, [ANA, ME], '2026-11-05T10:00:06Z'));
 
@@ -226,7 +290,7 @@ describe('useServerVoiceRoster', () => {
         it('ignores an older frame', async () => {
             getSnapshot.mockResolvedValue([room(VOICE_A, [ANA, BETO], '2026-11-05T10:00:10Z')]);
             const { result } = render();
-            await waitFor(() => expect(result.current.size).toBe(1));
+            await until(() => expect(result.current.size).toBe(1));
 
             realtime.send(frame(VOICE_A, [ANA], '2026-11-05T10:00:09Z'));
             // The same instant is a repeat, not news.
@@ -274,7 +338,7 @@ describe('useServerVoiceRoster', () => {
         it('an empty list takes the channel out of the map', async () => {
             getSnapshot.mockResolvedValue([room(VOICE_A, [ANA], '2026-11-05T10:00:05Z')]);
             const { result } = render();
-            await waitFor(() => expect(result.current.has(VOICE_A)).toBe(true));
+            await until(() => expect(result.current.has(VOICE_A)).toBe(true));
 
             realtime.send(frame(VOICE_A, [], '2026-11-05T10:00:06Z'));
 
@@ -284,7 +348,7 @@ describe('useServerVoiceRoster', () => {
         it('an empty channel keeps its mark: a late older frame does not bring someone back', async () => {
             getSnapshot.mockResolvedValue([room(VOICE_A, [ANA], '2026-11-05T10:00:05Z')]);
             const { result } = render();
-            await waitFor(() => expect(result.current.has(VOICE_A)).toBe(true));
+            await until(() => expect(result.current.has(VOICE_A)).toBe(true));
             realtime.send(frame(VOICE_A, [], '2026-11-05T10:00:08Z'));
 
             realtime.send(frame(VOICE_A, [ANA], '2026-11-05T10:00:07Z'));
@@ -297,12 +361,12 @@ describe('useServerVoiceRoster', () => {
         it('starts over with another server: the old map is not shown and its frames stop mattering', async () => {
             getSnapshot.mockResolvedValueOnce([room(VOICE_A, [ANA], '2026-11-05T10:00:05Z')]);
             const { result, rerender } = render('server-1');
-            await waitFor(() => expect(result.current.has(VOICE_A)).toBe(true));
+            await until(() => expect(result.current.has(VOICE_A)).toBe(true));
 
             getSnapshot.mockResolvedValueOnce([]);
             rerender({ serverId: 'server-2' });
             expect(result.current.size).toBe(0);
-            await waitFor(() => expect(getSnapshot).toHaveBeenLastCalledWith('server-2'));
+            await until(() => expect(getSnapshot).toHaveBeenLastCalledWith('server-2'));
 
             realtime.send(frame(VOICE_A, [BETO], '2026-11-05T10:00:06Z', 'server-1'));
             expect(result.current.size).toBe(0);
@@ -333,7 +397,7 @@ describe('useServerVoiceRoster', () => {
 
             const { result } = renderHook(() => useServerVoiceRoster(SERVER, getSnapshot));
 
-            await waitFor(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
+            await until(() => expect(idsOf(result.current, VOICE_A)).toEqual([ANA]));
         });
     });
 });

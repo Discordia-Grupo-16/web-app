@@ -1,6 +1,7 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { VoiceRoomParticipants, VoiceRosterParticipant } from '@discordia/api';
 import { RealtimeContext } from '../chat/realtimeContext';
+import { noticeDelayMs } from '../chat/useServerEvents';
 import { useVoiceCallParticipants, type ChannelParticipantView } from './useVoiceCallParticipants';
 
 /** Who is connected to each voice channel of a server. A channel that is not in the map is empty. */
@@ -27,14 +28,21 @@ const instantOf = (syncedAt: string): number => Date.parse(syncedAt);
  * Who is in each voice channel of a server, without being in the call (SCRUM-54, ADR-0017).
  *
  * Asks for the snapshot on mount, when the socket comes back (the frames that went by are lost) and
- * when the tab becomes visible. In between, `voice-participants.updated` frames replace a channel's
+ * when the tab becomes visible. After a reconnection it waits the same random delay as
+ * `useServerEvents`: when `chat` restarts everyone comes back at once, and the gateway limits by IP.
+ * The other two go out right away. In between, `voice-participants.updated` frames replace a channel's
  * list. A list, from a frame or a snapshot, is applied only if its `syncedAt` is newer than the one
  * held for that channel (W13); the mark outlives an empty channel, so a late old list cannot bring
  * back someone who left.
  *
  * A failed snapshot is silent: the next frame, reconnection or return to the tab asks again.
  */
-export const useServerVoiceRoster = (serverId: string | undefined, getSnapshot: VoiceRosterSource): VoiceRoster => {
+export const useServerVoiceRoster = (
+    serverId: string | undefined,
+    getSnapshot: VoiceRosterSource,
+    /** Injectable so the jitter can be tested. Default: Math.random. */
+    random: () => number = Math.random,
+): VoiceRoster => {
     const realtime = useContext(RealtimeContext);
     const subscribeFrames = realtime?.onVoiceParticipants;
     const subscribeReconnects = realtime?.onReconnect;
@@ -43,6 +51,11 @@ export const useServerVoiceRoster = (serverId: string | undefined, getSnapshot: 
     const [held, setHeld] = useState<{ serverId: string | undefined; roster: VoiceRoster }>({
         serverId,
         roster: EMPTY_ROSTER,
+    });
+
+    const randomRef = useRef(random);
+    useEffect(() => {
+        randomRef.current = random;
     });
 
     useEffect(() => {
@@ -106,7 +119,15 @@ export const useServerVoiceRoster = (serverId: string | undefined, getSnapshot: 
                 touchedByChannel.set(frame.channelId, ++clock);
             }
         });
-        const offReconnects = subscribeReconnects?.(refresh);
+        // A reconnection while one is already waiting is absorbed: that request has not left yet.
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+        const offReconnects = subscribeReconnects?.(() => {
+            if (reconnectTimer !== null) return;
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                refresh();
+            }, noticeDelayMs(randomRef.current));
+        });
 
         // Mobile has no document: there the app coming back goes through the reconnection.
         const page = (globalThis as { document?: PageVisibility }).document;
@@ -121,6 +142,7 @@ export const useServerVoiceRoster = (serverId: string | undefined, getSnapshot: 
             active = false;
             offFrames?.();
             offReconnects?.();
+            if (reconnectTimer !== null) clearTimeout(reconnectTimer);
             page?.removeEventListener('visibilitychange', onVisibility);
         };
     }, [serverId, getSnapshot, subscribeFrames, subscribeReconnects]);
