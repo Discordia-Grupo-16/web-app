@@ -13,9 +13,12 @@ import {
   hasPermission,
   useAuth,
   useVoice,
+  useServerVoiceRoster,
   useVoiceCallParticipants,
+  useVoiceRosterViews,
   type VoiceParticipant,
 } from '@discordia/core';
+import { voiceService } from '@/shared/api';
 import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
@@ -50,9 +53,22 @@ export default function ServerScreen() {
   const { call } = useVoice();
   const callChannelId = call.status === 'connected' ? call.channel.id : null;
   const callParticipants = useVoiceCallParticipants(call.status === 'connected' ? call.participants : NO_PARTICIPANTS);
-  // Only the channel of the call shows who is in it. Another server does not list that channel.
-  const renderBelowChannel = (channel: Channel) =>
-    channel.id === callChannelId ? <VoiceParticipantList participants={callParticipants} /> : null;
+  // Who is in the other voice channels, without being in the call (SCRUM-54). Without the server
+  // loaded or without VIEW_CHANNEL (the backend answers 403) the hook gets no server and does not
+  // ask. Coming back from the background needs nothing here: RealtimeProvider closes the socket
+  // and reopens it, and the hook asks again on that reconnection.
+  const roster = useServerVoiceRoster(
+    server && hasPermission(server.my_permissions ?? NONE, VIEW_CHANNEL) ? serverId : undefined,
+    voiceService.getServerVoiceParticipants,
+  );
+  const rosterViews = useVoiceRosterViews(roster);
+  // The channel of the call shows LiveKit's list: it is instant and has the mute (W14). The rest
+  // show the roster of `chat`, only when someone is in it. Another server does not list the call's channel.
+  const renderBelowChannel = (channel: Channel) => {
+    if (channel.id === callChannelId) return <VoiceParticipantList participants={callParticipants} />;
+    const connected = rosterViews.get(channel.id);
+    return connected?.length ? <VoiceParticipantList participants={connected} /> : null;
+  };
 
   if (loadingServer || loadingRoles || loadingMembers || !server) {
     return (

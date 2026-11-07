@@ -19,6 +19,13 @@ describe('VoiceParticipantList', () => {
     ]);
   });
 
+  it('is labelled for the channel, not only for the call: it also lists who is in a channel I am not in', async () => {
+    await render(<VoiceParticipantList participants={participants} />);
+
+    expect(screen.getByLabelText('Participantes del canal')).toBeTruthy();
+    expect(screen.queryByLabelText('Participantes de la llamada')).toBeNull();
+  });
+
   it('marks only the muted participants', async () => {
     await render(<VoiceParticipantList participants={participants} variant="roomy" />);
 
