@@ -318,6 +318,33 @@ describe('receiving', () => {
         expect(onInvalidate).toHaveBeenNthCalledWith(3, ofAProfile);
     });
 
+    it('emits readStateUpdated with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onReadState = vi.fn();
+        client.on('readStateUpdated', onReadState);
+
+        const frame = {
+            type: 'read-state.updated',
+            userId: 'u1',
+            states: [{ channelId: 'c1', serverId: 's1', lastReadMessageId: 'm1', lastReadAt: '2026-11-02T12:00:00Z' }],
+        };
+        socket.message(frame);
+
+        expect(onReadState).toHaveBeenCalledTimes(1);
+        expect(onReadState).toHaveBeenCalledWith(frame);
+    });
+
+    it('ignores a read-state.updated without a list of states: there is nothing to apply', async () => {
+        const { client, socket } = await openClient();
+        const onReadState = vi.fn();
+        client.on('readStateUpdated', onReadState);
+
+        expect(() => socket.message({ type: 'read-state.updated', userId: 'u1' })).not.toThrow();
+        expect(() => socket.message({ type: 'read-state.updated', userId: 'u1', states: 'c1' })).not.toThrow();
+
+        expect(onReadState).not.toHaveBeenCalled();
+    });
+
     it('delivers an invalidate with a resource it does not know: filtering is the subscriber\'s job', async () => {
         const { client, socket } = await openClient();
         const onInvalidate = vi.fn();

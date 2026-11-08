@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Hash, Pencil, Plus, Trash2, Volume2 } from 'lucide-react';
 import type { Channel } from '@discordia/api';
+import { useChannelUnread } from '@discordia/core';
+import { UnreadMarks } from '@/shared/ui/UnreadMarks';
 
 interface ChannelGroupProps {
     label: string;
@@ -15,6 +17,23 @@ interface ChannelGroupProps {
     /** Drawn under the row of each channel, for example who is in a voice call. */
     renderBelowChannel?: (channel: Channel) => ReactNode;
 }
+
+// The name and what is unread about it, in its own component because the hook is per channel.
+const ChannelName = ({ channel }: { channel: Channel }) => {
+    const { unread, mentionCount } = useChannelUnread(channel.id);
+    return (
+        <>
+            <span
+                className={`truncate ${unread ? 'font-semibold' : ''}`}
+                style={unread ? { color: '#fff' } : undefined}
+                data-unread={unread || undefined}
+            >
+                {channel.name}
+            </span>
+            {unread && <UnreadMarks mentionCount={mentionCount} what={`el canal ${channel.name}`} />}
+        </>
+    );
+};
 
 export const ChannelGroup = ({ label, channels, activeId, serverId, canManage, onAdd, onDelete, onEdit, renderBelowChannel }: ChannelGroupProps) => {
     const navigate = useNavigate();
@@ -70,7 +89,7 @@ export const ChannelGroup = ({ label, channels, activeId, serverId, canManage, o
                                     ? <Volume2 size={16} aria-hidden data-icon="voice" style={{ flexShrink: 0 }} />
                                     : <Hash size={16} aria-hidden data-icon="text" style={{ flexShrink: 0 }} />
                                 }
-                                <span className="truncate">{ch.name}</span>
+                                <ChannelName channel={ch} />
                             </button>
     
                             {canManage && (
