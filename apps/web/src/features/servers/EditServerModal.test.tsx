@@ -111,4 +111,22 @@ describe('EditServerModal', () => {
 
         expect(screen.getByRole('button', { name: /guardar/i })).toBeDisabled();
     });
+
+    it('el botón de guardar queda deshabilitado cuando hay un error de archivo inválido', () => {
+        render(<EditServerModal server={server} onClose={onClose} onUpdated={onUpdated} />);
+
+        const iconInput = document.querySelectorAll('input[type="file"]')[0] as HTMLInputElement;
+        fireEvent.change(iconInput, { target: { files: [new File([new Uint8Array(10)], 'doc.pdf', { type: 'application/pdf' })] } });
+
+        expect(screen.getByRole('button', { name: /guardar/i })).toBeDisabled();
+    });
+
+    it('muestra el nombre del archivo rechazado en la etiqueta del ícono', () => {
+        render(<EditServerModal server={server} onClose={onClose} onUpdated={onUpdated} />);
+
+        const iconInput = document.querySelectorAll('input[type="file"]')[0] as HTMLInputElement;
+        fireEvent.change(iconInput, { target: { files: [new File([new Uint8Array(10)], 'doc.pdf', { type: 'application/pdf' })] } });
+
+        expect(screen.getByText(/doc\.pdf/i)).toBeInTheDocument();
+    });
 });

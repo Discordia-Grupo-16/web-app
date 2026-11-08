@@ -23,6 +23,8 @@ export const EditServerModal = ({ server, onClose, onUpdated }: Props) => {
     const [description, setDescription] = useState(server.description ?? '');
     const [icon, setIcon] = useState<File | null>(null);
     const [banner, setBanner] = useState<File | null>(null);
+    const [iconRejected, setIconRejected] = useState<string | null>(null);
+    const [bannerRejected, setBannerRejected] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -32,12 +34,14 @@ export const EditServerModal = ({ server, onClose, onUpdated }: Props) => {
     const handleFileChange = (
         e: React.ChangeEvent<HTMLInputElement>,
         setter: (f: File | null) => void,
+        setRejected: (name: string | null) => void,
     ) => {
         const file = e.target.files?.[0] ?? null;
         if (!file) return;
         const err = validateImage(file);
-        if (err) { setError(err); return; }
+        if (err) { setError(err); setter(null); setRejected(file.name); e.target.value = ''; return; }
         setError(null);
+        setRejected(null);
         setter(file);
     };
 
@@ -47,7 +51,7 @@ export const EditServerModal = ({ server, onClose, onUpdated }: Props) => {
         setError(null);
         try {
             const updated = await serversService.updateServer(server.id, {
-                name: name.trim() !== server.name ? name : undefined,
+                name,
                 description: description !== (server.description ?? '') ? description : undefined,
                 icon: icon ?? undefined,
                 banner: banner ?? undefined,
@@ -130,7 +134,7 @@ export const EditServerModal = ({ server, onClose, onUpdated }: Props) => {
                             className="block text-xs font-semibold uppercase tracking-wider mb-2"
                             style={{ color: '#99aab5' }}
                         >
-                            Ícono {icon && <span style={{ color: '#43b581' }}>· {icon.name}</span>}
+                            Ícono {icon && <span style={{ color: '#43b581' }}>· {icon.name}</span>}{iconRejected && <span style={{ color: '#ed4245' }}>· {iconRejected}</span>}
                         </label>
                         <button
                             type="button"
@@ -145,7 +149,7 @@ export const EditServerModal = ({ server, onClose, onUpdated }: Props) => {
                             type="file"
                             accept="image/jpeg,image/png,image/gif,image/webp"
                             className="hidden"
-                            onChange={e => handleFileChange(e, setIcon)}
+                            onChange={e => handleFileChange(e, setIcon, setIconRejected)}
                         />
                     </div>
 
@@ -154,7 +158,7 @@ export const EditServerModal = ({ server, onClose, onUpdated }: Props) => {
                             className="block text-xs font-semibold uppercase tracking-wider mb-2"
                             style={{ color: '#99aab5' }}
                         >
-                            Banner {banner && <span style={{ color: '#43b581' }}>· {banner.name}</span>}
+                            Banner {banner && <span style={{ color: '#43b581' }}>· {banner.name}</span>}{bannerRejected && <span style={{ color: '#ed4245' }}>· {bannerRejected}</span>}
                         </label>
                         <button
                             type="button"
@@ -169,7 +173,7 @@ export const EditServerModal = ({ server, onClose, onUpdated }: Props) => {
                             type="file"
                             accept="image/jpeg,image/png,image/gif,image/webp"
                             className="hidden"
-                            onChange={e => handleFileChange(e, setBanner)}
+                            onChange={e => handleFileChange(e, setBanner, setBannerRejected)}
                         />
                     </div>
 
@@ -177,7 +181,7 @@ export const EditServerModal = ({ server, onClose, onUpdated }: Props) => {
 
                     <button
                         type="submit"
-                        disabled={loading || !name.trim()}
+                        disabled={loading || !name.trim() || !!error}
                         className="w-full py-3 rounded-lg text-sm font-bold text-white transition-all duration-200"
                         style={{
                             background: loading || !name.trim() ? '#5b6eae' : '#7289da',
