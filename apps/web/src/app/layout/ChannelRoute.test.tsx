@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CONNECT, PERMISSION_COPY, SEND_MESSAGES, UnreadContext, VIEW_CHANNEL } from '@discordia/core';
@@ -166,14 +166,29 @@ describe('ChannelRoute y CONNECT (CA2 de SCRUM-51, Unirse a canal de voz de serv
         expect(screen.queryByRole('button', { name: 'Unirse' })).not.toBeInTheDocument();
     });
 
+    // The channel is reported from an effect that runs right after the render that shows it. Before the
+    // server loads it is reported once as ('', false), with no channel yet. findByText resolves as soon as
+    // the text is in the DOM, which can be before that effect runs: on a loaded machine the assertion used
+    // to see the earlier ('', false) and fail about 1 run in 20. The guard itself never reported a hidden
+    // tab as visible. So these tests wait for the call instead of assuming it already happened.
     describe('reading the channel', () => {
-        afterEach(() => setVisibility('visible'));
+        beforeEach(() => {
+            // Its own server: without it the group depended on the mock the previous test left behind.
+            vi.mocked(serversService.getServer).mockResolvedValue(server());
+        });
+
+        afterEach(() => {
+            // Unmount first: restoring the visibility with the route still mounted made it report the
+            // channel as visible and refetch the server after the test was over.
+            cleanup();
+            setVisibility('visible');
+        });
 
         it('reports a text channel as open and visible while the user looks at it', async () => {
             renderAt('c1');
             await screen.findByText('chat de general');
 
-            expect(setActiveChannel).toHaveBeenLastCalledWith('c1', true);
+            await waitFor(() => expect(setActiveChannel).toHaveBeenLastCalledWith('c1', true));
         });
 
         it('does not report it as visible while the tab is in the background', async () => {
@@ -181,7 +196,10 @@ describe('ChannelRoute y CONNECT (CA2 de SCRUM-51, Unirse a canal de voz de serv
             renderAt('c1');
             await screen.findByText('chat de general');
 
-            expect(setActiveChannel).toHaveBeenLastCalledWith('c1', false);
+            await waitFor(() => expect(setActiveChannel).toHaveBeenLastCalledWith('c1', false));
+            // What matters is that it is never reported as visible, at any point: a visible report is
+            // what sends markRead and switches the indicator off for messages nobody saw.
+            expect(setActiveChannel).not.toHaveBeenCalledWith('c1', true);
         });
 
         it('a voice channel is never read: it has no messages', async () => {
