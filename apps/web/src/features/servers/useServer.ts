@@ -82,5 +82,9 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
         setServer(prev => prev ? { ...prev, channels: update(prev.channels) } : prev);
     }, []);
 
-    return { server, loading, updateChannels };
+    const updateServer = useCallback((updated: Server) => {
+        setServer(prev => prev ? { ...prev, ...updated } : prev);
+    }, []);
+
+    return { server, loading, updateChannels, updateServer };
 };

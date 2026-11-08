@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { Channel } from '@discordia/api';
 import {
@@ -5,6 +6,7 @@ import {
     KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
+    MANAGE_SERVER,
     NONE,
     PERMISSION_COPY,
     VIEW_CHANNEL,
@@ -18,7 +20,7 @@ import { ChannelList } from '@/features/channels';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
 import { RolesSection, useRoles } from '@/features/roles';
-import { LeaveServerButton, ServerHeader, useCurrentServer } from '@/features/servers';
+import { EditServerModal, LeaveServerButton, ServerHeader, useCurrentServer } from '@/features/servers';
 import { VoiceParticipantList } from '@/features/voice';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
@@ -27,7 +29,8 @@ const NO_PARTICIPANTS: VoiceParticipant[] = [];
 export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
-    const { server, loading: loadingServer, updateChannels } = useCurrentServer();
+    const { server, loading: loadingServer, updateChannels, updateServer } = useCurrentServer();
+    const [showSettings, setShowSettings] = useState(false);
     const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
     const { members, loading: loadingMembers, setMemberRoles, removeMember } = useMembers(serverId);
 
@@ -58,6 +61,7 @@ export const ServerPanel = () => {
     // Leaving is not a permission but a condition: the owner cannot leave their own server, they
     // delete it. That is why this is still an ownership check and not a bit.
     const isOwner = !!user && server?.owner_id === user.id;
+    const canManageServer = hasPermission(permissions, MANAGE_SERVER);
 
     return (
         <aside
@@ -66,8 +70,29 @@ export const ServerPanel = () => {
         >
             <ServerHeader
                 title={serverId ? (server?.name ?? '...') : 'Seleccioná un servidor'}
-                actions={serverId && isOwner && <InviteButton serverId={serverId} />}
+                actions={serverId && (
+                    <>
+                        {isOwner && <InviteButton serverId={serverId} />}
+                        {canManageServer && (
+                            <button
+                                onClick={() => setShowSettings(true)}
+                                title="Configuración del servidor"
+                                className="transition-colors"
+                                style={{ color: '#99aab5' }}
+                            >
+                                ⚙
+                            </button>
+                        )}
+                    </>
+                )}
             />
+            {showSettings && server && (
+                <EditServerModal
+                    server={server}
+                    onClose={() => setShowSettings(false)}
+                    onUpdated={updated => { updateServer(updated); setShowSettings(false); }}
+                />
+            )}
 
             <div className="flex-1 overflow-y-auto py-2">
                 {loading && (
