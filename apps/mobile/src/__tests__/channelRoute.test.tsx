@@ -47,7 +47,7 @@ const server = (myPermissions: number): Server => ({
   name: 'Discordia',
   description: null,
   owner_id: 'owner',
-  avatar_url: null,
+  avatar_url: null, banner_url: null,
   created_at: '2026-10-01T00:00:00Z',
   my_permissions: myPermissions,
   my_permission_names: [],

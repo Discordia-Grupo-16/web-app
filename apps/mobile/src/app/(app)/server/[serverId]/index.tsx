@@ -1,4 +1,5 @@
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import type { Channel } from '@discordia/api';
@@ -7,6 +8,7 @@ import {
   KICK_MEMBERS,
   MANAGE_CHANNELS,
   MANAGE_ROLES,
+  MANAGE_SERVER,
   NONE,
   PERMISSION_COPY,
   VIEW_CHANNEL,
@@ -20,7 +22,7 @@ import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { RolesSection, useRoles } from '@/features/roles';
-import { ServerActions, useServerDetails } from '@/features/servers';
+import { EditServerModal, ServerActions, useServerDetails } from '@/features/servers';
 import { VoiceParticipantList } from '@/features/voice';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
@@ -28,7 +30,8 @@ const NO_PARTICIPANTS: VoiceParticipant[] = [];
 export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { user } = useAuth();
-  const { server, loading: loadingServer, updateChannels, setLeaving } = useServerDetails(serverId);
+  const { server, loading: loadingServer, updateChannels, updateServer, setLeaving } = useServerDetails(serverId);
+  const [showSettings, setShowSettings] = useState(false);
   const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
   const {
     members,
@@ -70,6 +73,7 @@ export default function ServerScreen() {
   // Leaving is not a permission but a condition: the owner cannot leave their own server, they
   // delete it. That is why this is still an ownership check and not a bit.
   const isOwner = !!user && server.owner_id === user.id;
+  const canManageServer = hasPermission(permissions, MANAGE_SERVER);
 
   return (
     <SafeAreaView className="flex-1 bg-[#23272a]" edges={['bottom']}>
@@ -125,7 +129,22 @@ export default function ServerScreen() {
         )}
         <InvitationsSection serverId={server.id} canManage={isOwner} />
         <ServerActions server={server} isOwner={isOwner} onLeavingChange={setLeaving} />
+        {canManageServer && (
+          <TouchableOpacity
+            onPress={() => setShowSettings(true)}
+            className="bg-[#2c2f33] py-3 rounded-xl items-center border border-[#7289da] mt-2"
+          >
+            <Text className="text-[#7289da] font-bold">⚙ Configuración del servidor</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
+      {showSettings && (
+        <EditServerModal
+          server={server}
+          onClose={() => setShowSettings(false)}
+          onUpdated={updated => { updateServer(updated); setShowSettings(false); }}
+        />
+      )}
     </SafeAreaView>
   );
 }
