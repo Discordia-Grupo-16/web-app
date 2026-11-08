@@ -88,7 +88,7 @@ describe('revokeInvitation', () => {
 describe('joinServer', () => {
     it('posts to the accept endpoint', async () => {
         const { apiClient, service } = setup();
-        apiClient.post.mockResolvedValueOnce({ data: { data: member } });
+        apiClient.post.mockResolvedValueOnce({ data: { data: member } } as never);
 
         await service.joinServer('ABC123');
 
@@ -97,7 +97,7 @@ describe('joinServer', () => {
 
     it('returns the membership', async () => {
         const { apiClient, service } = setup();
-        apiClient.post.mockResolvedValueOnce({ data: { data: member } });
+        apiClient.post.mockResolvedValueOnce({ data: { data: member } } as never);
 
         const result = await service.joinServer('ABC123');
 
