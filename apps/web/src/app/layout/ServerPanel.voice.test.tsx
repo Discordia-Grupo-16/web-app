@@ -14,7 +14,9 @@ vi.mock('@/features/roles', () => ({
 }));
 vi.mock('@/features/members', () => ({
     MembersSection: () => null,
+    BansSection: () => null,
     useMembers: () => ({ members: [], loading: false, setMemberRoles: vi.fn(), removeMember: vi.fn() }),
+    useBans: () => ({ bans: [], loading: false, error: null, removeBan: vi.fn(), reload: vi.fn() }),
 }));
 vi.mock('@/features/servers', () => ({
     LeaveServerButton: () => null,
