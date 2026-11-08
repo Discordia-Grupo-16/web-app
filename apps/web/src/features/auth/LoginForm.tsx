@@ -100,7 +100,7 @@ export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps)
                             className="block text-xs font-semibold uppercase tracking-wider mb-2"
                             style={{ fontFamily: 'Open Sans, sans-serif', color: '#99aab5' }}
                         >
-                            Correo electrónico o teléfono
+                            Correo electrónico
                         </label>
                         <input
                             type="email"
