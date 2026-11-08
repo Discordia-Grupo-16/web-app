@@ -12,6 +12,7 @@ import {
     VIEW_CHANNEL,
 } from '@discordia/core';
 import type { Server, ServerBan, ServerMember } from '@discordia/api';
+import { CurrentServerProvider } from '@/features/servers';
 import { membersService, rolesService, serversService } from '@/shared/api';
 import { ServerPanel } from './ServerPanel';
 
@@ -90,7 +91,7 @@ const renderPanel = async (
     render(
         <MemoryRouter initialEntries={['/servers/srv']}>
             <Routes>
-                <Route path="/servers/:serverId" element={<ServerPanel />} />
+                <Route path="/servers/:serverId" element={<CurrentServerProvider><ServerPanel /></CurrentServerProvider>} />
             </Routes>
         </MemoryRouter>,
     );

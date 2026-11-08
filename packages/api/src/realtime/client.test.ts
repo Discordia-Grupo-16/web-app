@@ -301,6 +301,45 @@ describe('receiving', () => {
         expect(onError).toHaveBeenNthCalledWith(2, withDetails);
     });
 
+    it('emits invalidate with the parsed frame, with and without serverId and userId', async () => {
+        const { client, socket } = await openClient();
+        const onInvalidate = vi.fn();
+        client.on('invalidate', onInvalidate);
+
+        const ofAServer = { type: 'invalidate', serverId: 's1', resources: ['members', 'bans'] };
+        const ofTheUser = { type: 'invalidate', resources: ['servers'] };
+        const ofAProfile = { type: 'invalidate', serverId: 's1', resources: ['members'], userId: 'u1' };
+        socket.message(ofAServer);
+        socket.message(ofTheUser);
+        socket.message(ofAProfile);
+
+        expect(onInvalidate).toHaveBeenNthCalledWith(1, ofAServer);
+        expect(onInvalidate).toHaveBeenNthCalledWith(2, ofTheUser);
+        expect(onInvalidate).toHaveBeenNthCalledWith(3, ofAProfile);
+    });
+
+    it('delivers an invalidate with a resource it does not know: filtering is the subscriber\'s job', async () => {
+        const { client, socket } = await openClient();
+        const onInvalidate = vi.fn();
+        client.on('invalidate', onInvalidate);
+
+        const frame = { type: 'invalidate', serverId: 's1', resources: ['channels', 'a-future-resource'] };
+        socket.message(frame);
+
+        expect(onInvalidate).toHaveBeenCalledWith(frame);
+    });
+
+    it('ignores an invalidate without a resource list: there is nothing to refetch', async () => {
+        const { client, socket } = await openClient();
+        const onInvalidate = vi.fn();
+        client.on('invalidate', onInvalidate);
+
+        expect(() => socket.message({ type: 'invalidate', serverId: 's1' })).not.toThrow();
+        expect(() => socket.message({ type: 'invalidate', resources: 'members' })).not.toThrow();
+
+        expect(onInvalidate).not.toHaveBeenCalled();
+    });
+
     it('ignores a frame with an unknown type without throwing or emitting', async () => {
         const { client, socket } = await openClient();
         const onAck = vi.fn();
@@ -308,10 +347,13 @@ describe('receiving', () => {
         const onError = vi.fn();
         client.on('ack', onAck);
         client.on('messageCreated', onCreated);
+        const onInvalidate = vi.fn();
         client.on('errorFrame', onError);
+        client.on('invalidate', onInvalidate);
 
         expect(() => socket.message({ type: 'future.frame' })).not.toThrow();
 
+        expect(onInvalidate).not.toHaveBeenCalled();
         expect(onAck).not.toHaveBeenCalled();
         expect(onCreated).not.toHaveBeenCalled();
         expect(onError).not.toHaveBeenCalled();

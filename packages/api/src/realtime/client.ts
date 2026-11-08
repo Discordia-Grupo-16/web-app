@@ -1,5 +1,6 @@
 import type {
     ErrorFrame,
+    InvalidateFrame,
     MessageAckFrame,
     MessageCreatedFrame,
     ServerFrame,
@@ -63,6 +64,7 @@ export interface RealtimeEventMap {
     stateChange: (state: ConnectionState) => void;
     ack: (frame: MessageAckFrame) => void;
     messageCreated: (frame: MessageCreatedFrame) => void;
+    invalidate: (frame: InvalidateFrame) => void;
     errorFrame: (frame: ErrorFrame) => void;
     terminated: (event: { code: number; reason: string }) => void;
 }
@@ -120,6 +122,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         stateChange: new Set(),
         ack: new Set(),
         messageCreated: new Set(),
+        invalidate: new Set(),
         errorFrame: new Set(),
         terminated: new Set(),
     };
@@ -181,6 +184,11 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
                     break;
                 case 'message.created':
                     emit('messageCreated', frame);
+                    break;
+                case 'invalidate':
+                    // Without a resource list there is nothing to refetch; an unknown resource
+                    // is not filtered here, it is the subscriber that knows what it has loaded.
+                    if (Array.isArray(frame.resources)) emit('invalidate', frame);
                     break;
                 case 'error':
                     emit('errorFrame', frame);

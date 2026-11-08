@@ -90,3 +90,22 @@ correcta por config.
 Todavía no hay tests automatizados: el monorepo no tiene framework de testing definido. La
 lista de casos a cubrir: conexión, envío, recepción, reconexión, cierre deliberado y
 suscripciones.
+
+## Avisos de invalidación (`invalidate`)
+
+Cuando cambia algo que el cliente tiene cargado (la lista de canales, los permisos, los
+miembros...), `chat` manda un frame `invalidate` y el cliente lo entrega como el evento
+`invalidate`. **El frame no trae el dato nuevo**: hay que volver a pedirlo por HTTP, porque la
+fuente es `community` o `identity` (ADR-0017).
+
+```typescript
+client.on('invalidate', ({ serverId, resources, userId }) => {
+    if (resources.includes('channels')) refetchChannels(serverId);
+});
+```
+
+- `resources` es un conjunto abierto: un valor que no conocés se ignora, no se trata como error.
+  El cliente no filtra por recurso, eso lo hace quien se suscribe.
+- Un frame sin `resources` (o que no sea una lista) se descarta: no hay nada que pedir.
+- Los avisos que pasan mientras el socket está caído se pierden. Quien escucha tiene que volver
+  a pedir todo al reconectar; `onReconnect` de `@discordia/core` avisa cuándo.

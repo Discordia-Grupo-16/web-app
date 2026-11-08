@@ -1,9 +1,9 @@
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Channel, Server } from '@discordia/api';
 import { VIEW_CHANNEL, useVoice, type VoiceContextValue } from '@discordia/core';
-import { useServer } from '@/features/servers';
+import { useCurrentServer } from '@/features/servers';
 import { ServerPanel } from './ServerPanel';
 
 vi.mock('@/shared/api', () => ({ channelsService: {} }));
@@ -16,12 +16,12 @@ vi.mock('@/features/members', () => ({
     MembersSection: () => null,
     BansSection: () => null,
     useMembers: () => ({ members: [], loading: false, setMemberRoles: vi.fn(), removeMember: vi.fn() }),
-    useBans: () => ({ bans: [], loading: false, error: null, removeBan: vi.fn(), reload: vi.fn() }),
+    useBans: () => ({ bans: [], loading: false, error: false, removeBan: vi.fn(), reload: vi.fn() }),
 }));
 vi.mock('@/features/servers', () => ({
     LeaveServerButton: () => null,
     ServerHeader: ({ title }: { title: string }) => <h2>{title}</h2>,
-    useServer: vi.fn(),
+    useCurrentServer: vi.fn(),
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -61,6 +61,11 @@ const inCallAt = (channelId: string, serverId: string): Partial<VoiceContextValu
 
 const renderPanel = (serverId: string, voice: Partial<VoiceContextValue>) => {
     vi.mocked(useVoice).mockReturnValue({ call: { status: 'idle' }, ...voice } as VoiceContextValue);
+    vi.mocked(useCurrentServer).mockReturnValue({
+        server: servers[serverId],
+        loading: false,
+        updateChannels: vi.fn(),
+    } as unknown as ReturnType<typeof useCurrentServer>);
     render(
         <MemoryRouter initialEntries={[`/servers/${serverId}`]}>
             <Routes>
@@ -73,14 +78,6 @@ const renderPanel = (serverId: string, voice: Partial<VoiceContextValue>) => {
 const rowOf = (name: string) => screen.getByRole('button', { name }).closest('div')!.parentElement!;
 
 describe('ServerPanel', () => {
-    beforeEach(() => {
-        vi.mocked(useServer).mockImplementation(id => ({
-            server: servers[id!],
-            loading: false,
-            updateChannels: vi.fn(),
-        }) as unknown as ReturnType<typeof useServer>);
-    });
-
     it('lists the call under the connected channel only', () => {
         renderPanel('s1', inCallAt('v1', 's1'));
 

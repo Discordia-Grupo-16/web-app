@@ -5,7 +5,7 @@ import { NONE, SEND_MESSAGES, hasPermission } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import { isGoneError } from '@discordia/api';
 import { ChatScreen } from '../components/ChatScreen';
-import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 export function ChannelScreen() {
   const { serverId, channelId, name } = useLocalSearchParams<{ serverId: string; channelId: string; name?: string }>();
@@ -42,10 +42,10 @@ export function ChannelScreen() {
     };
   }, [serverId, channelId, router]);
 
-  // The channel (or its whole server) was deleted from another client: leave the chat. The poll
-  // also refreshes the permissions, so losing SEND_MESSAGES blocks the composer without a reload.
+  // The channel (or its whole server) was deleted from another client: leave the chat. This also
+  // refreshes the permissions, so losing SEND_MESSAGES blocks the composer without a reload.
   const goneRef = useRef(false);
-  useFocusedPolling(() => {
+  const refresh = () => {
     if (goneRef.current) return;
     const leave = (message: string, toServerList: boolean) => {
       if (goneRef.current) return;
@@ -65,7 +65,8 @@ export function ChannelScreen() {
       .catch((err) => {
         if (isGoneError(err)) leave('Este servidor fue eliminado o ya no sos miembro.', true);
       });
-  });
+  };
+  useLiveRefresh({ resources: ['server', 'channels', 'permissions'], serverId, refresh });
 
   if (channelName === null || permissions === null) {
     return (
