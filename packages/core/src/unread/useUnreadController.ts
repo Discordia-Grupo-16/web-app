@@ -12,6 +12,18 @@ import { initialUnreadState, unreadReducer } from './unreadStore';
  */
 export const MARK_READ_GROUP_MS = 1000;
 
+/**
+ * Joining a server sends two notices in a row (`servers` and then `permissions`): waiting this long
+ * turns them into a single request.
+ */
+export const ACCESS_RELOAD_GROUP_MS = 300;
+
+/**
+ * The notices that change which channels the user can see. The state loaded before them is missing
+ * the channels of a server just joined (with all their history), or keeps those of one just left.
+ */
+const ACCESS_RESOURCES: readonly string[] = ['servers', 'permissions'];
+
 export interface UnreadControllerOptions {
     service: Pick<ReadStatesService, 'getUnread' | 'markRead' | 'markAllRead'>;
     /** null while there is no session: nothing is loaded and what was loaded is dropped. */
@@ -29,6 +41,7 @@ export const useUnreadController = ({ service, userId, logger }: UnreadControlle
     const subscribeMessages = realtime?.onMessageCreated;
     const subscribeReads = realtime?.onReadStateUpdated;
     const subscribeReconnects = realtime?.onReconnect;
+    const subscribeInvalidates = realtime?.onInvalidate;
 
     const [state, dispatch] = useReducer(unreadReducer, initialUnreadState);
 
@@ -37,6 +50,7 @@ export const useUnreadController = ({ service, userId, logger }: UnreadControlle
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const inFlight = useRef(new Set<string>());
     const loadSeq = useRef(0);
+    const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
         stateRef.current = state;
     }, [state]);
@@ -128,6 +142,27 @@ export const useUnreadController = ({ service, userId, logger }: UnreadControlle
             offReconnects();
         };
     }, [userId, subscribeMessages, subscribeReads, subscribeReconnects, scheduleReport, load]);
+
+    // Messages only say what happens from now on: what a server already had when the user joined it
+    // comes from the server. Without this, a new member saw its history as read until a reload.
+    useEffect(() => {
+        if (!userId || !subscribeInvalidates) return;
+        const off = subscribeInvalidates((frame) => {
+            if (!frame.resources.some((resource) => ACCESS_RESOURCES.includes(resource))) return;
+            if (reloadTimer.current !== null) return;
+            reloadTimer.current = setTimeout(() => {
+                reloadTimer.current = null;
+                void load();
+            }, ACCESS_RELOAD_GROUP_MS);
+        });
+        return () => {
+            off();
+            if (reloadTimer.current !== null) {
+                clearTimeout(reloadTimer.current);
+                reloadTimer.current = null;
+            }
+        };
+    }, [userId, subscribeInvalidates, load]);
 
     // Whatever loads or arrives for the channel the user is looking at is read as it comes.
     useEffect(() => {

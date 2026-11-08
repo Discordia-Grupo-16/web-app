@@ -2,10 +2,10 @@
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ChannelUnread, MessageCreatedFrame, ReadState, ReadStateUpdatedFrame } from '@discordia/api';
+import type { ChannelUnread, InvalidateFrame, MessageCreatedFrame, ReadState, ReadStateUpdatedFrame } from '@discordia/api';
 import { RealtimeContext, type RealtimeContextValue } from '../chat/realtimeContext';
 import { UnreadContext } from './unreadContext';
-import { MARK_READ_GROUP_MS, useUnreadController, type UnreadControllerOptions } from './useUnreadController';
+import { ACCESS_RELOAD_GROUP_MS, MARK_READ_GROUP_MS, useUnreadController, type UnreadControllerOptions } from './useUnreadController';
 import { useChannelUnread, useMarkAllRead, useMarkChannelRead, useServerUnread } from './useUnread';
 
 const ME = 'me';
@@ -47,6 +47,7 @@ const createFakeRealtime = () => {
     const messages = new Set<(frame: MessageCreatedFrame) => void>();
     const reads = new Set<(frame: ReadStateUpdatedFrame) => void>();
     const reconnects = new Set<() => void>();
+    const invalidates = new Set<(frame: InvalidateFrame) => void>();
     const value = {
         onMessageCreated: (h: (frame: MessageCreatedFrame) => void) => {
             messages.add(h);
@@ -60,6 +61,10 @@ const createFakeRealtime = () => {
             reconnects.add(h);
             return () => void reconnects.delete(h);
         },
+        onInvalidate: (h: (frame: InvalidateFrame) => void) => {
+            invalidates.add(h);
+            return () => void invalidates.delete(h);
+        },
     } as unknown as RealtimeContextValue;
     return {
         value,
@@ -67,7 +72,9 @@ const createFakeRealtime = () => {
         readState: (...states: ReadState[]) =>
             act(() => reads.forEach((h) => h({ type: 'read-state.updated', userId: ME, states }))),
         reconnect: () => act(() => reconnects.forEach((h) => h())),
-        subscribers: () => messages.size + reads.size + reconnects.size,
+        notice: (frame: Omit<InvalidateFrame, 'type'>) =>
+            act(() => invalidates.forEach((h) => h({ type: 'invalidate', ...frame }))),
+        subscribers: () => messages.size + reads.size + reconnects.size + invalidates.size,
     };
 };
 
@@ -147,6 +154,55 @@ describe('useUnreadController', () => {
         expect(service.getUnread).toHaveBeenCalledTimes(2);
     });
 
+    describe('loading again when the channels the user can see change', () => {
+        const waitForReload = () =>
+            act(async () => {
+                vi.advanceTimersByTime(ACCESS_RELOAD_GROUP_MS);
+            });
+
+        // The bug found in the manual test: a member who joined with the session open saw the
+        // history of the new server as read until a reload.
+        it('shows the history of a server the user just joined as unread', async () => {
+            const hook = await setup();
+            service.getUnread.mockResolvedValueOnce([item(), item({ channelId: 'c9', serverId: 's9', lastReadMessageId: null, lastReadAt: null })]);
+
+            realtime.notice({ resources: ['servers'] });
+            await waitForReload();
+
+            expect(unreadOf(hook, 'c9')).toBe(true);
+        });
+
+        it('turns the notices of a join into a single request', async () => {
+            await setup();
+
+            realtime.notice({ resources: ['servers'] });
+            realtime.notice({ serverId: 's9', resources: ['permissions', 'channels'] });
+            await waitForReload();
+
+            expect(service.getUnread).toHaveBeenCalledTimes(2);
+        });
+
+        it('does not load again for notices that do not change what the user sees', async () => {
+            await setup();
+
+            realtime.notice({ serverId: 's1', resources: ['members', 'channels', 'bans'] });
+            realtime.notice({ resources: ['profile'], userId: 'other' });
+            await waitForReload();
+
+            expect(service.getUnread).toHaveBeenCalledTimes(1);
+        });
+
+        it('a pending reload is dropped on unmount', async () => {
+            const hook = await setup();
+
+            realtime.notice({ resources: ['servers'] });
+            hook.unmount();
+            await waitForReload();
+
+            expect(service.getUnread).toHaveBeenCalledTimes(1);
+        });
+    });
+
     it('applies the messages and the reads that arrive over the socket', async () => {
         service.getUnread.mockResolvedValue([item({ unread: false, lastReadMessageId: 'm2', lastReadAt: at(2) })]);
         const hook = await setup();
@@ -192,7 +248,7 @@ describe('useUnreadController', () => {
 
     it('unsubscribes from the socket on unmount', async () => {
         const hook = await setup();
-        expect(realtime.subscribers()).toBe(3);
+        expect(realtime.subscribers()).toBe(4);
 
         hook.unmount();
 
