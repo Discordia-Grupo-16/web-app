@@ -111,6 +111,7 @@ jest.mock('livekit-client', () => ({
     TrackUnmuted: 'trackUnmuted',
     LocalTrackPublished: 'localTrackPublished',
     LocalTrackUnpublished: 'localTrackUnpublished',
+    ActiveSpeakersChanged: 'activeSpeakersChanged',
   },
 }));
 
@@ -316,6 +317,112 @@ describe('createLivekitAdapter', () => {
     lastRoom().localParticipant.setMicrophoneEnabled.mockRejectedValue(new Error('no input'));
 
     await expect(adapter.enableMicrophone()).resolves.toBe('no-device');
+  });
+
+  describe('active speakers (SCRUM-56, Indicador de quién está hablando)', () => {
+    const connected = async () => {
+      const adapter = createLivekitAdapter();
+      await adapter.connect('wss://lk', 'jwt');
+      return { adapter, room: lastRoom() };
+    };
+    const listen = (adapter: ReturnType<typeof createLivekitAdapter>) => {
+      const heard: ReadonlySet<string>[] = [];
+      const unsubscribe = adapter.onActiveSpeakersChanged((ids) => heard.push(ids));
+      return { heard, unsubscribe };
+    };
+    const speaker = (identity: string) => new MockParticipant(identity);
+
+    it('emits the identities of whoever speaks, the local participant included', async () => {
+      const { adapter, room } = await connected();
+      const { heard } = listen(adapter);
+
+      room.emit('activeSpeakersChanged', [room.localParticipant, speaker('ana')]);
+
+      expect(heard).toEqual([new Set(['me', 'ana'])]);
+    });
+
+    it('does not emit again when the same members come in another order', async () => {
+      const { adapter, room } = await connected();
+      const { heard } = listen(adapter);
+
+      room.emit('activeSpeakersChanged', [room.localParticipant, speaker('ana')]);
+      room.emit('activeSpeakersChanged', [speaker('ana'), room.localParticipant]);
+
+      expect(heard).toHaveLength(1);
+    });
+
+    it('emits the empty set when everyone stops speaking', async () => {
+      const { adapter, room } = await connected();
+      const { heard } = listen(adapter);
+      room.emit('activeSpeakersChanged', [speaker('ana')]);
+
+      room.emit('activeSpeakersChanged', []);
+
+      expect(heard).toEqual([new Set(['ana']), new Set()]);
+    });
+
+    it('ignores the event of a room that was already left', async () => {
+      const { adapter, room } = await connected();
+      const { heard } = listen(adapter);
+      await adapter.disconnect();
+
+      room.emit('activeSpeakersChanged', [speaker('ana')]);
+
+      expect(heard).toEqual([]);
+    });
+
+    it('ignores the event of the previous room after switching rooms', async () => {
+      const { adapter, room: previous } = await connected();
+      const { heard } = listen(adapter);
+      await adapter.connect('wss://lk', 'jwt-2');
+      const current = lastRoom();
+
+      previous.emit('activeSpeakersChanged', [speaker('ana')]);
+      expect(heard).toEqual([]);
+
+      current.emit('activeSpeakersChanged', [speaker('leo')]);
+      expect(heard).toEqual([new Set(['leo'])]);
+    });
+
+    it('emits the empty set when the room disconnects with someone speaking', async () => {
+      const { adapter, room } = await connected();
+      const { heard } = listen(adapter);
+      room.emit('activeSpeakersChanged', [speaker('ana')]);
+
+      room.emit('disconnected', 1);
+
+      expect(heard).toEqual([new Set(['ana']), new Set()]);
+    });
+
+    it('emits the empty set after disconnect() even though the guard drops the room', async () => {
+      const { adapter, room } = await connected();
+      const { heard } = listen(adapter);
+      room.emit('activeSpeakersChanged', [speaker('ana')]);
+      await adapter.disconnect();
+
+      room.emit('disconnected', 1);
+
+      expect(heard).toEqual([new Set(['ana']), new Set()]);
+    });
+
+    it('does not emit on disconnection when nobody was speaking', async () => {
+      const { adapter, room } = await connected();
+      const { heard } = listen(adapter);
+
+      room.emit('disconnected', 1);
+
+      expect(heard).toEqual([]);
+    });
+
+    it('stops emitting once unsubscribed', async () => {
+      const { adapter, room } = await connected();
+      const { heard, unsubscribe } = listen(adapter);
+
+      unsubscribe();
+      room.emit('activeSpeakersChanged', [speaker('ana')]);
+
+      expect(heard).toEqual([]);
+    });
   });
 
   describe('microphone (SCRUM-53, Silenciar micrófono propio)', () => {
