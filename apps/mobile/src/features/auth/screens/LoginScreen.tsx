@@ -15,6 +15,7 @@ import { authService } from '@/shared/api';
 import { consumeLoginNotice } from '@/shared/session/loginNotice';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { getApiErrorMessage, isMfaChallenge } from '@discordia/api';
+import { MfaStep, RecoveryNotice } from './MfaStep';
 import { buildAuthHref, HOME_ROUTE, REGISTER_ROUTE, useReturnTo } from '../returnTo';
 
 export function LoginScreen() {
@@ -25,9 +26,12 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   // Lazy initializer: consumed once on mount, so a later visit to the screen does not show it again.
   const [notice, setNotice] = useState(consumeLoginNotice);
-  const { signIn } = useAuth();
+  const [recoveryRemaining, setRecoveryRemaining] = useState<number | null>(null);
+  const { signIn, pendingMfa, beginMfa } = useAuth();
   const router = useRouter();
   const returnTo = useReturnTo();
+
+  const goToApp = () => router.replace((returnTo ?? HOME_ROUTE) as Href);
 
   const handleLogin = async () => {
     setNotice(null);
@@ -45,8 +49,8 @@ export function LoginScreen() {
         password,
       });
       if (isMfaChallenge(result)) {
-        // The second step for mobile lands in its own PR (SCRUM-23 mobile).
-        setError('Esta cuenta usa verificación en dos pasos, que todavía no está disponible en la app móvil. Ingresá desde la web.');
+        setPassword('');
+        beginMfa(result.mfaToken);
         return;
       }
 
@@ -82,7 +86,20 @@ export function LoginScreen() {
             </Text>
           </View>
 
-          {/* Tarjeta Dark Discordia */}
+          {recoveryRemaining !== null ? (
+            <RecoveryNotice remaining={recoveryRemaining} onContinue={goToApp} />
+          ) : pendingMfa ? (
+            <MfaStep
+              onVerified={(remaining) => {
+                if (remaining !== undefined) {
+                  setRecoveryRemaining(remaining);
+                } else {
+                  goToApp();
+                }
+              }}
+            />
+          ) : (
+          /* Tarjeta Dark Discordia */
           <View className="bg-[#2c2f33] p-7 rounded-2xl shadow-2xl">
             <View className="mb-6 text-center items-center">
               <Text className="text-2xl font-black text-white mb-1">
@@ -185,6 +202,7 @@ export function LoginScreen() {
               </Link>
             </View>
           </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
