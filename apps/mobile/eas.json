@@ -12,8 +12,6 @@
         "EXPO_PUBLIC_API_URL": "https://api.discordia-g16.me",
         "EXPO_PUBLIC_WS_URL": "wss://api.discordia-g16.me/api/v1/ws",
         "EXPO_PUBLIC_WEB_URL": "https://discordia-g16.me",
-        "EXPO_PUBLIC_API_HOST": "api.discordia-g16.me",
-        "EXPO_PUBLIC_API_PORT": "443",
         "EXPO_PUBLIC_API_TIMEOUT_MS": "10000"
       }
     }
