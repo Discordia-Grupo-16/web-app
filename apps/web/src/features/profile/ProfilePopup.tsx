@@ -1,7 +1,7 @@
 import type { User } from "@discordia/api";
 import { useAuth } from "@discordia/core";
 
-export const ProfilePopup = ({ user, onClose, onEditProfile }: { user: User; onClose: () => void; onEditProfile: () => void }) => {
+export const ProfilePopup = ({ user, onClose, onEditProfile, onOpenSecurity }: { user: User; onClose: () => void; onEditProfile: () => void; onOpenSecurity?: () => void }) => {
     const { signOut } = useAuth();
 
     return (
@@ -88,6 +88,16 @@ export const ProfilePopup = ({ user, onClose, onEditProfile }: { user: User; onC
                     >
                         Editar perfil
                     </button>
+
+                    {onOpenSecurity && (
+                        <button
+                            onClick={() => { onClose(); onOpenSecurity() }}
+                            className="mt-2 w-full py-2 rounded-lg text-xs font-semibold transition-colors duration-150 cursor-pointer"
+                            style={{ background: 'rgba(114,137,218,0.15)', color: '#7289da', border: '1px solid rgba(114,137,218,0.25)' }}
+                        >
+                            Seguridad
+                        </button>
+                    )}
 
                     {/* Without a token ProtectedRoute redirects to the login, so no manual navigation. */}
                     <button
