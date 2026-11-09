@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { Channel, Server } from '@discordia/api';
-import { NONE, VIEW_CHANNEL, useServerVoiceRoster, useVoice, type VoiceContextValue } from '@discordia/core';
+import { NONE, VIEW_CHANNEL, VoiceSpeakersContext, useServerVoiceRoster, useVoice, type VoiceContextValue } from '@discordia/core';
 import { voiceService } from '@/shared/api';
 import { useCurrentServer } from '@/features/servers';
 import { ServerPanel } from './ServerPanel';
@@ -77,6 +77,7 @@ const renderPanel = (
     voice: Partial<VoiceContextValue>,
     roster: Record<string, string[]> = {},
     server: Server = servers[serverId],
+    speaking: string[] = [],
 ) => {
     vi.mocked(useServerVoiceRoster).mockReturnValue(rosterOf(roster));
     vi.mocked(useVoice).mockReturnValue({ call: { status: 'idle' }, ...voice } as VoiceContextValue);
@@ -86,11 +87,13 @@ const renderPanel = (
         updateChannels: vi.fn(),
     } as unknown as ReturnType<typeof useCurrentServer>);
     render(
-        <MemoryRouter initialEntries={[`/servers/${serverId}`]}>
-            <Routes>
-                <Route path="/servers/:serverId" element={<ServerPanel />} />
-            </Routes>
-        </MemoryRouter>,
+        <VoiceSpeakersContext.Provider value={new Set(speaking)}>
+            <MemoryRouter initialEntries={[`/servers/${serverId}`]}>
+                <Routes>
+                    <Route path="/servers/:serverId" element={<ServerPanel />} />
+                </Routes>
+            </MemoryRouter>
+        </VoiceSpeakersContext.Provider>,
     );
 };
 
@@ -116,6 +119,25 @@ describe('ServerPanel', () => {
         renderPanel('s1', {});
 
         expect(screen.queryByRole('list', { name: 'Participantes del canal' })).not.toBeInTheDocument();
+    });
+
+    describe('who is speaking (SCRUM-56, Indicador de quién está hablando)', () => {
+        const highlighted = (row: HTMLElement) =>
+            within(row).queryAllByRole('listitem').filter((i) => i.hasAttribute('data-speaking'));
+
+        it('highlights whoever speaks under the channel of the call', () => {
+            renderPanel('s1', inCallAt('v1', 's1'), {}, servers.s1, ['ana']);
+
+            expect(highlighted(rowOf('lobby')).map((i) => i.textContent)).toEqual(['NNombre ana']);
+        });
+
+        it('does not highlight the same user in the roster of another channel', () => {
+            renderPanel('s1', inCallAt('v1', 's1'), { v2: ['ana'] }, servers.s1, ['ana']);
+
+            expect(within(rowOf('juegos')).getByText('Roster ana')).toBeInTheDocument();
+            expect(highlighted(rowOf('juegos'))).toHaveLength(0);
+            expect(highlighted(rowOf('lobby'))).toHaveLength(1);
+        });
     });
 
     describe('roster of the channels I am not in', () => {
