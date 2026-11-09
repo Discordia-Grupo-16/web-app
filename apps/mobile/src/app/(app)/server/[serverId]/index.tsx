@@ -24,7 +24,7 @@ import { InvitationsSection } from '@/features/invitations';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { RolesSection, useRoles } from '@/features/roles';
 import { ServerActions, useServerDetails } from '@/features/servers';
-import { VoiceParticipantList } from '@/features/voice';
+import { VoiceCallParticipantList, VoiceParticipantList } from '@/features/voice';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
 
@@ -62,10 +62,11 @@ export default function ServerScreen() {
     voiceService.getServerVoiceParticipants,
   );
   const rosterViews = useVoiceRosterViews(roster);
-  // The channel of the call shows LiveKit's list: it is instant and has the mute (W14). The rest
-  // show the roster of `chat`, only when someone is in it. Another server does not list the call's channel.
+  // The channel of the call shows LiveKit's list: it is instant and has the mute and who is speaking
+  // (W14 and S7). The rest show the roster of `chat`, which does not know who is speaking, only when
+  // someone is in it. Another server does not list the call's channel.
   const renderBelowChannel = (channel: Channel) => {
-    if (channel.id === callChannelId) return <VoiceParticipantList participants={callParticipants} />;
+    if (channel.id === callChannelId) return <VoiceCallParticipantList participants={callParticipants} />;
     const connected = rosterViews.get(channel.id);
     return connected?.length ? <VoiceParticipantList participants={connected} /> : null;
   };

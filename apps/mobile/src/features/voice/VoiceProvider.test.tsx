@@ -1,7 +1,7 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { AppState, Pressable, Text, type AppStateStatus } from 'react-native';
 import type { VoiceToken } from '@discordia/api';
-import { useVoice, type VoiceRoomAdapter } from '@discordia/core';
+import { useVoice, useVoiceSpeakers, type VoiceRoomAdapter } from '@discordia/core';
 import { voiceService } from '@/shared/api';
 import { loadVoice } from './loadVoice';
 import { VoiceProvider } from './VoiceProvider';
@@ -16,6 +16,9 @@ jest.mock('./loadVoice', () => ({ loadVoice: jest.fn() }));
 let appStateListeners: ((state: AppStateStatus) => void)[] = [];
 const changeAppState = (state: AppStateStatus) => act(() => appStateListeners.forEach((l) => l(state)));
 
+// The listener the controller gives the adapter, so a test can say who is speaking.
+let emitSpeakers: (ids: ReadonlySet<string>) => void = () => undefined;
+
 const makeAdapter = () =>
   ({
     connect: jest.fn(async () => undefined),
@@ -25,7 +28,10 @@ const makeAdapter = () =>
     ),
     onDisconnected: () => () => undefined,
     onParticipantsChanged: () => () => undefined,
-    onActiveSpeakersChanged: () => () => undefined,
+    onActiveSpeakersChanged: (listener: (ids: ReadonlySet<string>) => void) => {
+      emitSpeakers = listener;
+      return () => undefined;
+    },
     onReconnectingChanged: () => () => undefined,
     muteMicrophone: jest.fn(async () => undefined),
     onMicrophoneLost: () => () => undefined,
@@ -51,10 +57,13 @@ const Status = () => {
   );
 };
 
+const Speakers = () => <Text testID="speakers">{[...useVoiceSpeakers()].join(',')}</Text>;
+
 const renderProvider = () =>
   render(
     <VoiceProvider>
       <Status />
+      <Speakers />
     </VoiceProvider>,
   );
 
@@ -158,5 +167,17 @@ describe('VoiceProvider', () => {
 
     expect(await screen.findByText('c2 connected')).toBeTruthy();
     expect(adapter.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the speakers context who is speaking once connected (SCRUM-56)', async () => {
+    jest.mocked(loadVoice).mockReturnValue(makeAdapter());
+    await renderProvider();
+    expect(screen.getByTestId('speakers')).toHaveTextContent('');
+    await userEvent.setup().press(screen.getByText('Unirse'));
+    expect(await screen.findByText('c1 connected')).toBeTruthy();
+
+    await act(async () => emitSpeakers(new Set(['me'])));
+
+    expect(screen.getByTestId('speakers')).toHaveTextContent('me');
   });
 });
