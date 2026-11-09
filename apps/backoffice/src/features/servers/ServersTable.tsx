@@ -11,7 +11,7 @@ export const ServersTable = ({ servers }: ServersTableProps) => (
                 <tr>
                     <th className="px-4 py-3">Nombre</th>
                     <th className="px-4 py-3">Miembros</th>
-                    <th className="px-4 py-3">Registro</th>
+                    <th className="px-4 py-3">Creado</th>
                 </tr>
             </thead>
             <tbody className="text-white">
