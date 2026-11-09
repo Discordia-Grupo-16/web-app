@@ -25,6 +25,7 @@ const makeAdapter = () =>
     ),
     onDisconnected: () => () => undefined,
     onParticipantsChanged: () => () => undefined,
+    onActiveSpeakersChanged: () => () => undefined,
     onReconnectingChanged: () => () => undefined,
     muteMicrophone: jest.fn(async () => undefined),
     onMicrophoneLost: () => () => undefined,

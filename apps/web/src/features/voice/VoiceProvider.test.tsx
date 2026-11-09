@@ -14,6 +14,7 @@ const adapter = {
     enableMicrophone: vi.fn(async () => 'ok' as const),
     onDisconnected: () => () => undefined,
     onParticipantsChanged: () => () => undefined,
+    onActiveSpeakersChanged: () => () => undefined,
     onReconnectingChanged: () => () => undefined,
     muteMicrophone: vi.fn(async () => undefined),
     onMicrophoneLost: () => () => undefined,
