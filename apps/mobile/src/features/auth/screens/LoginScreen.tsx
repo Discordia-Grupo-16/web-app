@@ -14,7 +14,7 @@ import { useAuth, validateLoginInput } from '@discordia/core';
 import { authService } from '@/shared/api';
 import { consumeLoginNotice } from '@/shared/session/loginNotice';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
-import { getApiErrorMessage } from '@discordia/api';
+import { getApiErrorMessage, isMfaChallenge } from '@discordia/api';
 import { buildAuthHref, HOME_ROUTE, REGISTER_ROUTE, useReturnTo } from '../returnTo';
 
 export function LoginScreen() {
@@ -40,12 +40,17 @@ export function LoginScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { token, user, refreshToken } = await authService.login({
+      const result = await authService.login({
         email: email.trim(),
         password,
       });
+      if (isMfaChallenge(result)) {
+        // The second step for mobile lands in its own PR (SCRUM-23 mobile).
+        setError('Esta cuenta usa verificación en dos pasos, que todavía no está disponible en la app móvil. Ingresá desde la web.');
+        return;
+      }
 
-      await signIn(token, user, refreshToken);
+      await signIn(result.token, result.user, result.refreshToken);
       router.replace((returnTo ?? HOME_ROUTE) as Href);
 
     } catch (err: unknown) {

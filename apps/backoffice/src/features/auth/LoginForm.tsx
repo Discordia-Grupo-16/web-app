@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { useAuth, validateLoginInput } from '@discordia/core';
+import { isMfaChallenge } from '@discordia/api';
 import { api, authService } from '@/shared/api';
 import { isStaff } from './isStaff';
 import { loginErrorMessage } from './loginErrorMessage';
@@ -43,10 +44,16 @@ export const LoginForm = () => {
 
         setLoading(true);
         try {
-            const { token, user, refreshToken } = await authService.login({
+            const result = await authService.login({
                 email: email.trim(),
                 password,
             });
+            if (isMfaChallenge(result)) {
+                // Staff sign-in does not support the second step yet: no session is opened.
+                setError('Esta cuenta usa verificación en dos pasos, que todavía no está disponible en el backoffice.');
+                return;
+            }
+            const { token, user, refreshToken } = result;
             // Without signIn nothing is stored: a non-staff account never gets a backoffice session.
             if (!isStaff(user)) {
                 await revokeSession(token);
