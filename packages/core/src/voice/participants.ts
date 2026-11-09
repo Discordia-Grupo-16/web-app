@@ -12,6 +12,16 @@ const SERVER_REASONS: ReadonlySet<string> = new Set<VoiceServerReason>([
     'channel_deleted',
 ]);
 
+// Shared empty set: the same reference every time, so memoized readers do not re-render.
+export const NO_SPEAKERS: ReadonlySet<string> = new Set();
+
+export const speakerIds = (speakers: readonly Pick<ParticipantLike, 'identity'>[]): ReadonlySet<string> =>
+    new Set(speakers.map((s) => s.identity));
+
+// Same members, whatever the order: LiveKit repeats the event when only the loudness order changes.
+export const sameIds = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean =>
+    a.size === b.size && [...a].every((id) => b.has(id));
+
 // A participant whose joinedAt is not known yet goes after the rest.
 const sortKey = (p: VoiceParticipant): number => (p.joinedAt > 0 ? p.joinedAt : Number.MAX_SAFE_INTEGER);
 

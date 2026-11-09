@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildParticipantSnapshot, readServerReason } from './participants';
+import { buildParticipantSnapshot, NO_SPEAKERS, readServerReason, sameIds, speakerIds } from './participants';
 import type { ParticipantLike, RoomLike } from './types';
 
 const participant = (identity: string, joinedAtSeconds?: number, isMicrophoneEnabled = true): ParticipantLike => ({
@@ -72,5 +72,42 @@ describe('readServerReason', () => {
     it('returns null without the attribute or with an unknown value', () => {
         expect(readServerReason({})).toBeNull();
         expect(readServerReason({ disconnectReason: 'something_else' })).toBeNull();
+    });
+});
+
+describe('NO_SPEAKERS', () => {
+    it('is empty', () => {
+        expect(NO_SPEAKERS.size).toBe(0);
+    });
+});
+
+describe('speakerIds', () => {
+    it('returns the identities without repeating them', () => {
+        const ids = speakerIds([participant('me'), participant('ana'), participant('me')]);
+
+        expect([...ids].sort()).toEqual(['ana', 'me']);
+    });
+
+    it('returns an empty set without speakers', () => {
+        expect(speakerIds([]).size).toBe(0);
+    });
+});
+
+describe('sameIds', () => {
+    it('is true with the same members in another order and in another instance', () => {
+        expect(sameIds(new Set(['me', 'ana']), new Set(['ana', 'me']))).toBe(true);
+    });
+
+    it('is true for two empty sets', () => {
+        expect(sameIds(new Set(), NO_SPEAKERS)).toBe(true);
+    });
+
+    it('is false when the size changes', () => {
+        expect(sameIds(new Set(['me']), new Set(['me', 'ana']))).toBe(false);
+        expect(sameIds(new Set(['me', 'ana']), new Set(['me']))).toBe(false);
+    });
+
+    it('is false when a member changes', () => {
+        expect(sameIds(new Set(['me', 'ana']), new Set(['me', 'leo']))).toBe(false);
     });
 });

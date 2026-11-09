@@ -16,6 +16,7 @@ export * from './profiles/usePublicProfiles';
 export * from './invitations/invitations';
 export type * from './voice/types';
 export * from './voice/voiceContext';
+export * from './voice/speakersContext';
 export * from './voice/useVoice';
 export * from './voice/participants';
 export * from './voice/useVoiceController';
