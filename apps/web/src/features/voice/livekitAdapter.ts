@@ -8,11 +8,15 @@ import {
     TrackEvent,
     type LocalTrack,
     type LocalTrackPublication,
+    type Participant,
     type RemoteTrack,
 } from 'livekit-client';
 import {
     buildParticipantSnapshot,
+    NO_SPEAKERS,
     readServerReason,
+    sameIds,
+    speakerIds,
     type EnableMicrophoneOptions,
     type MicLossCause,
     type MicResult,
@@ -80,6 +84,7 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     const playbackListeners = new Set<(blocked: boolean) => void>();
     const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
     const micLostListeners = new Set<(cause: MicLossCause) => void>();
+    const speakerListeners = new Set<(userIds: ReadonlySet<string>) => void>();
     // A mute asked by the user is not a lost microphone.
     let muteRequested = false;
     let unwatchMicrophone: (() => void) | null = null;
@@ -151,6 +156,17 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
             const snapshot = buildParticipantSnapshot(next, seen);
             participantListeners.forEach((l) => l(snapshot));
         };
+        // Who is speaking in this room. LiveKit repeats the event when only the loudness order changes,
+        // so the listeners hear only real changes of the set.
+        let speaking: ReadonlySet<string> = NO_SPEAKERS;
+        const emitSpeakers = (ids: ReadonlySet<string>) => {
+            if (sameIds(speaking, ids)) return;
+            speaking = ids;
+            speakerListeners.forEach((l) => l(ids));
+        };
+        next.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+            if (room === next) emitSpeakers(speakerIds(speakers));
+        });
         SNAPSHOT_EVENTS.forEach((event) => next.on(event, emitSnapshot));
         next.on(RoomEvent.TrackSubscribed, attachAudio);
         next.on(RoomEvent.TrackUnsubscribed, detachAudio);
@@ -180,6 +196,7 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
                 serverReason: readServerReason(next.localParticipant.attributes),
             };
             participantListeners.forEach((l) => l([]));
+            emitSpeakers(NO_SPEAKERS);
             disconnectedListeners.forEach((l) => l(info));
         });
         return next;
@@ -240,6 +257,7 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
 
         onDisconnected: subscribe(disconnectedListeners),
         onParticipantsChanged: subscribe(participantListeners),
+        onActiveSpeakersChanged: subscribe(speakerListeners),
         onReconnectingChanged: subscribe(reconnectingListeners),
         onMicrophoneLost: subscribe(micLostListeners),
 
