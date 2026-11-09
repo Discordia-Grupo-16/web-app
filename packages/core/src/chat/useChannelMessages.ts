@@ -20,12 +20,14 @@ export interface ChannelMessages {
     retryHistory: () => void;
     rejected: RejectedMessage | null;
     clearRejected: () => void;
+    /** Edits one of the user's own messages of this channel. Rejects if the server refuses. */
+    editMessage: (messageId: string, content: string) => Promise<void>;
 }
 
 const NO_MESSAGES: ChatMessage[] = [];
 
 export const useChannelMessages = (channelId: string): ChannelMessages => {
-    const { state, status, maxLength, send, retry, discard, lastRejected, clearRejected, loadHistory, retryHistory, loadMoreHistory } =
+    const { state, status, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, loadHistory, retryHistory, loadMoreHistory } =
         useRealtime();
 
     useEffect(() => {
@@ -58,6 +60,11 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
 
     const retryHistoryForChannel = useCallback(() => retryHistory(channelId), [retryHistory, channelId]);
 
+    const editInChannel = useCallback(
+        (messageId: string, content: string) => editMessage(channelId, messageId, content),
+        [editMessage, channelId],
+    );
+
     const rejected = lastRejected && lastRejected.channelId === channelId ? lastRejected : null;
 
     return {
@@ -77,5 +84,6 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
         retryHistory: retryHistoryForChannel,
         rejected,
         clearRejected,
+        editMessage: editInChannel,
     };
 };

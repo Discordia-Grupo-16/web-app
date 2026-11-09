@@ -8,6 +8,8 @@ export interface ChatMessage {
     authorId: string;
     content: string;
     createdAt: string;
+    /** Última edición (SCRUM-44), o null/ausente si nunca se editó. */
+    editedAt?: string | null;
 }
 
 export type PendingStatus = 'sending' | 'acked' | 'failed';
@@ -46,6 +48,8 @@ export type ChatAction =
     | { type: 'resent'; clientMessageId: string }
     | { type: 'ack'; frame: MessageAckFrame }
     | { type: 'created'; frame: MessageCreatedFrame }
+    | { type: 'updated'; channelId: string; messageId: string; content: string; editedAt: string }
+    | { type: 'editsRefreshed'; channelId: string; messages: ChatMessage[] }
     | { type: 'error'; frame: ErrorFrame }
     | { type: 'timeout'; clientMessageId: string }
     | { type: 'sendFailed'; clientMessageId: string }
@@ -77,6 +81,29 @@ const omit = <T>(record: Record<string, T>, key: string): Record<string, T> => {
     const rest = { ...record };
     delete rest[key];
     return rest;
+};
+
+// An edit is applied only if it is newer than the one the message already has, compared as instants
+// (the dates are strings and trailing zeros are dropped, so they cannot be compared as text). A
+// repeated frame, one crossed with a newer edit or one with an unreadable date leaves the message as is.
+const isNewerEdit = (incoming: string, current: string | null | undefined): boolean => {
+    if (current === null || current === undefined) return !Number.isNaN(Date.parse(incoming));
+    return Date.parse(incoming) > Date.parse(current);
+};
+
+// Returns the same array when nothing changed so callers can tell whether to touch the state.
+const withEdits = (
+    list: ChatMessage[],
+    edits: ReadonlyArray<{ messageId: string; content: string; editedAt: string }>,
+): ChatMessage[] => {
+    let next = list;
+    for (const edit of edits) {
+        const index = next.findIndex((m) => m.messageId === edit.messageId);
+        if (index === -1 || !isNewerEdit(edit.editedAt, next[index].editedAt)) continue;
+        if (next === list) next = [...list];
+        next[index] = { ...next[index], content: edit.content, editedAt: edit.editedAt };
+    }
+    return next;
 };
 
 // Moves a still-sending message to failed and takes it out of the response queue.
@@ -152,6 +179,7 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                 authorId: frame.authorId,
                 content: frame.content,
                 createdAt: frame.createdAt,
+                editedAt: null,
             };
             const prev = state.byChannel[frame.channelId] ?? [];
             const appended = [...prev, message];
@@ -174,6 +202,26 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                 pendingOrder: without(state.pendingOrder, frame.clientMessageId),
                 awaitingResponse: without(state.awaitingResponse, frame.clientMessageId),
             };
+        }
+
+        case 'updated': {
+            const list = state.byChannel[action.channelId];
+            if (!list) return state;
+            const next = withEdits(list, [action]);
+            if (next === list) return state;
+            return { ...state, byChannel: { ...state.byChannel, [action.channelId]: next } };
+        }
+
+        case 'editsRefreshed': {
+            const list = state.byChannel[action.channelId];
+            if (!list) return state;
+            // Only messages that are already here and were edited: new ones arrive through the resync.
+            const edits = action.messages.flatMap((m) =>
+                m.editedAt ? [{ messageId: m.messageId, content: m.content, editedAt: m.editedAt }] : [],
+            );
+            const next = withEdits(list, edits);
+            if (next === list) return state;
+            return { ...state, byChannel: { ...state.byChannel, [action.channelId]: next } };
         }
 
         case 'error': {

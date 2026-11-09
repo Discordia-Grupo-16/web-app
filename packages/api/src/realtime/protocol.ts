@@ -24,6 +24,21 @@ export interface MessageCreatedFrame {
 }
 
 /**
+ * A message was edited (SCRUM-44). It carries the data, not just a notice: the message belongs to
+ * `chat`, so there is no other service to ask. The client applies it only if `editedAt` is newer
+ * than the one it has, so a repeated or crossed frame never takes an edit back.
+ */
+export interface MessageUpdatedFrame {
+    type: 'message.updated';
+    messageId: string;
+    channelId: string;
+    serverId: string;
+    authorId: string;
+    content: string;
+    editedAt: string;
+}
+
+/**
  * What a client has to fetch again (ADR-0017). The set is open: the server may add values, and a
  * client ignores the ones it does not know, so `resources` is typed as plain strings.
  */
@@ -86,4 +101,8 @@ export interface ErrorFrame {
     };
 }
 
-export type ServerFrame = MessageAckFrame | MessageCreatedFrame | InvalidateFrame | ReadStateUpdatedFrame | ErrorFrame;
+export type ServerFrame =
+    | MessageAckFrame
+    | MessageCreatedFrame
+    | MessageUpdatedFrame
+    | InvalidateFrame | ReadStateUpdatedFrame | ErrorFrame;

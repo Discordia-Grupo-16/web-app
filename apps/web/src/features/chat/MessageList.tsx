@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useLayoutEffect, useRef } from 'react';
+import { useEffect, useMemo, useLayoutEffect, useRef, useState } from 'react';
 import { Hash } from 'lucide-react';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
@@ -23,6 +23,11 @@ interface MessageListProps {
     loadMoreError: boolean;
     onLoadMore: () => void;
     onRetryLoadMore: () => void;
+    /** The user can still write in the channel (SEND_MESSAGES): without it their messages cannot be edited. */
+    canEditOwn: boolean;
+    maxLength: number;
+    /** Rejects with the HTTP error if the server refuses. */
+    onEdit: (messageId: string, content: string) => Promise<void>;
 }
 
 const STICK_TO_BOTTOM_PX = 100;
@@ -45,11 +50,20 @@ export const MessageList = ({
     loadMoreError,
     onLoadMore,
     onRetryLoadMore,
+    canEditOwn,
+    maxLength,
+    onEdit,
 }: MessageListProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const nearBottomRef = useRef(true);
     const pendingCountRef = useRef(pending.length);
     const { openProfile } = useProfileViewer();
+    const [editingId, setEditingId] = useState<string | null>(null);
+
+    // The permission is read from the props on every render and never kept: if it is taken away with
+    // an editor open, the editor closes, and it does not come back when it is given back. Set while
+    // rendering (not in an effect) so it does not cascade an extra render.
+    if (!canEditOwn && editingId !== null) setEditingId(null);
 
     // Own messages come from the session, so only the other authors need their public profile.
     const authorIds = useMemo(
@@ -148,6 +162,7 @@ export const MessageList = ({
                     )}
                     {messages.map((message) => {
                         const author = authorView(message.authorId, currentUser, profiles.get(message.authorId));
+                        const canEdit = canEditOwn && currentUser !== null && message.authorId === currentUser.id;
                         return (
                             <MessageItem
                                 key={message.messageId}
@@ -156,6 +171,16 @@ export const MessageList = ({
                                 authorAvatarUrl={author.avatarUrl}
                                 content={message.content}
                                 createdAt={message.createdAt}
+                                editedAt={message.editedAt}
+                                canEdit={canEdit}
+                                editing={canEdit && editingId === message.messageId}
+                                maxLength={maxLength}
+                                onStartEdit={() => setEditingId(message.messageId)}
+                                onSaveEdit={async (content) => {
+                                    await onEdit(message.messageId, content);
+                                    setEditingId(null);
+                                }}
+                                onCancelEdit={() => setEditingId(null)}
                                 onSelectAuthor={() => openProfile(message.authorId)}
                             />
                         );

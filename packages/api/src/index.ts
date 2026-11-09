@@ -28,6 +28,9 @@ export type * from './members/types';
 export * from './invitations/service';
 export type * from './invitations/types';
 
+export * from './messages/service';
+export type * from './messages/types';
+
 export * from './readStates/service';
 export type * from './readStates/types';
 

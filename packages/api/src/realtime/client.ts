@@ -3,6 +3,7 @@ import type {
     InvalidateFrame,
     MessageAckFrame,
     MessageCreatedFrame,
+    MessageUpdatedFrame,
     ReadStateUpdatedFrame,
     ServerFrame,
 } from './protocol';
@@ -65,6 +66,7 @@ export interface RealtimeEventMap {
     stateChange: (state: ConnectionState) => void;
     ack: (frame: MessageAckFrame) => void;
     messageCreated: (frame: MessageCreatedFrame) => void;
+    messageUpdated: (frame: MessageUpdatedFrame) => void;
     invalidate: (frame: InvalidateFrame) => void;
     readStateUpdated: (frame: ReadStateUpdatedFrame) => void;
     errorFrame: (frame: ErrorFrame) => void;
@@ -124,6 +126,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         stateChange: new Set(),
         ack: new Set(),
         messageCreated: new Set(),
+        messageUpdated: new Set(),
         invalidate: new Set(),
         readStateUpdated: new Set(),
         errorFrame: new Set(),
@@ -187,6 +190,17 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
                     break;
                 case 'message.created':
                     emit('messageCreated', frame);
+                    break;
+                case 'message.updated':
+                    // Without these fields there is nothing to apply or to order the edit by.
+                    if (
+                        typeof frame.messageId === 'string' &&
+                        typeof frame.channelId === 'string' &&
+                        typeof frame.content === 'string' &&
+                        typeof frame.editedAt === 'string'
+                    ) {
+                        emit('messageUpdated', frame);
+                    }
                     break;
                 case 'invalidate':
                     // Without a resource list there is nothing to refetch; an unknown resource
