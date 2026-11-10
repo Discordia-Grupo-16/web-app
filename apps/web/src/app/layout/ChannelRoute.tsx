@@ -1,9 +1,10 @@
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
-import { NONE, SEND_MESSAGES, canJoinVoice, hasPermission } from '@discordia/core';
+import { NONE, SEND_MESSAGES, canJoinVoice, hasPermission, useMarkChannelRead } from '@discordia/core';
 import { ChatPanel } from '@/features/chat';
 import { useCurrentServer } from '@/features/servers';
 import { VoiceChannelPanel } from '@/features/voice';
+import { useTabVisible } from '@/shared/hooks/useTabVisible';
 
 // The channel screen: the header, and the chat or the voice panel depending on the channel type.
 export const ChannelRoute = () => {
@@ -14,6 +15,11 @@ export const ChannelRoute = () => {
     const { server } = useCurrentServer();
 
     const channel = server?.channels.find(c => c.id === channelId) ?? null;
+
+    // Reading is what the user does with a text channel in front of them: a voice channel has no
+    // messages, and a hidden tab does not read what arrives.
+    const tabVisible = useTabVisible();
+    useMarkChannelRead(channel?.id ?? '', tabVisible && channel?.type === 'text');
 
     // Until the new channel loads, don't keep rendering the previous one.
     if (!channel) return null;
