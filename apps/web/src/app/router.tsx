@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { LoginRegisterPage, ProtectedRoute } from '@/features/auth';
+import { LoginRegisterPage, ProtectedRoute, ResetPasswordPage } from '@/features/auth';
 import { InvitePage } from '@/features/invitations';
 import App from './App';
 import { AppLayout } from './layout/AppLayout';
@@ -13,6 +13,7 @@ export const router = createBrowserRouter([
     element: <App />,
     children: [
       { path: 'home', element: <LoginRegisterPage /> },
+      { path: 'reset-password', element: <ResetPasswordPage /> },
       {
         element: <ProtectedRoute />,
         children: [
