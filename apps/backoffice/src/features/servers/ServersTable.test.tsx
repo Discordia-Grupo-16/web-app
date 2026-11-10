@@ -18,7 +18,7 @@ describe('ServersTable', () => {
 
         expect(screen.getByRole('columnheader', { name: 'Nombre' })).toBeInTheDocument();
         expect(screen.getByRole('columnheader', { name: 'Miembros' })).toBeInTheDocument();
-        expect(screen.getByRole('columnheader', { name: 'Registro' })).toBeInTheDocument();
+        expect(screen.getByRole('columnheader', { name: 'Creado' })).toBeInTheDocument();
 
         const row = screen.getByText('Server alpha').closest('tr');
         expect(row).not.toBeNull();
