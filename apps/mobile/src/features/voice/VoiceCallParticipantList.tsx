@@ -1,9 +1,19 @@
-import { useVoiceSpeakers } from '@discordia/core';
+import { useVoice, useVoiceSpeakers } from '@discordia/core';
 import { VoiceParticipantList, type VoiceParticipantListProps } from './VoiceParticipantList';
 
-// The list of the call, with who is speaking. It is the only reader of the speakers context, so a
-// speaker change re-renders this list and not the screen around it.
-export const VoiceCallParticipantList = (props: Omit<VoiceParticipantListProps, 'speakingIds'>) => {
+// The list of the call, with who is speaking and the local mutes. It is the only reader of the speakers
+// context, so a speaker change re-renders this list and not the screen around it.
+export const VoiceCallParticipantList = (
+  props: Omit<VoiceParticipantListProps, 'speakingIds' | 'locallyMuted' | 'onToggleLocalMute'>,
+) => {
   const speakingIds = useVoiceSpeakers();
-  return <VoiceParticipantList {...props} speakingIds={speakingIds} />;
+  const { locallyMuted, toggleLocalMute } = useVoice();
+  return (
+    <VoiceParticipantList
+      {...props}
+      speakingIds={speakingIds}
+      locallyMuted={locallyMuted}
+      onToggleLocalMute={toggleLocalMute}
+    />
+  );
 };
