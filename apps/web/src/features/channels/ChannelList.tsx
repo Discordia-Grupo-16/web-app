@@ -103,6 +103,49 @@ export const ChannelList = ({
         }
     };
 
+    const handleChannelReorder = async (groupChannels: Channel[], fromId: string, toId: string) => {
+        const fromIndex = groupChannels.findIndex(c => c.id === fromId);
+        const toIndex = groupChannels.findIndex(c => c.id === toId);
+        if (fromIndex === -1 || toIndex === -1) return;
+
+        const reordered = [...groupChannels];
+        const [item] = reordered.splice(fromIndex, 1);
+        reordered.splice(toIndex, 0, item);
+
+        // Optimistic update: assign new positions keeping the rest intact
+        const newPositions = new Map(reordered.map((c, i) => [c.id, i]));
+        onChannelsChange(prev =>
+            prev.map(c => newPositions.has(c.id) ? { ...c, position: newPositions.get(c.id)! } : c)
+        );
+
+        try {
+            await channelsService.reorderChannels(serverId, reordered.map(c => c.id));
+        } catch {
+            // Silently revert on error — the next server refresh will restore the real order
+        }
+    };
+
+    const handleCategoryReorder = async (fromId: string, toId: string) => {
+        const fromIndex = categories.findIndex(c => c.id === fromId);
+        const toIndex = categories.findIndex(c => c.id === toId);
+        if (fromIndex === -1 || toIndex === -1) return;
+
+        const reordered = [...categories];
+        const [item] = reordered.splice(fromIndex, 1);
+        reordered.splice(toIndex, 0, item);
+
+        onCategoriesChange?.(prev => {
+            const newPositions = new Map(reordered.map((c, i) => [c.id, i]));
+            return prev.map(c => newPositions.has(c.id) ? { ...c, position: newPositions.get(c.id)! } : c);
+        });
+
+        try {
+            await categoriesService.reorderCategories(serverId, reordered.map(c => c.id));
+        } catch {
+            // Silently revert on error
+        }
+    };
+
     const groupProps = {
         activeId: activeChannelId,
         serverId,
@@ -130,52 +173,81 @@ export const ChannelList = ({
                 </div>
             )}
 
-            {categories.map(cat => (
-                <ChannelGroup
-                    key={cat.id}
-                    label={cat.name}
-                    channels={channels.filter(c => c.category_id === cat.id)}
-                    onAdd={() => setCreateType('text')}
-                    headerActions={canManage ? (
-                        <>
-                            <button
-                                onClick={() => setCategoryForm({ mode: 'rename', category: cat, value: cat.name, loading: false, error: null })}
-                                className="p-0.5 rounded"
-                                style={{ color: '#8e9297' }}
-                                title="Renombrar categoría"
-                                onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
-                                onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
-                            >
-                                <Pencil size={12} />
-                            </button>
-                            <button
-                                onClick={() => setPendingDeleteCat({ id: cat.id, name: cat.name })}
-                                className="p-0.5 rounded"
-                                style={{ color: '#8e9297' }}
-                                title="Eliminar categoría"
-                                onMouseEnter={e => (e.currentTarget.style.color = '#ed4245')}
-                                onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
-                            >
-                                <Trash2 size={12} />
-                            </button>
-                        </>
-                    ) : undefined}
-                    {...groupProps}
-                />
-            ))}
+            {categories.map(cat => {
+                const catChannels = channels.filter(c => c.category_id === cat.id);
+                return (
+                    <div
+                        key={cat.id}
+                        draggable={canManage}
+                        onDragStart={e => { e.dataTransfer.setData('categoryId', cat.id); e.dataTransfer.effectAllowed = 'move'; }}
+                        onDragOver={e => {
+                            if (e.dataTransfer.types.includes('categoryid')) {
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'move';
+                            }
+                        }}
+                        onDrop={e => {
+                            const fromId = e.dataTransfer.getData('categoryId');
+                            if (fromId && fromId !== cat.id) handleCategoryReorder(fromId, cat.id);
+                        }}
+                    >
+                        <ChannelGroup
+                            label={cat.name}
+                            channels={catChannels}
+                            onAdd={() => setCreateType('text')}
+                            onReorder={(fromId, toId) => handleChannelReorder(catChannels, fromId, toId)}
+                            headerActions={canManage ? (
+                                <>
+                                    <button
+                                        onClick={() => setCategoryForm({ mode: 'rename', category: cat, value: cat.name, loading: false, error: null })}
+                                        className="p-0.5 rounded"
+                                        style={{ color: '#8e9297' }}
+                                        title="Renombrar categoría"
+                                        onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
+                                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                    >
+                                        <Pencil size={12} />
+                                    </button>
+                                    <button
+                                        onClick={() => setPendingDeleteCat({ id: cat.id, name: cat.name })}
+                                        className="p-0.5 rounded"
+                                        style={{ color: '#8e9297' }}
+                                        title="Eliminar categoría"
+                                        onMouseEnter={e => (e.currentTarget.style.color = '#ed4245')}
+                                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                    >
+                                        <Trash2 size={12} />
+                                    </button>
+                                </>
+                            ) : undefined}
+                            {...groupProps}
+                        />
+                    </div>
+                );
+            })}
 
-            <ChannelGroup
-                label="Canales de texto"
-                channels={channels.filter(c => c.type === 'text' && !c.category_id)}
-                onAdd={() => setCreateType('text')}
-                {...groupProps}
-            />
-            <ChannelGroup
-                label="Canales de voz"
-                channels={channels.filter(c => c.type === 'voice' && !c.category_id)}
-                onAdd={() => setCreateType('voice')}
-                {...groupProps}
-            />
+            {(() => {
+                const textChannels = channels.filter(c => c.type === 'text' && !c.category_id);
+                const voiceChannels = channels.filter(c => c.type === 'voice' && !c.category_id);
+                return (
+                    <>
+                        <ChannelGroup
+                            label="Canales de texto"
+                            channels={textChannels}
+                            onAdd={() => setCreateType('text')}
+                            onReorder={(fromId, toId) => handleChannelReorder(textChannels, fromId, toId)}
+                            {...groupProps}
+                        />
+                        <ChannelGroup
+                            label="Canales de voz"
+                            channels={voiceChannels}
+                            onAdd={() => setCreateType('voice')}
+                            onReorder={(fromId, toId) => handleChannelReorder(voiceChannels, fromId, toId)}
+                            {...groupProps}
+                        />
+                    </>
+                );
+            })()}
 
             {createType && (
                 <CreateChannelModal

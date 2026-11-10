@@ -77,3 +77,22 @@ describe('deleteCategory', () => {
         await expect(service.deleteCategory('srv', 'cat-1')).resolves.toBeUndefined();
     });
 });
+
+describe('reorderCategories', () => {
+    it('posts the order to the reorder endpoint', async () => {
+        const { apiClient, service } = setup();
+
+        await service.reorderCategories('srv', ['cat-1', 'cat-2']);
+
+        expect(apiClient.post).toHaveBeenCalledWith(
+            '/api/v1/servers/srv/categories/reorder',
+            ['cat-1', 'cat-2'],
+        );
+    });
+
+    it('returns no body', async () => {
+        const { service } = setup();
+
+        await expect(service.reorderCategories('srv', ['cat-1'])).resolves.toBeUndefined();
+    });
+});

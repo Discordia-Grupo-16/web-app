@@ -22,4 +22,9 @@ export const createCategoriesService = (apiClient: AxiosInstance) => ({
         apiClient
             .delete(`/api/v1/servers/${serverId}/categories/${categoryId}`)
             .then(() => undefined),
+
+    reorderCategories: (serverId: string, order: string[]): Promise<void> =>
+        apiClient
+            .post(`/api/v1/servers/${serverId}/categories/reorder`, order)
+            .then(() => undefined),
 });

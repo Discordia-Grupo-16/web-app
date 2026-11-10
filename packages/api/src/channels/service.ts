@@ -19,4 +19,7 @@ export const createChannelsService = (apiClient: AxiosInstance) => ({
 
     deleteChannel: (serverId: string, channelId: string): Promise<void> =>
         apiClient.delete(`/api/v1/servers/${serverId}/channels/${channelId}`).then(() => undefined),
+
+    reorderChannels: (serverId: string, order: string[]): Promise<void> =>
+        apiClient.post(`/api/v1/servers/${serverId}/channels/reorder`, order).then(() => undefined),
 });

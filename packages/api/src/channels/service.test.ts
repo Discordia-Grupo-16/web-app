@@ -81,3 +81,22 @@ describe('deleteChannel', () => {
         await expect(service.deleteChannel('srv', 'ch-1')).resolves.toBeUndefined();
     });
 });
+
+describe('reorderChannels', () => {
+    it('posts the order to the reorder endpoint', async () => {
+        const { apiClient, service } = setup();
+
+        await service.reorderChannels('srv', ['ch-1', 'ch-2']);
+
+        expect(apiClient.post).toHaveBeenCalledWith(
+            '/api/v1/servers/srv/channels/reorder',
+            ['ch-1', 'ch-2'],
+        );
+    });
+
+    it('returns no body', async () => {
+        const { service } = setup();
+
+        await expect(service.reorderChannels('srv', ['ch-1'])).resolves.toBeUndefined();
+    });
+});
