@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { useVoice, useVoiceSpeakers, type VoiceRoomAdapter } from '@discordia/core';
+import { useVoice, useVoiceSpeakers, type VoiceParticipant, type VoiceRoomAdapter } from '@discordia/core';
 import { createLivekitAdapter } from './livekitAdapter';
 import { VoiceProvider } from './VoiceProvider';
 
@@ -10,20 +10,25 @@ vi.mock('@/shared/api', () => ({
 
 // The listener the controller gives the adapter, so a test can say who is speaking.
 let emitSpeakers: (ids: ReadonlySet<string>) => void = () => undefined;
+// Same for the participants of the call, so a test can put someone in it.
+let emitParticipants: (snapshot: VoiceParticipant[]) => void = () => undefined;
 
 const adapter = {
     connect: vi.fn(async () => undefined),
     disconnect: vi.fn(async () => undefined),
     enableMicrophone: vi.fn(async () => 'ok' as const),
     onDisconnected: () => () => undefined,
-    onParticipantsChanged: () => () => undefined,
+    onParticipantsChanged: vi.fn((listener: (snapshot: VoiceParticipant[]) => void) => {
+        emitParticipants = listener;
+        return () => undefined;
+    }),
     onActiveSpeakersChanged: vi.fn((listener: (ids: ReadonlySet<string>) => void) => {
         emitSpeakers = listener;
         return () => undefined;
     }),
     onReconnectingChanged: () => () => undefined,
     muteMicrophone: vi.fn(async () => undefined),
-    setLocallyMuted: vi.fn((_userIds: ReadonlySet<string>) => undefined),
+    setLocallyMuted: vi.fn<(userIds: ReadonlySet<string>) => void>(),
     onMicrophoneLost: () => () => undefined,
 } satisfies VoiceRoomAdapter;
 
@@ -75,5 +80,32 @@ describe('VoiceProvider', () => {
         act(() => emitSpeakers(new Set(['me'])));
 
         expect(screen.getByTestId('speakers')).toHaveTextContent('me');
+    });
+
+    it('sends the adapter who the user muted locally (SCRUM-57)', async () => {
+        const ANA_ID = 'ana';
+        const LocalMute = () => {
+            const { toggleLocalMute, locallyMuted } = useVoice();
+            return (
+                <>
+                    <span data-testid="muted">{[...locallyMuted].join(',')}</span>
+                    <button onClick={() => toggleLocalMute(ANA_ID)}>Silenciar</button>
+                </>
+            );
+        };
+        render(
+            <VoiceProvider>
+                <Status />
+                <LocalMute />
+            </VoiceProvider>,
+        );
+        await act(async () => screen.getByRole('button', { name: 'Unirse' }).click());
+        expect(await screen.findByText('connected')).toBeInTheDocument();
+        act(() => emitParticipants([{ userId: ANA_ID, isLocal: false, muted: false, joinedAt: 1, seenOrder: 0 }]));
+
+        act(() => screen.getByRole('button', { name: 'Silenciar' }).click());
+
+        expect(adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set([ANA_ID]));
+        expect(screen.getByTestId('muted')).toHaveTextContent(ANA_ID);
     });
 });

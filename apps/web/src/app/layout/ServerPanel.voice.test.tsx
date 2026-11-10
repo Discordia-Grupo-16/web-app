@@ -2,7 +2,15 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import type { Channel, Server } from '@discordia/api';
-import { NONE, VIEW_CHANNEL, VoiceSpeakersContext, useServerVoiceRoster, useVoice, type VoiceContextValue } from '@discordia/core';
+import {
+    NONE,
+    VIEW_CHANNEL,
+    VOICE_TEXTS,
+    VoiceSpeakersContext,
+    useServerVoiceRoster,
+    useVoice,
+    type VoiceContextValue,
+} from '@discordia/core';
 import { voiceService } from '@/shared/api';
 import { useCurrentServer } from '@/features/servers';
 import { ServerPanel } from './ServerPanel';
@@ -137,6 +145,27 @@ describe('ServerPanel', () => {
             expect(within(rowOf('juegos')).getByText('Roster ana')).toBeInTheDocument();
             expect(highlighted(rowOf('juegos'))).toHaveLength(0);
             expect(highlighted(rowOf('lobby'))).toHaveLength(1);
+        });
+    });
+
+    describe('local mute (SCRUM-57, Silenciar a otro participante localmente)', () => {
+        const mutedAna = { ...inCallAt('v1', 's1'), locallyMuted: new Set(['ana']), toggleLocalMute: vi.fn() };
+
+        it('shows the indicator, with no button, under the channel of the call', () => {
+            renderPanel('s1', mutedAna);
+
+            const lobby = within(rowOf('lobby'));
+            expect(lobby.getByLabelText(VOICE_TEXTS.locallyMuted)).toBeInTheDocument();
+            expect(lobby.queryByRole('button', { name: VOICE_TEXTS.localMute })).not.toBeInTheDocument();
+            expect(lobby.queryByRole('button', { name: VOICE_TEXTS.localUnmute })).not.toBeInTheDocument();
+        });
+
+        it('shows nothing in the roster of the other channels, even for the same user', () => {
+            renderPanel('s1', mutedAna, { v2: ['ana'] });
+
+            const juegos = within(rowOf('juegos'));
+            expect(juegos.getByText('Roster ana')).toBeInTheDocument();
+            expect(juegos.queryByLabelText(VOICE_TEXTS.locallyMuted)).not.toBeInTheDocument();
         });
     });
 
