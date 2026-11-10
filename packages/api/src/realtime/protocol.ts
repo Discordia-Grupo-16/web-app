@@ -39,6 +39,19 @@ export interface MessageUpdatedFrame {
 }
 
 /**
+ * A message was deleted (SCRUM-45). It carries no content: the text of a deleted message never
+ * leaves `chat` again. A delete cannot be undone, so a repeated or late frame only removes what
+ * was already gone.
+ */
+export interface MessageDeletedFrame {
+    type: 'message.deleted';
+    messageId: string;
+    channelId: string;
+    serverId: string;
+    deletedAt: string;
+}
+
+/**
  * What a client has to fetch again (ADR-0017). The set is open: the server may add values, and a
  * client ignores the ones it does not know, so `resources` is typed as plain strings.
  */
@@ -105,4 +118,5 @@ export type ServerFrame =
     | MessageAckFrame
     | MessageCreatedFrame
     | MessageUpdatedFrame
+    | MessageDeletedFrame
     | InvalidateFrame | ReadStateUpdatedFrame | ErrorFrame;

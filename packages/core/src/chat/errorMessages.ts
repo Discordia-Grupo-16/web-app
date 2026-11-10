@@ -34,3 +34,16 @@ export const editErrorText = (error: unknown): string => {
             return 'No se pudo editar el mensaje.';
     }
 };
+
+// Why a delete was refused, from the HTTP status of the DELETE.
+export const deleteErrorText = (error: unknown): string => {
+    const status = (error as { response?: { status?: number } } | null)?.response?.status;
+    switch (status) {
+        case 403:
+            return 'No tenés permiso para eliminar este mensaje.';
+        case 404:
+            return 'Este mensaje ya no existe.';
+        default:
+            return 'No se pudo eliminar el mensaje.';
+    }
+};

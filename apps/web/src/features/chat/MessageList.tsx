@@ -2,7 +2,8 @@ import { useEffect, useMemo, useLayoutEffect, useRef, useState } from 'react';
 import { Hash } from 'lucide-react';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
-import { authorView, ERROR_TEXTS, isRetryable, usePublicProfiles } from '@discordia/core';
+import { authorView, deleteErrorText, ERROR_TEXTS, isRetryable, usePublicProfiles } from '@discordia/core';
+import { ConfirmModal } from '@/shared/ui/ConfirmModal';
 import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
 import { MessageItem } from './MessageItem';
 
@@ -28,6 +29,10 @@ interface MessageListProps {
     maxLength: number;
     /** Rejects with the HTTP error if the server refuses. */
     onEdit: (messageId: string, content: string) => Promise<void>;
+    /** MANAGE_MESSAGES: the user may delete messages of others. Their own they can always delete. */
+    canManageMessages: boolean;
+    /** Rejects with the HTTP error if the server refuses. */
+    onDelete: (messageId: string) => Promise<void>;
 }
 
 const STICK_TO_BOTTOM_PX = 100;
@@ -53,6 +58,8 @@ export const MessageList = ({
     canEditOwn,
     maxLength,
     onEdit,
+    canManageMessages,
+    onDelete,
 }: MessageListProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const nearBottomRef = useRef(true);
@@ -64,6 +71,26 @@ export const MessageList = ({
     // an editor open, the editor closes, and it does not come back when it is given back. Set while
     // rendering (not in an effect) so it does not cascade an extra render.
     if (!canEditOwn && editingId !== null) setEditingId(null);
+
+    const isOwn = (message: ChatMessage) => currentUser !== null && message.authorId === currentUser.id;
+    const canDelete = (message: ChatMessage) => isOwn(message) || canManageMessages;
+    const [pendingDelete, setPendingDelete] = useState<ChatMessage | null>(null);
+    const [deleteError, setDeleteError] = useState<{ messageId: string; text: string } | null>(null);
+    // Same rule as the editor: if MANAGE_MESSAGES is taken away with the confirmation open on someone
+    // else's message, the confirmation closes.
+    if (pendingDelete !== null && !canDelete(pendingDelete)) setPendingDelete(null);
+
+    const confirmDelete = async () => {
+        if (!pendingDelete) return;
+        const { messageId } = pendingDelete;
+        setPendingDelete(null);
+        setDeleteError(null);
+        try {
+            await onDelete(messageId);
+        } catch (err) {
+            setDeleteError({ messageId, text: deleteErrorText(err) });
+        }
+    };
 
     // Own messages come from the session, so only the other authors need their public profile.
     const authorIds = useMemo(
@@ -181,6 +208,9 @@ export const MessageList = ({
                                     setEditingId(null);
                                 }}
                                 onCancelEdit={() => setEditingId(null)}
+                                canDelete={canDelete(message)}
+                                onRequestDelete={() => setPendingDelete(message)}
+                                deleteError={deleteError?.messageId === message.messageId ? deleteError.text : null}
                                 onSelectAuthor={() => openProfile(message.authorId)}
                             />
                         );
@@ -202,6 +232,16 @@ export const MessageList = ({
                         />
                     ))}
                 </>
+            )}
+            {pendingDelete && (
+                <ConfirmModal
+                    title="Eliminar mensaje"
+                    message="¿Eliminar este mensaje? Va a dejar de verse para todos y no se puede deshacer."
+                    confirmLabel="Eliminar"
+                    danger
+                    onConfirm={() => void confirmDelete()}
+                    onCancel={() => setPendingDelete(null)}
+                />
             )}
         </div>
     );
