@@ -51,4 +51,7 @@ export const createAdminServerService = (apiClient: AxiosInstance) => ({
         });
         return data;
     },
+    async deleteServer(serverId: string): Promise<void> {
+        await apiClient.delete(`/api/v1/admin/servers/${serverId}`);
+    }
 });
