@@ -186,6 +186,21 @@ describe('MessageComposer editing', () => {
     expect(saveButton()).toBeDisabled();
   });
 
+  it.each([
+    ['an HTTP 500', Object.assign(new Error('boom'), { response: { status: 500 } })],
+    ['no answer at all (network down)', new Error('Network Error')],
+  ])('on %s stays in edit mode with the generic error: it must never look as if it saved', async (_case, failure) => {
+    const { user } = await renderEditing({ onSave: jest.fn(async () => { throw failure; }) });
+
+    await user.type(screen.getByDisplayValue('hola'), '!');
+    await user.press(saveButton());
+
+    expect(await screen.findByText('No se pudo editar el mensaje.')).toBeOnTheScreen();
+    expect(screen.getByText('Editando mensaje')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('hola!')).toBeOnTheScreen();
+    expect(saveButton()).toBeEnabled();
+  });
+
   it('stays open and says why when the server refuses', async () => {
     const refused = Object.assign(new Error('forbidden'), { response: { status: 403 } });
     const { user } = await renderEditing({ onSave: jest.fn(async () => { throw refused; }) });

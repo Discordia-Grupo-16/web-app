@@ -97,6 +97,38 @@ describe('ChatScreen editing', () => {
     expect(screen.queryByLabelText('Guardar edición')).not.toBeOnTheScreen();
   });
 
+  it('does not reopen the editor when SEND_MESSAGES comes back: the edit was dropped, not paused', async () => {
+    const user = userEvent.setup();
+    const { rerender } = await render(tree(true));
+    await user.press(screen.getByLabelText('empezar edición'));
+    await user.type(screen.getByDisplayValue('texto m1'), ' a medias');
+
+    await rerender(tree(false));
+    await rerender(tree(true));
+
+    expect(screen.queryByText('Editando mensaje')).not.toBeOnTheScreen();
+    expect(screen.queryByDisplayValue('texto m1 a medias')).not.toBeOnTheScreen();
+    expect(screen.getByLabelText('Enviar mensaje')).toBeOnTheScreen();
+    expect(mockEditMessage).not.toHaveBeenCalled();
+  });
+
+  // The intermediate render the review asked about: an edit requested while the permission is missing
+  // (the list hides the menu, but an update could land in between) is dropped in that same render, so
+  // there is no editingId left to reappear when the permission arrives.
+  it('drops an edit requested while SEND_MESSAGES is missing, and it does not appear once the permission arrives', async () => {
+    const user = userEvent.setup();
+    const { rerender } = await render(tree(false));
+
+    await user.press(screen.getByLabelText('empezar edición'));
+    expect(screen.queryByText('Editando mensaje')).not.toBeOnTheScreen();
+
+    await rerender(tree(true));
+
+    expect(screen.queryByText('Editando mensaje')).not.toBeOnTheScreen();
+    expect(screen.queryByDisplayValue('texto m1')).not.toBeOnTheScreen();
+    expect(screen.getByLabelText('Enviar mensaje')).toBeOnTheScreen();
+  });
+
   it('does not start editing a message of someone else, even if asked to', async () => {
     const user = userEvent.setup();
     mockMessages = [own('m1', 'milton')];

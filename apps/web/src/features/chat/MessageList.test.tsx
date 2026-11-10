@@ -399,6 +399,23 @@ describe('MessageList editing', () => {
         expect(screen.getByRole('textbox', { name: 'Editar mensaje' })).toHaveValue('texto mine!');
     });
 
+    it.each([
+        ['an HTTP 500', Object.assign(new Error('boom'), { response: { status: 500 } })],
+        ['an HTTP 503', Object.assign(new Error('unavailable'), { response: { status: 503 } })],
+        ['no answer at all (network down)', new Error('Network Error')],
+    ])('on %s keeps the editor open with the generic error: it must never look as if it saved', async (_case, failure) => {
+        const user = userEvent.setup();
+        const onEdit = vi.fn(async () => { throw failure; });
+        renderList([withEdit('mine', 'me')], {}, undefined, { onEdit });
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        await user.type(screen.getByRole('textbox', { name: 'Editar mensaje' }), '!{Enter}');
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo editar el mensaje.');
+        expect(screen.getByRole('textbox', { name: 'Editar mensaje' })).toHaveValue('texto mine!');
+        expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled();
+    });
+
     // Lesson of the unread bug: what depends on the access the user has is read from the current
     // permissions and never kept, and it is tried by changing the access with the screen open.
     it('removes "Editar" and closes an open editor when SEND_MESSAGES is taken away, and it comes back when it is given back', async () => {
