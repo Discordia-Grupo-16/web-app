@@ -57,18 +57,18 @@ describe('IncomingTransferBanner', () => {
     it('shows one stripe per pending transfer, with who proposes it', async () => {
         renderBanner();
 
-        expect(await screen.findByText('Ana te propone ser el owner de Grupo 16')).toBeInTheDocument();
-        expect(screen.getByText('Ana te propone ser el owner de Facultad')).toBeInTheDocument();
+        expect(await screen.findByText('Ana te propone ser el dueño de «Grupo 16»')).toBeInTheDocument();
+        expect(screen.getByText('Ana te propone ser el dueño de «Facultad»')).toBeInTheDocument();
     });
 
     it('asks to confirm before accepting', async () => {
         const user = userEvent.setup();
         renderBanner();
-        const stripe = await screen.findByRole('region', { name: 'Ana te propone ser el owner de Grupo 16' });
+        const stripe = await screen.findByRole('region', { name: 'Ana te propone ser el dueño de «Grupo 16»' });
 
         await user.click(within(stripe).getByRole('button', { name: 'Aceptar' }));
 
-        expect(screen.getByText('Vas a ser el owner de Grupo 16')).toBeInTheDocument();
+        expect(screen.getByText('Vas a ser el dueño de «Grupo 16»')).toBeInTheDocument();
         expect(ownershipSource.acceptTransfer).not.toHaveBeenCalled();
         // The confirmation opens inside the stripe it belongs to; its button is the last "Aceptar" there.
         await user.click(within(stripe).getAllByRole('button', { name: 'Aceptar' }).at(-1)!);
@@ -78,19 +78,19 @@ describe('IncomingTransferBanner', () => {
     it('rejects without asking to confirm', async () => {
         const user = userEvent.setup();
         renderBanner();
-        const stripe = await screen.findByRole('region', { name: 'Ana te propone ser el owner de Grupo 16' });
+        const stripe = await screen.findByRole('region', { name: 'Ana te propone ser el dueño de «Grupo 16»' });
 
         await user.click(within(stripe).getByRole('button', { name: 'Rechazar' }));
 
         await waitFor(() => expect(ownershipSource.rejectTransfer).toHaveBeenCalledWith('a'));
-        expect(screen.queryByText('Vas a ser el owner de Grupo 16')).not.toBeInTheDocument();
+        expect(screen.queryByText('Vas a ser el dueño de «Grupo 16»')).not.toBeInTheDocument();
     });
 
     it('disables the buttons while an action is running', async () => {
         vi.mocked(ownershipSource.rejectTransfer).mockReturnValue(new Promise(() => undefined));
         const user = userEvent.setup();
         renderBanner();
-        const stripe = await screen.findByRole('region', { name: 'Ana te propone ser el owner de Grupo 16' });
+        const stripe = await screen.findByRole('region', { name: 'Ana te propone ser el dueño de «Grupo 16»' });
 
         await user.click(within(stripe).getByRole('button', { name: 'Rechazar' }));
 
@@ -102,7 +102,7 @@ describe('IncomingTransferBanner', () => {
         vi.mocked(ownershipSource.rejectTransfer).mockRejectedValue({ isAxiosError: true, response: { status: 403 } });
         const user = userEvent.setup();
         renderBanner();
-        const stripe = await screen.findByRole('region', { name: 'Ana te propone ser el owner de Grupo 16' });
+        const stripe = await screen.findByRole('region', { name: 'Ana te propone ser el dueño de «Grupo 16»' });
 
         await user.click(within(stripe).getByRole('button', { name: 'Rechazar' }));
 
@@ -111,7 +111,7 @@ describe('IncomingTransferBanner', () => {
         await user.click(within(stripe).getByRole('button', { name: 'Cerrar' }));
 
         await waitFor(() =>
-            expect(screen.queryByRole('region', { name: 'Ana te propone ser el owner de Grupo 16' })).not.toBeInTheDocument(),
+            expect(screen.queryByRole('region', { name: 'Ana te propone ser el dueño de «Grupo 16»' })).not.toBeInTheDocument(),
         );
     });
 });

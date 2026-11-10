@@ -22,14 +22,14 @@ describe('TransferOwnershipDialog', () => {
     await renderDialog();
 
     expect(
-      screen.getByText('¿Transferir la propiedad de Grupo 16 a Beto? Si acepta, vas a dejar de ser el owner.'),
+      screen.getByText('¿Querés proponerle a Beto que sea el nuevo dueño de «Grupo 16»? Beto tiene que aceptar. Cuando acepte, vas a dejar de ser el dueño.'),
     ).toBeOnTheScreen();
   });
 
   it('proposes on confirm', async () => {
     const { onConfirm, user } = await renderDialog();
 
-    await user.press(screen.getAllByText('Transferir propiedad').at(-1)!);
+    await user.press(screen.getByText('Enviar propuesta'));
 
     expect(onConfirm).toHaveBeenCalled();
   });
@@ -37,7 +37,7 @@ describe('TransferOwnershipDialog', () => {
   it('does not propose nor close while proposing', async () => {
     const { onConfirm, onClose, user } = await renderDialog({ busy: true });
 
-    await user.press(screen.getAllByText('Transferir propiedad').at(-1)!);
+    await user.press(screen.getByText('Enviar propuesta'));
     await user.press(screen.getByText('Cancelar'));
 
     expect(onConfirm).not.toHaveBeenCalled();

@@ -50,7 +50,7 @@ const renderActions = async (
   return { user, onLeavingChange };
 };
 
-const OWNER_MESSAGE = 'Para abandonar el servidor, primero transferí la propiedad o eliminá el servidor.';
+const OWNER_MESSAGE = 'Para abandonar el servidor, primero transferí el servidor o eliminalo.';
 const lastAlertButtons = () => (jest.mocked(Alert.alert).mock.calls.at(-1)?.[2] ?? []).map(b => b.text);
 
 describe('ServerActions', () => {
@@ -80,7 +80,7 @@ describe('ServerActions', () => {
 
     expect(serversService.leaveServer).not.toHaveBeenCalled();
     expect(Alert.alert).toHaveBeenLastCalledWith('Abandonar servidor', OWNER_MESSAGE, expect.any(Array));
-    expect(lastAlertButtons()).toContain('Transferir propiedad');
+    expect(lastAlertButtons()).toContain('Transferir servidor');
   });
 
   it('names the recipient of the pending transfer', async () => {
@@ -101,7 +101,7 @@ describe('ServerActions', () => {
 
     await user.press(screen.getByText('Abandonar servidor'));
     await pressAlertButton('Salir');
-    await pressAlertButton('Transferir propiedad');
+    await pressAlertButton('Transferir servidor');
 
     expect(onTransferRequested).toHaveBeenCalled();
   });

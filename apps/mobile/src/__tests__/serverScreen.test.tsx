@@ -93,7 +93,7 @@ const renderScreen = async (myPermissions: number, ownerId: string) => {
   await waitFor(() => expect(screen.getByText('Abandonar servidor')).toBeOnTheScreen());
 };
 
-const transferButtons = () => screen.queryAllByLabelText('Transferir propiedad');
+const transferButtons = () => screen.queryAllByLabelText('Transferir servidor');
 
 describe('la pantalla del servidor: transferir la propiedad (SCRUM-35, Transferir propiedad del servidor)', () => {
   beforeEach(() => {

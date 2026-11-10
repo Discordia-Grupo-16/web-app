@@ -44,7 +44,7 @@ export function TransferOwnershipDialog({ visible, toName, serverName, busy, err
               style={{ opacity: busy ? 0.6 : 1 }}
             >
               <Text className="text-white text-sm font-semibold">
-                {retryable ? OWNERSHIP_TEXTS.retry : OWNERSHIP_TEXTS.transfer}
+                {retryable ? OWNERSHIP_TEXTS.retry : OWNERSHIP_TEXTS.sendProposal}
               </Text>
             </TouchableOpacity>
           </View>

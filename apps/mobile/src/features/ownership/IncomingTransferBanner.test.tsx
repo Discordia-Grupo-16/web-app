@@ -66,18 +66,18 @@ describe('IncomingTransferBanner', () => {
   it('shows one stripe per pending transfer, with who proposes it', async () => {
     await renderBanner();
 
-    expect(await screen.findByText('Ana te propone ser el owner de Grupo 16')).toBeOnTheScreen();
-    expect(screen.getByText('Ana te propone ser el owner de Facultad')).toBeOnTheScreen();
+    expect(await screen.findByText('Ana te propone ser el dueño de «Grupo 16»')).toBeOnTheScreen();
+    expect(screen.getByText('Ana te propone ser el dueño de «Facultad»')).toBeOnTheScreen();
   });
 
   it('asks to confirm before accepting', async () => {
     const user = userEvent.setup();
     await renderBanner();
-    await screen.findByText('Ana te propone ser el owner de Grupo 16');
+    await screen.findByText('Ana te propone ser el dueño de «Grupo 16»');
 
     await user.press(screen.getAllByText('Aceptar')[0]);
 
-    expect(Alert.alert).toHaveBeenCalledWith('Transferir propiedad', 'Vas a ser el owner de Grupo 16', expect.any(Array));
+    expect(Alert.alert).toHaveBeenCalledWith('Transferir servidor', 'Vas a ser el dueño de «Grupo 16»', expect.any(Array));
     expect(ownershipSource.acceptTransfer).not.toHaveBeenCalled();
     await pressAlertButton('Aceptar');
     await waitFor(() => expect(ownershipSource.acceptTransfer).toHaveBeenCalledWith('a'));
@@ -86,7 +86,7 @@ describe('IncomingTransferBanner', () => {
   it('rejects without asking to confirm', async () => {
     const user = userEvent.setup();
     await renderBanner();
-    await screen.findByText('Ana te propone ser el owner de Grupo 16');
+    await screen.findByText('Ana te propone ser el dueño de «Grupo 16»');
 
     await user.press(screen.getAllByText('Rechazar')[0]);
 
@@ -98,7 +98,7 @@ describe('IncomingTransferBanner', () => {
     jest.mocked(ownershipSource.rejectTransfer).mockReturnValue(new Promise(() => undefined));
     const user = userEvent.setup();
     await renderBanner();
-    await screen.findByText('Ana te propone ser el owner de Grupo 16');
+    await screen.findByText('Ana te propone ser el dueño de «Grupo 16»');
 
     await user.press(screen.getAllByText('Rechazar')[0]);
 
@@ -111,7 +111,7 @@ describe('IncomingTransferBanner', () => {
     jest.mocked(ownershipSource.rejectTransfer).mockRejectedValue({ isAxiosError: true, response: { status: 403 } });
     const user = userEvent.setup();
     await renderBanner();
-    await screen.findByText('Ana te propone ser el owner de Grupo 16');
+    await screen.findByText('Ana te propone ser el dueño de «Grupo 16»');
 
     await user.press(screen.getAllByText('Rechazar')[0]);
 
@@ -120,6 +120,6 @@ describe('IncomingTransferBanner', () => {
     await user.press(screen.getByText('Cerrar'));
 
     await waitFor(() => expect(screen.queryByText('Esta transferencia ya no está disponible')).not.toBeOnTheScreen());
-    expect(screen.queryByText('Ana te propone ser el owner de Grupo 16')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Ana te propone ser el dueño de «Grupo 16»')).not.toBeOnTheScreen();
   });
 });

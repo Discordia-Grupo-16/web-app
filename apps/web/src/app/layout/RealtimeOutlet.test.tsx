@@ -11,7 +11,7 @@ vi.mock('@discordia/core', async (importOriginal) => ({
 vi.mock('@/features/chat', () => ({ RealtimeProvider: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/features/voice', () => ({ VoiceProvider: ({ children }: { children: ReactNode }) => children }));
 vi.mock('@/features/ownership', () => ({
-    IncomingTransferBanner: () => <p>Ana te propone ser el owner de Grupo 16</p>,
+    IncomingTransferBanner: () => <p>Ana te propone ser el dueño de «Grupo 16»</p>,
 }));
 
 const renderAt = (path: string) =>
@@ -33,7 +33,7 @@ describe('RealtimeOutlet', () => {
     ])('shows the ownership banner above %s', (path, page) => {
         renderAt(path);
 
-        const banner = screen.getByText('Ana te propone ser el owner de Grupo 16');
+        const banner = screen.getByText('Ana te propone ser el dueño de «Grupo 16»');
         const content = screen.getByText(page);
         expect(banner.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });

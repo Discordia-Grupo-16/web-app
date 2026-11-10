@@ -34,7 +34,7 @@ const renderButton = ({ isOwner = false, pendingTransferTo = null, onDeleteReque
         </MemoryRouter>,
     );
 
-const OWNER_MESSAGE = 'Para abandonar el servidor, primero transferí la propiedad o eliminá el servidor.';
+const OWNER_MESSAGE = 'Para abandonar el servidor, primero transferí el servidor o eliminalo.';
 
 const confirmLeaving = async (user: ReturnType<typeof userEvent.setup>) => {
     await user.click(screen.getByRole('button', { name: 'Abandonar servidor' }));
@@ -91,7 +91,7 @@ describe('LeaveServerButton', () => {
 
             expect(serversService.leaveServer).not.toHaveBeenCalled();
             expect(screen.getByText(OWNER_MESSAGE)).toBeInTheDocument();
-            expect(screen.getByRole('button', { name: 'Transferir propiedad' })).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Transferir servidor' })).toBeInTheDocument();
         });
 
         it('names the recipient of the pending transfer', async () => {
@@ -108,7 +108,7 @@ describe('LeaveServerButton', () => {
             const user = userEvent.setup();
 
             await confirmLeaving(user);
-            await user.click(screen.getByRole('button', { name: 'Transferir propiedad' }));
+            await user.click(screen.getByRole('button', { name: 'Transferir servidor' }));
 
             expect(onTransferRequested).toHaveBeenCalled();
         });

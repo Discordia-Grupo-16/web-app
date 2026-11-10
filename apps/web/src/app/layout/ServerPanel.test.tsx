@@ -260,7 +260,7 @@ describe('ServerPanel: transferir la propiedad', () => {
         resolved_at: null,
     };
     const ME_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [] };
-    const transferButtons = () => screen.queryAllByRole('button', { name: 'Transferir propiedad' });
+    const transferButtons = () => screen.queryAllByRole('button', { name: 'Transferir servidor' });
 
     beforeEach(() => {
         vi.clearAllMocks();

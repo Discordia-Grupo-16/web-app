@@ -2,16 +2,17 @@ import type { OwnershipError } from './types';
 
 // The same texts on web and mobile.
 export const OWNERSHIP_TEXTS = {
-    transfer: 'Transferir propiedad',
+    transfer: 'Transferir servidor',
+    sendProposal: 'Enviar propuesta',
     proposeConfirm: (toName: string, serverName: string) =>
-        `¿Transferir la propiedad de ${serverName} a ${toName}? Si acepta, vas a dejar de ser el owner.`,
+        `¿Querés proponerle a ${toName} que sea el nuevo dueño de «${serverName}»? ${toName} tiene que aceptar. Cuando acepte, vas a dejar de ser el dueño.`,
     pendingTo: (toName: string) => `Transferencia pendiente a ${toName}`,
     rejectedBy: (toName: string) => `${toName} rechazó la transferencia`,
-    incoming: (fromName: string, serverName: string) => `${fromName} te propone ser el owner de ${serverName}`,
-    acceptConfirm: (serverName: string) => `Vas a ser el owner de ${serverName}`,
-    leaveAsOwner: 'Para abandonar el servidor, primero transferí la propiedad o eliminá el servidor.',
+    incoming: (fromName: string, serverName: string) => `${fromName} te propone ser el dueño de «${serverName}»`,
+    acceptConfirm: (serverName: string) => `Vas a ser el dueño de «${serverName}»`,
+    leaveAsOwner: 'Para abandonar el servidor, primero transferí el servidor o eliminalo.',
     leaveAsOwnerWithPending: (toName: string) =>
-        `Para abandonar el servidor, primero transferí la propiedad o eliminá el servidor. Ya hay una transferencia pendiente a ${toName}.`,
+        `Para abandonar el servidor, primero transferí el servidor o eliminalo. Ya hay una transferencia pendiente a ${toName}.`,
     accept: 'Aceptar',
     reject: 'Rechazar',
     cancel: 'Cancelar',
@@ -24,7 +25,7 @@ export const OWNERSHIP_TEXTS = {
 export const ownershipErrorText = (error: OwnershipError): string => {
     switch (error.kind) {
         case 'not-owner':
-            return 'Solo el owner puede transferir la propiedad';
+            return 'Solo el dueño puede transferir el servidor';
         case 'not-member':
             return 'Esa persona ya no es miembro del servidor';
         case 'already-pending':

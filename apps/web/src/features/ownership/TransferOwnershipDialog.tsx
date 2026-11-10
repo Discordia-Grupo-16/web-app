@@ -63,7 +63,7 @@ export const TransferOwnershipDialog = ({ toName, serverName, busy, error, onCon
                         className="text-sm font-semibold px-4 py-2 rounded text-white"
                         style={{ background: '#7289da', opacity: busy ? 0.6 : 1 }}
                     >
-                        {retryable ? OWNERSHIP_TEXTS.retry : OWNERSHIP_TEXTS.transfer}
+                        {retryable ? OWNERSHIP_TEXTS.retry : OWNERSHIP_TEXTS.sendProposal}
                     </button>
                 </div>
             </div>

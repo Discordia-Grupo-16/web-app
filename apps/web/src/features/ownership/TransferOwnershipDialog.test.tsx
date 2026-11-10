@@ -23,14 +23,14 @@ describe('TransferOwnershipDialog', () => {
         renderDialog();
 
         expect(
-            screen.getByText('¿Transferir la propiedad de Grupo 16 a Beto? Si acepta, vas a dejar de ser el owner.'),
+            screen.getByText('¿Querés proponerle a Beto que sea el nuevo dueño de «Grupo 16»? Beto tiene que aceptar. Cuando acepte, vas a dejar de ser el dueño.'),
         ).toBeInTheDocument();
     });
 
     it('proposes on confirm', async () => {
         const { onConfirm } = renderDialog();
 
-        await userEvent.click(screen.getByRole('button', { name: 'Transferir propiedad' }));
+        await userEvent.click(screen.getByRole('button', { name: 'Enviar propuesta' }));
 
         expect(onConfirm).toHaveBeenCalled();
     });
@@ -38,7 +38,7 @@ describe('TransferOwnershipDialog', () => {
     it('disables the buttons while proposing', () => {
         renderDialog({ busy: true });
 
-        expect(screen.getByRole('button', { name: 'Transferir propiedad' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Enviar propuesta' })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
     });
 
