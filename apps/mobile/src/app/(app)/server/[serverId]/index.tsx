@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import type { Channel } from '@discordia/api';
@@ -77,6 +77,13 @@ export default function ServerScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-[#23272a]" edges={['bottom']}>
+      {server.banner_url && (
+        <Image
+          source={{ uri: server.banner_url }}
+          style={{ width: '100%', height: 120 }}
+          resizeMode="cover"
+        />
+      )}
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
         {hasPermission(permissions, VIEW_CHANNEL) ? (
           <ChannelSection

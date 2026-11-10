@@ -70,6 +70,8 @@ export const ServerPanel = () => {
         >
             <ServerHeader
                 title={serverId ? (server?.name ?? '...') : 'Seleccioná un servidor'}
+                bannerUrl={server?.banner_url}
+                iconUrl={server?.avatar_url}
                 actions={serverId && (
                     <>
                         {isOwner && <InviteButton serverId={serverId} />}

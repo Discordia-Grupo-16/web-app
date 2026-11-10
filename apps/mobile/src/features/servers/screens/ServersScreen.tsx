@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  Modal, TextInput, ActivityIndicator,
+  Modal, TextInput, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -63,6 +63,16 @@ export function ServersScreen() {
               onPress={() => router.push(`/server/${item.id}`)}
               className="bg-[#2c2f33] rounded-xl px-4 py-4 flex-row items-center justify-between"
             >
+              {item.avatar_url ? (
+                <Image
+                  source={{ uri: item.avatar_url }}
+                  style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }}
+                />
+              ) : (
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#7289da', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>{item.name[0].toUpperCase()}</Text>
+                </View>
+              )}
               <View className="flex-1 mr-3">
                 <Text className="text-white font-bold text-base">{item.name}</Text>
                 {item.description ? (
