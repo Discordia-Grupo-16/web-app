@@ -23,6 +23,7 @@ const adapter = {
     }),
     onReconnectingChanged: () => () => undefined,
     muteMicrophone: vi.fn(async () => undefined),
+    setLocallyMuted: vi.fn((_userIds: ReadonlySet<string>) => undefined),
     onMicrophoneLost: () => () => undefined,
 } satisfies VoiceRoomAdapter;
 

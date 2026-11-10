@@ -34,6 +34,7 @@ const makeAdapter = () =>
     },
     onReconnectingChanged: () => () => undefined,
     muteMicrophone: jest.fn(async () => undefined),
+    setLocallyMuted: jest.fn((_userIds: ReadonlySet<string>) => undefined),
     onMicrophoneLost: () => () => undefined,
   }) satisfies VoiceRoomAdapter;
 

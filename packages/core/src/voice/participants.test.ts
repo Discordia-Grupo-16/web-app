@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { buildParticipantSnapshot, NO_SPEAKERS, readServerReason, sameIds, speakerIds } from './participants';
+import {
+    buildParticipantSnapshot,
+    NO_LOCAL_MUTES,
+    NO_SPEAKERS,
+    readServerReason,
+    sameIds,
+    speakerIds,
+    toggleId,
+} from './participants';
 import type { ParticipantLike, RoomLike } from './types';
 
 const participant = (identity: string, joinedAtSeconds?: number, isMicrophoneEnabled = true): ParticipantLike => ({
@@ -78,6 +86,33 @@ describe('readServerReason', () => {
 describe('NO_SPEAKERS', () => {
     it('is empty', () => {
         expect(NO_SPEAKERS.size).toBe(0);
+    });
+});
+
+describe('NO_LOCAL_MUTES', () => {
+    it('is empty', () => {
+        expect(NO_LOCAL_MUTES.size).toBe(0);
+    });
+});
+
+describe('toggleId', () => {
+    it('adds the id when it is missing', () => {
+        expect([...toggleId(new Set(['ana']), 'bob')].sort()).toEqual(['ana', 'bob']);
+    });
+
+    it('removes the id when it is there', () => {
+        expect([...toggleId(new Set(['ana', 'bob']), 'ana')]).toEqual(['bob']);
+    });
+
+    it('returns another instance and leaves the input as it was', () => {
+        const input: ReadonlySet<string> = new Set(['ana']);
+
+        const added = toggleId(input, 'bob');
+        const removed = toggleId(input, 'ana');
+
+        expect(added).not.toBe(input);
+        expect(removed).not.toBe(input);
+        expect([...input]).toEqual(['ana']);
     });
 });
 

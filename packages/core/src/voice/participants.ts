@@ -15,7 +15,19 @@ const SERVER_REASONS: ReadonlySet<string> = new Set<VoiceServerReason>([
 // Shared empty set: the same reference every time, so memoized readers do not re-render.
 export const NO_SPEAKERS: ReadonlySet<string> = new Set();
 
-export const speakerIds = (speakers: readonly Pick<ParticipantLike, 'identity'>[]): ReadonlySet<string> =>
+// Shared empty set of local mutes: the same reference every time, so memoized readers do not re-render.
+export const NO_LOCAL_MUTES: ReadonlySet<string> = new Set();
+
+// A new set with the id added if it was missing or removed if it was there. Never mutates the input:
+// it is React state.
+export const toggleId = (ids: ReadonlySet<string>, id: string): ReadonlySet<string> => {
+    const next = new Set(ids);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+};
+
+export const speakerIds =(speakers: readonly Pick<ParticipantLike, 'identity'>[]): ReadonlySet<string> =>
     new Set(speakers.map((s) => s.identity));
 
 // Same members, whatever the order: LiveKit repeats the event when only the loudness order changes.
