@@ -12,11 +12,13 @@ interface ChannelGroupProps {
     onAdd: () => void;
     onDelete: (channelId: string, channelName: string) => void;
     onEdit: (channel: Channel) => void;
+    /** Extra buttons rendered next to the group label (e.g. rename/delete for categories). */
+    headerActions?: ReactNode;
     /** Drawn under the row of each channel, for example who is in a voice call. */
     renderBelowChannel?: (channel: Channel) => ReactNode;
 }
 
-export const ChannelGroup = ({ label, channels, activeId, serverId, canManage, onAdd, onDelete, onEdit, renderBelowChannel }: ChannelGroupProps) => {
+export const ChannelGroup = ({ label, channels, activeId, serverId, canManage, onAdd, onDelete, onEdit, headerActions, renderBelowChannel }: ChannelGroupProps) => {
     const navigate = useNavigate();
     const isText = label.includes('texto');
 
@@ -29,16 +31,19 @@ export const ChannelGroup = ({ label, channels, activeId, serverId, canManage, o
                 >
                     {label}
                 </span>
-                {canManage && (
-                    <button
-                        onClick={onAdd}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
-                        style={{ color: '#8e9297' }}
-                        title={`Crear canal de ${isText ? 'texto' : 'voz'}`}
-                    >
-                        <Plus size={14} />
-                    </button>
-                )}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                    {headerActions}
+                    {canManage && (
+                        <button
+                            onClick={onAdd}
+                            className="p-0.5 rounded"
+                            style={{ color: '#8e9297' }}
+                            title={`Crear canal de ${isText ? 'texto' : 'voz'}`}
+                        >
+                            <Plus size={14} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {channels.map(ch => {

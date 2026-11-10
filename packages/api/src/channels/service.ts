@@ -9,10 +9,11 @@ export const createChannelsService = (apiClient: AxiosInstance) => ({
         return apiClient.post<{ data: Channel }>(`/api/v1/servers/${serverId}/channels/`, form).then(r => r.data.data);
     },
 
-    updateChannel: (serverId: string, channelId: string, name?: string, topic?: string): Promise<Channel> => {
+    updateChannel: (serverId: string, channelId: string, name?: string, topic?: string, categoryId?: string): Promise<Channel> => {
         const form = new FormData();
         if (name !== undefined) form.append('name', name);
         if (topic !== undefined) form.append('topic', topic);
+        if (categoryId !== undefined) form.append('category_id', categoryId);
         return apiClient.patch<{ data: Channel }>(`/api/v1/servers/${serverId}/channels/${channelId}`, form).then(r => r.data.data);
     },
 

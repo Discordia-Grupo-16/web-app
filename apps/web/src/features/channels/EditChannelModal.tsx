@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { Hash, Volume2, X } from 'lucide-react';
 import { channelsService } from '@/shared/api';
-import type { Channel } from '@discordia/api';
+import type { Category, Channel } from '@discordia/api';
 
 interface Props {
     serverId: string;
     channel: Channel;
+    categories?: Category[];
     onClose: () => void;
     onUpdated: (channel: Channel) => void;
 }
 
-export const EditChannelModal = ({ serverId, channel, onClose, onUpdated }: Props) => {
+export const EditChannelModal = ({ serverId, channel, categories = [], onClose, onUpdated }: Props) => {
     const [name, setName] = useState(channel.name);
     const [topic, setTopic] = useState(channel.topic ?? '');
+    const [categoryId, setCategoryId] = useState<string>(channel.category_id ?? '');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -20,8 +22,9 @@ export const EditChannelModal = ({ serverId, channel, onClose, onUpdated }: Prop
         e.preventDefault();
         setLoading(true);
         setError(null);
+        const newCategoryId = categoryId || undefined;
         try {
-            const updated = await channelsService.updateChannel(serverId, channel.id, name, topic || undefined);
+            const updated = await channelsService.updateChannel(serverId, channel.id, name, topic || undefined, newCategoryId);
             onUpdated(updated);
         } catch (err) {
             const error = err as { response?: { data?: { detail?: string } } };
@@ -94,6 +97,27 @@ export const EditChannelModal = ({ serverId, channel, onClose, onUpdated }: Prop
                                 onFocus={e => e.currentTarget.style.borderColor = '#7289da'}
                                 onBlur={e => e.currentTarget.style.borderColor = 'transparent'}
                             />
+                        </div>
+                    )}
+
+                    {categories.length > 0 && (
+                        <div>
+                            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#99aab5' }}>
+                                Categoría
+                            </label>
+                            <select
+                                value={categoryId}
+                                onChange={e => setCategoryId(e.target.value)}
+                                className="w-full px-4 py-3 rounded-lg text-sm text-white outline-none"
+                                style={{ background: '#23272a', border: '1.5px solid transparent' }}
+                                onFocus={e => e.currentTarget.style.borderColor = '#7289da'}
+                                onBlur={e => e.currentTarget.style.borderColor = 'transparent'}
+                            >
+                                <option value="">Sin categoría</option>
+                                {categories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                ))}
+                            </select>
                         </div>
                     )}
 

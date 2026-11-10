@@ -6,6 +6,7 @@ import type { Channel } from './types';
 const channel: Channel = {
     id: 'ch-1',
     server_id: 'srv',
+    category_id: null,
     name: 'general',
     type: 'text',
     topic: null,

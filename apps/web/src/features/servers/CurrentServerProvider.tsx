@@ -7,7 +7,7 @@ import { useServer } from './useServer';
 // screen both need it, and each asking for it separately meant two requests for every change.
 export const CurrentServerProvider = ({ children }: { children: ReactNode }) => {
     const { serverId, channelId } = useParams();
-    const { server, loading, updateChannels, updateServer } = useServer(serverId, channelId);
-    const value = useMemo(() => ({ server, loading, updateChannels, updateServer }), [server, loading, updateChannels, updateServer]);
+    const { server, loading, updateChannels, updateCategories, updateServer } = useServer(serverId, channelId);
+    const value = useMemo(() => ({ server, loading, updateChannels, updateCategories, updateServer }), [server, loading, updateChannels, updateCategories, updateServer]);
     return <CurrentServerContext.Provider value={value}>{children}</CurrentServerContext.Provider>;
 };

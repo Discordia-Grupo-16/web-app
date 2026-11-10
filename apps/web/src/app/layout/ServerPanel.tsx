@@ -29,7 +29,7 @@ const NO_PARTICIPANTS: VoiceParticipant[] = [];
 export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
-    const { server, loading: loadingServer, updateChannels, updateServer } = useCurrentServer();
+    const { server, loading: loadingServer, updateChannels, updateCategories, updateServer } = useCurrentServer();
     const [showSettings, setShowSettings] = useState(false);
     const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
     const { members, loading: loadingMembers, setMemberRoles, removeMember } = useMembers(serverId);
@@ -114,9 +114,11 @@ export const ServerPanel = () => {
                             <ChannelList
                                 serverId={serverId}
                                 channels={server?.channels ?? []}
+                                categories={server?.categories ?? []}
                                 activeChannelId={channelId}
                                 canManage={hasPermission(permissions, MANAGE_CHANNELS)}
                                 onChannelsChange={updateChannels}
+                                onCategoriesChange={updateCategories}
                                 renderBelowChannel={renderBelowChannel}
                             />
                         )}
