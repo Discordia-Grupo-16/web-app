@@ -1,13 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminServer } from '@discordia/api';
 import { ServersPage } from './ServersPage';
 
 const listServers = vi.fn();
+const deleteServer = vi.fn();
 vi.mock('@/shared/api', () => ({
     adminServerService: {
         listServers: (...args: unknown[]) => listServers(...args),
+        deleteServer: (...args: unknown[]) => deleteServer(...args),
     },
 }));
 
@@ -27,6 +29,7 @@ const page = (servers: AdminServer[], total = servers.length, offset = 0) => ({
 describe('ServersPage', () => {
     beforeEach(() => {
         listServers.mockReset();
+        deleteServer.mockReset().mockResolvedValue(undefined);
         listServers.mockResolvedValue(page([server('alpha'), server('beta', { memberCount: 42 })]));
     });
 
@@ -131,5 +134,47 @@ describe('ServersPage', () => {
             expect(listServers).toHaveBeenLastCalledWith({ limit: 20, offset: 0 }, expect.anything()),
         );
         expect(await screen.findByText('Server alpha')).toBeInTheDocument();
+    });
+
+    it('confirms server deletion, reports success, and reloads the list', async () => {
+        render(<ServersPage />);
+        await screen.findByText('Server alpha');
+
+        await userEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+        const dialog = screen.getByRole('dialog', { name: '¿Eliminar servidor Server alpha?' });
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar servidor' }));
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Servidor eliminado correctamente.');
+        expect(deleteServer).toHaveBeenCalledWith('alpha');
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        await waitFor(() => expect(listServers).toHaveBeenCalledTimes(2));
+    });
+
+    it('treats a server that is already missing as successfully deleted', async () => {
+        deleteServer.mockRejectedValueOnce({ response: { status: 404 } });
+        render(<ServersPage />);
+        await screen.findByText('Server alpha');
+
+        await userEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+        const dialog = screen.getByRole('dialog', { name: '¿Eliminar servidor Server alpha?' });
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar servidor' }));
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Servidor eliminado correctamente.');
+        expect(deleteServer).toHaveBeenCalledWith('alpha');
+        await waitFor(() => expect(listServers).toHaveBeenCalledTimes(2));
+    });
+
+    it('reports a deletion failure and reloads the list', async () => {
+        deleteServer.mockRejectedValueOnce(new Error('request failed'));
+        render(<ServersPage />);
+        await screen.findByText('Server alpha');
+
+        await userEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+        const dialog = screen.getByRole('dialog', { name: '¿Eliminar servidor Server alpha?' });
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Eliminar servidor' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo eliminar el servidor.');
+        expect(deleteServer).toHaveBeenCalledWith('alpha');
+        await waitFor(() => expect(listServers).toHaveBeenCalledTimes(2));
     });
 });
