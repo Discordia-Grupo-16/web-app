@@ -50,9 +50,9 @@ function latestSocket(): FakeWebSocket {
     return socket;
 }
 
-// Timers are faked, but getToken() resolves through the real microtask queue.
+// Timers are faked, but getTicket() resolves through the real microtask queue.
 // advanceTimersByTimeAsync interleaves both, which is what lets a scheduled
-// reconnect's getToken().then(...) actually run within the same await.
+// reconnect's getTicket().then(...) actually run within the same await.
 async function flush(): Promise<void> {
     await vi.advanceTimersByTimeAsync(0);
 }
@@ -60,7 +60,7 @@ async function flush(): Promise<void> {
 function baseConfig(overrides: Record<string, unknown> = {}) {
     return {
         url: 'ws://localhost:8080/api/v1/ws',
-        getToken: vi.fn(async () => 'token-123'),
+        getTicket: vi.fn(async () => 'ticket-123'),
         webSocketImpl: FakeWebSocket,
         minBackoffMs: 100,
         maxBackoffMs: 800,
@@ -85,16 +85,16 @@ afterEach(() => {
 });
 
 describe('connection and authentication', () => {
-    it('connect() calls getToken() and opens the socket at url?access_token=<token>, url-encoded', async () => {
-        const getToken = vi.fn(async () => 'a+b/c=');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+    it('connect() calls getTicket() and opens the socket at url?ticket=<token>, url-encoded', async () => {
+        const getTicket = vi.fn(async () => 'a+b/c=');
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         await flush();
 
-        expect(getToken).toHaveBeenCalledTimes(1);
+        expect(getTicket).toHaveBeenCalledTimes(1);
         expect(latestSocket().url).toBe(
-            'ws://localhost:8080/api/v1/ws?access_token=' + encodeURIComponent('a+b/c='),
+            'ws://localhost:8080/api/v1/ws?ticket=' + encodeURIComponent('a+b/c='),
         );
     });
 
@@ -104,7 +104,7 @@ describe('connection and authentication', () => {
         client.connect();
         await flush();
 
-        expect(latestSocket().url).toBe('ws://localhost:8080/api/v1/ws?foo=1&access_token=token-123');
+        expect(latestSocket().url).toBe('ws://localhost:8080/api/v1/ws?foo=1&ticket=ticket-123');
     });
 
     it('goes idle -> connecting -> open on onopen, emitting stateChange once per transition', async () => {
@@ -135,8 +135,8 @@ describe('connection and authentication', () => {
         expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
-    it('if getToken() resolves null, does not open a socket, goes closed, and never reconnects on its own', async () => {
-        const client = createRealtimeClient(baseConfig({ getToken: vi.fn(async () => null) }));
+    it('if getTicket() resolves null, does not open a socket, goes closed, and never reconnects on its own', async () => {
+        const client = createRealtimeClient(baseConfig({ getTicket: vi.fn(async () => null) }));
 
         client.connect();
         await flush();
@@ -148,12 +148,12 @@ describe('connection and authentication', () => {
         expect(FakeWebSocket.instances).toHaveLength(0);
     });
 
-    it('if getToken() rejects, goes reconnecting and retries after the backoff', async () => {
-        const getToken = vi
+    it('if getTicket() rejects, goes reconnecting and retries after the backoff', async () => {
+        const getTicket = vi
             .fn()
             .mockRejectedValueOnce(new Error('network error'))
-            .mockResolvedValueOnce('token-123');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+            .mockResolvedValueOnce('ticket-123');
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         await flush();
@@ -161,7 +161,7 @@ describe('connection and authentication', () => {
         expect(FakeWebSocket.instances).toHaveLength(0);
 
         await vi.advanceTimersByTimeAsync(100);
-        expect(getToken).toHaveBeenCalledTimes(2);
+        expect(getTicket).toHaveBeenCalledTimes(2);
         expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
@@ -170,7 +170,7 @@ describe('connection and authentication', () => {
         delete (globalThis as { WebSocket?: unknown }).WebSocket;
 
         try {
-            expect(() => createRealtimeClient({ url: 'ws://x', getToken: vi.fn() })).toThrow(
+            expect(() => createRealtimeClient({ url: 'ws://x', getTicket: vi.fn() })).toThrow(
                 /no WebSocket implementation available/,
             );
         } finally {
@@ -408,9 +408,9 @@ describe('receiving', () => {
 });
 
 describe('reconnection', () => {
-    it('an unrequested close (1006) goes reconnecting and reconnects after minBackoffMs, calling getToken() again', async () => {
-        const getToken = vi.fn(async () => 'token-123');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+    it('an unrequested close (1006) goes reconnecting and reconnects after minBackoffMs, calling getTicket() again', async () => {
+        const getTicket = vi.fn(async () => 'ticket-123');
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         await flush();
@@ -418,10 +418,10 @@ describe('reconnection', () => {
 
         latestSocket().remoteClose(1006);
         expect(client.getState()).toBe('reconnecting');
-        expect(getToken).toHaveBeenCalledTimes(1);
+        expect(getTicket).toHaveBeenCalledTimes(1);
 
         await vi.advanceTimersByTimeAsync(100);
-        expect(getToken).toHaveBeenCalledTimes(2);
+        expect(getTicket).toHaveBeenCalledTimes(2);
         expect(FakeWebSocket.instances).toHaveLength(2);
     });
 
@@ -467,22 +467,22 @@ describe('reconnection', () => {
         expect(FakeWebSocket.instances).toHaveLength(3); // fired at 100ms
     });
 
-    it('calls getToken() again on every retry and connects with whatever it returns', async () => {
-        const getToken = vi
+    it('calls getTicket() again on every retry and connects with whatever it returns', async () => {
+        const getTicket = vi
             .fn()
             .mockResolvedValueOnce('token-1')
             .mockResolvedValueOnce('token-2');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         await flush();
-        expect(latestSocket().url).toContain('access_token=token-1');
+        expect(latestSocket().url).toContain('ticket=token-1');
 
         latestSocket().remoteClose(1006);
         await vi.advanceTimersByTimeAsync(100);
 
-        expect(getToken).toHaveBeenCalledTimes(2);
-        expect(latestSocket().url).toContain('access_token=token-2');
+        expect(getTicket).toHaveBeenCalledTimes(2);
+        expect(latestSocket().url).toContain('ticket=token-2');
     });
 
     it.each([1001, 1011])('a close with code %i also triggers a reconnect', async (code) => {
@@ -618,16 +618,16 @@ describe('deliberate close', () => {
         expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
-    it('disconnect() while getToken() is pending prevents opening a socket once it resolves', async () => {
+    it('disconnect() while getTicket() is pending prevents opening a socket once it resolves', async () => {
         let resolveToken!: (token: string | null) => void;
-        const getToken = vi.fn(() => new Promise<string | null>((resolve) => (resolveToken = resolve)));
-        const client = createRealtimeClient(baseConfig({ getToken }));
+        const getTicket = vi.fn(() => new Promise<string | null>((resolve) => (resolveToken = resolve)));
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         client.disconnect();
         expect(client.getState()).toBe('closed');
 
-        resolveToken('token-123');
+        resolveToken('ticket-123');
         await flush();
 
         expect(FakeWebSocket.instances).toHaveLength(0);
@@ -709,21 +709,21 @@ describe('stale attempt guards (races between superseded and current connections
         expect(FakeWebSocket.instances).toHaveLength(2); // no extra reconnect triggered
     });
 
-    it('a rejected getToken() from a superseded attempt does not schedule a reconnect', async () => {
+    it('a rejected getTicket() from a superseded attempt does not schedule a reconnect', async () => {
         let rejectToken!: (err: Error) => void;
-        const getToken = vi
+        const getTicket = vi
             .fn()
             .mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectToken = reject)))
-            .mockResolvedValueOnce('token-123');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+            .mockResolvedValueOnce('ticket-123');
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
-        client.connect(); // attempt #1, getToken() left pending
+        client.connect(); // attempt #1, getTicket() left pending
         client.disconnect();
         client.connect(); // attempt #2
         await flush();
         latestSocket().open();
 
-        rejectToken(new Error('late failure')); // attempt #1's getToken() rejects after being superseded
+        rejectToken(new Error('late failure')); // attempt #1's getTicket() rejects after being superseded
         await flush();
 
         expect(client.getState()).toBe('open');

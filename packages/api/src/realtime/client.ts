@@ -43,10 +43,10 @@ export function isTerminalCloseCode(code: number): boolean {
 export type ConnectionState = 'idle' | 'connecting' | 'open' | 'reconnecting' | 'closed';
 
 export interface RealtimeClientConfig {
-    /** Gateway WebSocket endpoint, without the token. E.g. ws://localhost:8080/api/v1/ws */
+    /** Gateway WebSocket endpoint, without the ticket. E.g. ws://localhost:8080/api/v1/ws */
     url: string;
-    /** Called on every connection attempt: the JWT is only validated at handshake time. */
-    getToken: () => Promise<string | null>;
+    /** Called on every connection attempt: a ticket is single-use (30 s), so each handshake needs a fresh one. null = no session, the client closes. */
+    getTicket: () => Promise<string | null>;
     /** Injectable for tests or environments without a global WebSocket. Default: globalThis.WebSocket. */
     webSocketImpl?: WebSocketConstructor;
     /** Default 500. Do not lower it: every handshake counts against the gateway rate limit. */
@@ -95,15 +95,15 @@ function resolveWebSocketImpl(injected?: WebSocketConstructor): WebSocketConstru
 // Builds the query manually instead of `new URL(...).searchParams`: React
 // Native's URL polyfill can throw "not implemented" on searchParams.set, and
 // this module has to work unchanged on mobile.
-function buildConnectionUrl(baseUrl: string, token: string): string {
+function buildConnectionUrl(baseUrl: string, ticket: string): string {
     const separator = baseUrl.includes('?') ? '&' : '?';
-    return `${baseUrl}${separator}access_token=${encodeURIComponent(token)}`;
+    return `${baseUrl}${separator}ticket=${encodeURIComponent(ticket)}`;
 }
 
 export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClient {
     const {
         url,
-        getToken,
+        getTicket,
         webSocketImpl,
         minBackoffMs = DEFAULT_MIN_BACKOFF_MS,
         maxBackoffMs = DEFAULT_MAX_BACKOFF_MS,
@@ -229,16 +229,16 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         const attemptId = connectAttemptId;
         setState('connecting');
 
-        Promise.resolve(getToken())
-            .then((token) => {
+        Promise.resolve(getTicket())
+            .then((ticket) => {
                 if (attemptId !== connectAttemptId || deliberateClose) return;
 
-                if (token === null) {
+                if (ticket === null) {
                     setState('closed');
                     return;
                 }
 
-                const ws = new WebSocketImpl(buildConnectionUrl(url, token));
+                const ws = new WebSocketImpl(buildConnectionUrl(url, ticket));
                 attachHandlers(ws, attemptId);
                 socket = ws;
             })

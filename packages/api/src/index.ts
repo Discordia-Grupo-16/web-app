@@ -32,6 +32,7 @@ export * from './readStates/service';
 export type * from './readStates/types';
 
 export * from './realtime/client';
+export * from './realtime/ticket';
 export type * from './realtime/protocol';
 
 export * from './voice/service';

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { createRealtimeClient } from '@discordia/api';
+import { createRealtimeClient, createWsTicketGetter } from '@discordia/api';
 import {
     ACCOUNT_SUSPENDED_NOTICE,
     RealtimeContext,
@@ -7,7 +7,7 @@ import {
     useRealtimeController,
     useSuspensionSignOut,
 } from '@discordia/core';
-import { TOKEN_KEY, webAuthStorage } from '@/shared/session/authStorage';
+import { TOKEN_KEY } from '@/shared/session/authStorage';
 import { setLoginNotice } from '@/shared/session/loginNotice';
 import { WS_URL } from '@/shared/config/env';
 import { api } from '@/shared/api';
@@ -20,7 +20,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
             console.warn('VITE_WS_URL is not set: realtime chat is disabled.');
             return null;
         }
-        return createRealtimeClient({ url: WS_URL, getToken: webAuthStorage.getToken });
+        return createRealtimeClient({ url: WS_URL, getTicket: createWsTicketGetter(api) });
     });
 
     const { value } = useRealtimeController({ client, token, newClientMessageId, api, logger: console });
