@@ -145,7 +145,7 @@ describe('ServersPage', () => {
         render(<ServersPage />);
         await screen.findByText('Server alpha');
 
-        await userEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+        await userEvent.click(screen.getByRole('button', { name: 'Eliminar Server alpha' }));
         const dialog = screen.getByRole('dialog', { name: '¿Eliminar servidor Server alpha?' });
         await confirmDeletion(dialog);
 
@@ -160,7 +160,7 @@ describe('ServersPage', () => {
         render(<ServersPage />);
         await screen.findByText('Server alpha');
 
-        await userEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+        await userEvent.click(screen.getByRole('button', { name: 'Eliminar Server alpha' }));
         const dialog = screen.getByRole('dialog', { name: '¿Eliminar servidor Server alpha?' });
         await confirmDeletion(dialog);
 
@@ -174,7 +174,7 @@ describe('ServersPage', () => {
         render(<ServersPage />);
         await screen.findByText('Server alpha');
 
-        await userEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+        await userEvent.click(screen.getByRole('button', { name: 'Eliminar Server alpha' }));
         const dialog = screen.getByRole('dialog', { name: '¿Eliminar servidor Server alpha?' });
         await confirmDeletion(dialog);
 
@@ -189,7 +189,7 @@ describe('ServersPage', () => {
         render(<ServersPage />);
         await screen.findByText('Server alpha');
 
-        await userEvent.click(screen.getAllByRole('button', { name: 'Eliminar' })[0]);
+        await userEvent.click(screen.getByRole('button', { name: 'Eliminar Server alpha' }));
         const dialog = screen.getByRole('dialog', { name: '¿Eliminar servidor Server alpha?' });
         await confirmDeletion(dialog);
 
