@@ -49,13 +49,17 @@ export const ServersPage = () => {
             if (isNotFound(err)) {
                 setFeedback({ tone: 'success', message: 'Servidor eliminado correctamente.' });
             } else {
-                setFeedback({ tone: 'error', message: 'No se pudo eliminar el servidor.' });
+                setDeleteError(isForbidden(err)
+                    ? FORBIDDEN_MESSAGE
+                    : getApiErrorMessage(err, 'No se pudo eliminar el servidor.'));
+                return;
             }
         } finally {
             setIsDeleting(false);
-            reload();
-            setServerToDelete(null);
         }
+
+        reload();
+        setServerToDelete(null);
     };
 
     const renderResults = () => {
