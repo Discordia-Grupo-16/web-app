@@ -139,7 +139,8 @@ export const ServersPage = () => {
             <ConfirmDialog
                 open={serverToDelete !== null}
                 title={`¿Eliminar servidor ${serverToDelete?.name}?`}
-                description="Esta acción es irreversible. Se borrarán todos los canales, mensajes y configuraciones de este servidor."
+                description="Esta acción es irreversible. Se borrarán todos los canales y configuraciones de este servidor."
+                confirmationText={serverToDelete?.name}
                 confirmLabel="Eliminar servidor"
                 tone="danger"
                 isSubmitting={isDeleting}
