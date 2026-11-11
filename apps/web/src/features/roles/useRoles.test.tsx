@@ -3,6 +3,7 @@ import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Role } from '@discordia/api';
 import { rolesService } from '@/shared/api';
+import { afterCoalescing, withNotices } from '@/test/notices';
 import { useRoles } from './useRoles';
 
 vi.mock('@/shared/api', () => ({ rolesService: { listRoles: vi.fn() } }));
@@ -71,5 +72,48 @@ describe('useRoles addRole', () => {
 
         expect(rolesService.listRoles).toHaveBeenCalledTimes(2);
         expect(result.current.roles.map(r => r.name)).toEqual(['everyone', 'Moderador']);
+    });
+});
+
+describe('useRoles with notices', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it.each([
+        ['reads the roles again on a roles notice of its server', 'srv', 1],
+        ['ignores the notices of another server', 'otro', 0],
+    ])('%s', async (_, server, calls) => {
+        vi.mocked(rolesService.listRoles).mockResolvedValue([role('r1', 'everyone', true)]);
+        const { notice, wrapper } = withNotices();
+        const { result } = renderHook(() => useRoles('srv'), { wrapper });
+        await waitFor(() => expect(result.current.roles).toHaveLength(1));
+        vi.mocked(rolesService.listRoles).mockClear();
+        vi.useFakeTimers();
+
+        try {
+            notice({ serverId: server, resources: ['roles'] });
+            await afterCoalescing();
+        } finally {
+            vi.useRealTimers();
+        }
+
+        expect(rolesService.listRoles).toHaveBeenCalledTimes(calls);
+    });
+
+    it('removes a deleted role right away', async () => {
+        const result = await loaded([role('r1', 'everyone', true), role('r2', 'Moderador')]);
+
+        act(() => result.current.removeRole('r2'));
+
+        expect(result.current.roles.map(r => r.name)).toEqual(['everyone']);
+    });
+
+    it('replaces the list with the one read again', async () => {
+        const result = await loaded([role('r1', 'everyone', true), role('r2', 'Moderador')]);
+
+        act(() => result.current.replaceRoles([role('r1', 'everyone', true)]));
+
+        expect(result.current.roles.map(r => r.name)).toEqual(['everyone']);
     });
 });

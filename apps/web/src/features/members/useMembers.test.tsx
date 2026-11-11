@@ -3,6 +3,7 @@ import { act } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Role, ServerMember } from '@discordia/api';
 import { membersService } from '@/shared/api';
+import { afterCoalescing, withNotices } from '@/test/notices';
 import { useMembers } from './useMembers';
 
 vi.mock('@/shared/api', () => ({ membersService: { listMembers: vi.fn() } }));
@@ -56,5 +57,31 @@ describe('useMembers setMemberRoles', () => {
         act(() => result.current.setMemberRoles('u1', [BAJO]));
 
         expect(result.current.members[1].roles.map(r => r.name)).toEqual(['Admin']);
+    });
+});
+
+describe('useMembers with notices', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('reads the members again when the permissions of whoever looks change', async () => {
+        // Assigning or removing a role of theirs only sends `permissions`, and their own roles come from
+        // this list.
+        vi.mocked(membersService.listMembers).mockResolvedValue([]);
+        const { notice, wrapper } = withNotices();
+        const { result } = renderHook(() => useMembers('srv'), { wrapper });
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        vi.mocked(membersService.listMembers).mockClear();
+        vi.useFakeTimers();
+
+        try {
+            notice({ serverId: 'srv', resources: ['permissions', 'channels'] });
+            await afterCoalescing();
+        } finally {
+            vi.useRealTimers();
+        }
+
+        expect(membersService.listMembers).toHaveBeenCalledTimes(1);
     });
 });

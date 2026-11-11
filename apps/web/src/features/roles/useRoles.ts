@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Role } from '@discordia/api';
 import { rolesService } from '@/shared/api';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 export const useRoles = (serverId: string | undefined) => {
     const [roles, setRoles] = useState<Role[]>([]);
@@ -42,7 +43,7 @@ export const useRoles = (serverId: string | undefined) => {
      * tiene el cliente quedan viejas (ADR-0001 de `community`). Replicar ese
      * corrimiento acá sería reimplementar una regla del backend.
      */
-    const addRole = useCallback(() => {
+    const reload = useCallback(() => {
         if (!serverId) return;
         rolesService
             .listRoles(serverId)
@@ -50,6 +51,16 @@ export const useRoles = (serverId: string | undefined) => {
             // Un servidor que ya no está lo resuelve quien lo carga.
             .catch(console.error);
     }, [serverId]);
+
+    // Otro administrador eliminó un rol (SCRUM-64): llega el aviso `roles`, y el
+    // poll de respaldo cubre el que se pierda.
+    useLiveRefresh({ resources: ['roles'], serverId, refresh: reload, enabled: !!serverId });
+
+    /** Saca un rol eliminado sin esperar la relectura. */
+    const removeRole = useCallback((roleId: string) => setRoles(prev => prev.filter(r => r.id !== roleId)), []);
+
+    /** Reemplaza la lista por la releída, que es el estado real. */
+    const replaceRoles = useCallback((next: Role[]) => setRoles(next), []);
 
     const updateRole = useCallback(
         (role: Role) =>
@@ -65,5 +76,5 @@ export const useRoles = (serverId: string | undefined) => {
         [],
     );
 
-    return { roles, loading, addRole, updateRole };
+    return { roles, loading, addRole: reload, updateRole, reload, removeRole, replaceRoles };
 };
