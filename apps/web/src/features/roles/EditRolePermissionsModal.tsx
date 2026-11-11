@@ -7,11 +7,12 @@ import {
     PERMISSION_HINT,
     PERMISSION_LABEL,
     PERMISSION_ORDER,
+    ROLE_DELETION_TEXTS,
     hasPermission,
     togglePermission,
     toPermissionNames,
 } from '@discordia/core';
-import { getErrorDetail, type Role } from '@discordia/api';
+import { getErrorDetail, isNotFoundError, type Role } from '@discordia/api';
 import { rolesService } from '@/shared/api';
 
 interface Props {
@@ -19,9 +20,13 @@ interface Props {
     role: Role;
     onClose: () => void;
     onUpdated: (role: Role) => void;
+    /** The role left the list: only "Ese rol ya no existe" and closing (SCRUM-64). */
+    roleGone?: boolean;
+    /** A 404 when saving or marking it as default: the list has to be read again. */
+    onRoleGone?: () => void;
 }
 
-export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }: Props) => {
+export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated, roleGone = false, onRoleGone }: Props) => {
     const [permissions, setPermissions] = useState(role.permissions);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -39,6 +44,7 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
             onUpdated({ ...role, is_default: true });
         } catch (err) {
             setError(getErrorDetail(err) ?? PERMISSION_COPY.defaultRoleError);
+            if (isNotFoundError(err)) onRoleGone?.();
         } finally {
             setSettingDefault(false);
         }
@@ -63,6 +69,7 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
             // this screen does not, so a role above the caller's own is rejected here with
             // the reason it gives.
             setError(getErrorDetail(err) ?? PERMISSION_COPY.rolePermissionsError);
+            if (isNotFoundError(err)) onRoleGone?.();
         } finally {
             setLoading(false);
         }
@@ -90,83 +97,99 @@ export const EditRolePermissionsModal = ({ serverId, role, onClose, onUpdated }:
                     {role.name}
                 </p>
 
-                <form onSubmit={handleSubmit}>
-                    <div className="space-y-1 max-h-80 overflow-y-auto -mx-2 px-2">
-                        {PERMISSION_ORDER.map(name => {
-                            const bit = PERMISSION_BY_NAME[name];
-                            return (
-                                <label
-                                    key={name}
-                                    className="flex gap-3 items-start py-2 px-2 rounded cursor-pointer"
-                                    onMouseEnter={e => (e.currentTarget.style.background = '#34373c')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={hasPermission(permissions, bit)}
-                                        onChange={e =>
-                                            setPermissions(prev => togglePermission(prev, bit, e.target.checked))
-                                        }
-                                        aria-label={PERMISSION_LABEL[name]}
-                                        className="mt-0.5 shrink-0"
-                                        style={{ accentColor: '#7289da' }}
-                                    />
-                                    <span className="min-w-0">
-                                        <span className="block text-sm text-white">{PERMISSION_LABEL[name]}</span>
-                                        <span className="block text-xs mt-0.5" style={{ color: '#99aab5' }}>
-                                            {PERMISSION_HINT[name]}
+                {roleGone ? (
+                    <>
+                        <p role="alert" className="text-sm" style={{ color: '#ed4245' }}>
+                            {ROLE_DELETION_TEXTS.roleGone}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="w-full mt-6 py-3 rounded-lg text-sm font-bold text-white"
+                            style={{ background: '#4f545c' }}
+                        >
+                            {ROLE_DELETION_TEXTS.close}
+                        </button>
+                    </>
+                ) : (
+                    <form onSubmit={handleSubmit}>
+                        <div className="space-y-1 max-h-80 overflow-y-auto -mx-2 px-2">
+                            {PERMISSION_ORDER.map(name => {
+                                const bit = PERMISSION_BY_NAME[name];
+                                return (
+                                    <label
+                                        key={name}
+                                        className="flex gap-3 items-start py-2 px-2 rounded cursor-pointer"
+                                        onMouseEnter={e => (e.currentTarget.style.background = '#34373c')}
+                                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={hasPermission(permissions, bit)}
+                                            onChange={e =>
+                                                setPermissions(prev => togglePermission(prev, bit, e.target.checked))
+                                            }
+                                            aria-label={PERMISSION_LABEL[name]}
+                                            className="mt-0.5 shrink-0"
+                                            style={{ accentColor: '#7289da' }}
+                                        />
+                                        <span className="min-w-0">
+                                            <span className="block text-sm text-white">{PERMISSION_LABEL[name]}</span>
+                                            <span className="block text-xs mt-0.5" style={{ color: '#99aab5' }}>
+                                                {PERMISSION_HINT[name]}
+                                            </span>
                                         </span>
-                                    </span>
-                                </label>
-                            );
-                        })}
-                    </div>
+                                    </label>
+                                );
+                            })}
+                        </div>
 
-                    {isAdministrator && (
-                        <p role="status" className="text-xs mt-4" style={{ color: '#faa61a' }}>
-                            {PERMISSION_COPY.administratorNotice}
-                        </p>
-                    )}
-
-                    <div className="mt-4 pt-4" style={{ borderTop: '1px solid #40444b' }}>
-                        {role.is_default ? (
-                            <p className="text-xs" style={{ color: '#99aab5' }}>
-                                {PERMISSION_COPY.isDefaultRole}
+                        {isAdministrator && (
+                            <p role="status" className="text-xs mt-4" style={{ color: '#faa61a' }}>
+                                {PERMISSION_COPY.administratorNotice}
                             </p>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={makeDefault}
-                                disabled={settingDefault}
-                                className="text-xs underline"
-                                style={{
-                                    color: '#99aab5',
-                                    cursor: settingDefault ? 'not-allowed' : 'pointer',
-                                }}
-                            >
-                                {PERMISSION_COPY.makeDefaultRole}
-                            </button>
                         )}
-                    </div>
 
-                    {error && (
-                        <p role="alert" className="text-sm mt-4" style={{ color: '#ed4245' }}>
-                            {error}
-                        </p>
-                    )}
+                        <div className="mt-4 pt-4" style={{ borderTop: '1px solid #40444b' }}>
+                            {role.is_default ? (
+                                <p className="text-xs" style={{ color: '#99aab5' }}>
+                                    {PERMISSION_COPY.isDefaultRole}
+                                </p>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={makeDefault}
+                                    disabled={settingDefault}
+                                    className="text-xs underline"
+                                    style={{
+                                        color: '#99aab5',
+                                        cursor: settingDefault ? 'not-allowed' : 'pointer',
+                                    }}
+                                >
+                                    {PERMISSION_COPY.makeDefaultRole}
+                                </button>
+                            )}
+                        </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading || unchanged}
-                        className="w-full mt-6 py-3 rounded-lg text-sm font-bold text-white transition-all duration-200"
-                        style={{
-                            background: loading || unchanged ? '#5b6eae' : '#7289da',
-                            cursor: loading || unchanged ? 'not-allowed' : 'pointer',
-                        }}
-                    >
-                        {loading ? PERMISSION_COPY.saving : PERMISSION_COPY.save}
-                    </button>
-                </form>
+                        {error && (
+                            <p role="alert" className="text-sm mt-4" style={{ color: '#ed4245' }}>
+                                {error}
+                            </p>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={loading || unchanged}
+                            className="w-full mt-6 py-3 rounded-lg text-sm font-bold text-white transition-all duration-200"
+                            style={{
+                                background: loading || unchanged ? '#5b6eae' : '#7289da',
+                                cursor: loading || unchanged ? 'not-allowed' : 'pointer',
+                            }}
+                        >
+                            {loading ? PERMISSION_COPY.saving : PERMISSION_COPY.save}
+                        </button>
+                    </form>
+                )}
             </div>
         </div>
     );
