@@ -44,6 +44,7 @@ const setup = () => {
 const setupServer = () => {
     const apiClient = {
         get: vi.fn(async () => ({ data: serverPage })),
+        delete: vi.fn(async () => undefined),
     };
     return { apiClient, service: createAdminServerService(apiClient as unknown as AxiosInstance) };
 };
@@ -144,6 +145,30 @@ describe('createAdminServerService listServers', () => {
         expect(apiClient.get).toHaveBeenCalledWith('/api/v1/admin/servers', {
             params: { search: 'discordia', limit: 20, offset: 40 },
             signal,
+        });
+    });
+
+    describe('createAdminServerService deleteServer', () => {
+        it('calls DELETE /api/v1/admin/servers/{id}', async () => {
+            const { apiClient, service } = setupServer();
+
+            await service.deleteServer('s1');
+
+            expect(apiClient.delete).toHaveBeenCalledTimes(1);
+            expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/admin/servers/s1');
+        });
+
+        it('resolves without a value', async () => {
+            const { service } = setupServer();
+
+            await expect(service.deleteServer('s1')).resolves.toBeUndefined();
+        });
+
+        it('lets the error through when the request fails', async () => {
+            const { apiClient, service } = setupServer();
+            apiClient.delete.mockRejectedValueOnce(new Error('request failed'));
+
+            await expect(service.deleteServer('s1')).rejects.toThrow('request failed');
         });
     });
 
