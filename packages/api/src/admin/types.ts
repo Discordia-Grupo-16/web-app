@@ -26,3 +26,21 @@ export interface ListAdminUsersParams {
     limit?: number;
     offset?: number;
 }
+
+export interface AdminServer {
+    id: string;
+    name: string;
+    memberCount: number;
+    createdAt: string;
+}
+
+export interface AdminServerListResponse {
+    data: AdminServer[];
+    meta: PaginationMeta;
+}
+
+export interface AdminServerListQuery {
+    search?: string;
+    limit?: number;
+    offset?: number;
+}

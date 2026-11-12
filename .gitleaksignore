@@ -1,0 +1,2 @@
+# Hostname público de la API en eas.json, no es un secret.
+011d675c5055e5d739c29f208ff8c0d32d88c76d:apps/mobile/eas.json:generic-api-key:15
