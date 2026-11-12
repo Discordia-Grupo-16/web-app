@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 
 interface ConfirmDialogProps {
     open: boolean;
@@ -18,7 +18,7 @@ const TONE_CLASS = {
     default: 'bg-blurple hover:bg-blurple-dark',
 };
 
-const buttonClass = 'rounded-lg px-3 py-2 text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed';
+const buttonClass = 'whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed';
 
 interface ConfirmationControlProps {
     confirmationText: string;
@@ -26,6 +26,8 @@ interface ConfirmationControlProps {
     tone: 'danger' | 'default';
     isSubmitting: boolean;
     onConfirm: () => void;
+    onCancel: () => void;
+    cancelRef: RefObject<HTMLButtonElement | null>;
 }
 
 const ConfirmationControl = ({
@@ -34,36 +36,47 @@ const ConfirmationControl = ({
     tone,
     isSubmitting,
     onConfirm,
+    onCancel,
+    cancelRef,
 }: ConfirmationControlProps) => {
     const inputId = useId();
     const [input, setInput] = useState('');
     const matches = input.trim() === confirmationText;
 
     return (
-        <>
-            <div className="mt-4">
-                <label htmlFor={inputId} className="mb-2 block text-sm text-discord-muted">
-                    Escribí <span className="font-semibold text-white">{confirmationText}</span> para confirmar.
-                </label>
-                <input
-                    id={inputId}
-                    type="text"
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
+        <div className="mt-6">
+            <label htmlFor={inputId} className="mb-2 block text-sm text-discord-muted">
+                Escribí <span className="font-semibold text-white">{confirmationText}</span> para confirmar.
+            </label>
+            <input
+                id={inputId}
+                type="text"
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                disabled={isSubmitting}
+                autoComplete="off"
+                className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-blurple disabled:opacity-40"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+                <button
+                    ref={cancelRef}
+                    type="button"
+                    onClick={onCancel}
                     disabled={isSubmitting}
-                    autoComplete="off"
-                    className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-blurple disabled:opacity-40"
-                />
+                    className={`${buttonClass} bg-white/10 hover:bg-white/20`}
+                >
+                    Cancelar
+                </button>
+                <button
+                    type="button"
+                    onClick={onConfirm}
+                    disabled={isSubmitting || !matches}
+                    className={`${buttonClass} ${TONE_CLASS[tone]}`}
+                >
+                    {isSubmitting ? 'Procesando…' : confirmLabel}
+                </button>
             </div>
-            <button
-                type="button"
-                onClick={onConfirm}
-                disabled={isSubmitting || !matches}
-                className={`${buttonClass} ${TONE_CLASS[tone]}`}
-            >
-                {isSubmitting ? 'Procesando…' : confirmLabel}
-            </button>
-        </>
+        </div>
     );
 };
 
@@ -127,17 +140,17 @@ export const ConfirmDialog = ({
                     </p>
                 )}
 
-                <div className="mt-6 flex justify-end gap-2">
-                    <button
-                        ref={cancelRef}
-                        type="button"
-                        onClick={onCancel}
-                        disabled={isSubmitting}
-                        className={`${buttonClass} bg-white/10 hover:bg-white/20`}
-                    >
-                        Cancelar
-                    </button>
-                    {confirmationText === undefined ? (
+                {confirmationText === undefined ? (
+                    <div className="mt-6 flex justify-end gap-2">
+                        <button
+                            ref={cancelRef}
+                            type="button"
+                            onClick={onCancel}
+                            disabled={isSubmitting}
+                            className={`${buttonClass} bg-white/10 hover:bg-white/20`}
+                        >
+                            Cancelar
+                        </button>
                         <button
                             type="button"
                             onClick={onConfirm}
@@ -146,16 +159,18 @@ export const ConfirmDialog = ({
                         >
                             {isSubmitting ? 'Procesando…' : confirmLabel}
                         </button>
-                    ) : (
-                        <ConfirmationControl
-                            confirmationText={confirmationText}
-                            confirmLabel={confirmLabel}
-                            tone={tone}
-                            isSubmitting={isSubmitting}
-                            onConfirm={onConfirm}
-                        />
-                    )}
-                </div>
+                    </div>
+                ) : (
+                    <ConfirmationControl
+                        confirmationText={confirmationText}
+                        confirmLabel={confirmLabel}
+                        tone={tone}
+                        isSubmitting={isSubmitting}
+                        onConfirm={onConfirm}
+                        onCancel={onCancel}
+                        cancelRef={cancelRef}
+                    />
+                )}
             </div>
         </div>
     );
