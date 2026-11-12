@@ -4,9 +4,10 @@ import { RETURN_TO_PARAM, sanitizeReturnTo } from '@discordia/core';
 
 export const LOGIN_ROUTE = '/(auth)/login';
 export const REGISTER_ROUTE = '/(auth)/register';
+export const FORGOT_PASSWORD_ROUTE = '/(auth)/forgot-password';
 export const HOME_ROUTE = '/(app)';
 
-type AuthRoute = typeof LOGIN_ROUTE | typeof REGISTER_ROUTE;
+type AuthRoute = typeof LOGIN_ROUTE | typeof REGISTER_ROUTE | typeof FORGOT_PASSWORD_ROUTE;
 
 /**
  * The auth screen that brings the user back to `destination` once the session is open. The

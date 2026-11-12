@@ -5,6 +5,7 @@ import {
     createChannelsService,
     createInvitationsService,
     createMembersService,
+    createReadStatesService,
     createRolesService,
     createServersService,
     createUserService,
@@ -31,3 +32,4 @@ export const rolesService = createRolesService(api);
 export const membersService = createMembersService(api);
 export const invitationsService = createInvitationsService(api);
 export const voiceService = createVoiceService(api);
+export const readStatesService = createReadStatesService(api);

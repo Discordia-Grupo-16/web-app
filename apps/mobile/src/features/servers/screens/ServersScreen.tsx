@@ -12,6 +12,7 @@ import { UnreadMarks } from '@/shared/ui/UnreadMarks';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 import { getErrorDetail } from '@discordia/api';
 
+// The row of a server, in its own component because the unread hook is per server.
 function ServerRow({ server, onOpen }: { server: Server; onOpen: () => void }) {
   const { unread, mentionCount } = useServerUnread(server.id);
   return (

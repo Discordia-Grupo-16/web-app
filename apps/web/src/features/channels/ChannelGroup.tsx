@@ -24,6 +24,7 @@ interface ChannelGroupProps {
     renderBelowChannel?: (channel: Channel) => ReactNode;
 }
 
+// The name and what is unread about it, in its own component because the hook is per channel.
 const ChannelName = ({ channel }: { channel: Channel }) => {
     const { unread, mentionCount } = useChannelUnread(channel.id);
     return (
