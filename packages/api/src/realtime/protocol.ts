@@ -66,6 +66,24 @@ export interface VoiceParticipantsUpdatedFrame {
     syncedAt: string;
 }
 
+export interface ReadStateEntry {
+    channelId: string;
+    serverId: string;
+    lastReadMessageId: string;
+    lastReadAt: string;
+}
+
+/**
+ * The user read something in another session. Unlike `invalidate` it carries the data: the read
+ * state belongs to `chat`, so there is no other service to ask. It also reaches the session that
+ * made the request, and applying it twice changes nothing because a read state only moves forward.
+ */
+export interface ReadStateUpdatedFrame {
+    type: 'read-state.updated';
+    userId: string;
+    states: ReadStateEntry[];
+}
+
 export type RealtimeErrorCode =
     | 'CHANNEL_NOT_FOUND'
     | 'FORBIDDEN'
@@ -87,5 +105,6 @@ export type ServerFrame =
     | MessageAckFrame
     | MessageCreatedFrame
     | InvalidateFrame
+    | ReadStateUpdatedFrame
     | VoiceParticipantsUpdatedFrame
     | ErrorFrame;

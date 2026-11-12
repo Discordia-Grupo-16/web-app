@@ -1,6 +1,12 @@
 import { createContext } from 'react';
 import type { ChatState } from './chatStore';
-import type { ConnectionState, InvalidateFrame, VoiceParticipantsUpdatedFrame } from '@discordia/api';
+import type {
+    ConnectionState,
+    InvalidateFrame,
+    MessageCreatedFrame,
+    ReadStateUpdatedFrame,
+    VoiceParticipantsUpdatedFrame,
+} from '@discordia/api';
 
 export type RealtimeStatus = ConnectionState | 'disabled';
 
@@ -34,6 +40,15 @@ export interface RealtimeContextValue {
      * server and by `syncedAt`. Returns the unsubscribe function.
      */
     onVoiceParticipants: (handler: (frame: VoiceParticipantsUpdatedFrame) => void) => () => void;
+    /**
+     * Subscribes to the messages other sessions and users send, for what is not the message list
+     * itself (the unread indicators). Returns the unsubscribe function.
+     */
+    onMessageCreated: (handler: (frame: MessageCreatedFrame) => void) => () => void;
+    /**
+     * Subscribes to the user's reads made in another session. Returns the unsubscribe function.
+     */
+    onReadStateUpdated: (handler: (frame: ReadStateUpdatedFrame) => void) => () => void;
     /**
      * Subscribes to the socket coming back after it had been open before: a reconnection, or the
      * app returning from the background. Notices that went by in the meantime are lost (the bus has

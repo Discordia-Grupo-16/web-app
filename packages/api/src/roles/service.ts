@@ -5,11 +5,11 @@ export const createRolesService = (apiClient: AxiosInstance) => ({
     createRole: (serverId: string, name: string): Promise<Role> => {
         const form = new FormData();
         form.append('name', name);
-        return apiClient.post<Role>(`/api/v1/servers/${serverId}/roles/`, form).then(r => r.data);
+        return apiClient.post<{ data: Role }>(`/api/v1/servers/${serverId}/roles/`, form).then(r => r.data.data);
     },
 
     listRoles: (serverId: string): Promise<Role[]> =>
-        apiClient.get<Role[]>(`/api/v1/servers/${serverId}/roles/`).then(r => r.data),
+        apiClient.get<{ data: Role[] }>(`/api/v1/servers/${serverId}/roles/`).then(r => r.data.data),
 
     /**
      * Replaces a role's permissions with the given list.
@@ -28,8 +28,8 @@ export const createRolesService = (apiClient: AxiosInstance) => ({
         permissions: readonly string[],
     ): Promise<Role> =>
         apiClient
-            .patch<Role>(`/api/v1/servers/${serverId}/roles/${roleId}`, { permissions })
-            .then(r => r.data),
+            .patch<{ data: Role }>(`/api/v1/servers/${serverId}/roles/${roleId}`, { permissions })
+            .then(r => r.data.data),
 
     /**
      * Marks the role as the one new members receive (SCRUM-63).

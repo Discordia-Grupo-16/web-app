@@ -1,7 +1,7 @@
 import type { AxiosInstance } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
-import { createAdminUserService } from './service';
-import type { AdminUser, AdminUserListResponse } from './types';
+import { createAdminServerService, createAdminUserService } from './service';
+import type { AdminServerListResponse, AdminUser, AdminUserListResponse } from './types';
 
 const page: AdminUserListResponse = {
     data: [
@@ -20,6 +20,18 @@ const page: AdminUserListResponse = {
 const suspended: AdminUser = { ...page.data[0], status: 'suspended' };
 const reactivated: AdminUser = { ...page.data[0], status: 'active' };
 
+const serverPage: AdminServerListResponse = {
+    data: [
+        {
+            id: 's1',
+            name: 'Discordia',
+            memberCount: 42,
+            createdAt: '2026-10-01T00:00:00',
+        },
+    ],
+    meta: { total: 1, limit: 20, offset: 0 },
+};
+
 const setup = () => {
     const apiClient = {
         get: vi.fn(async () => ({ data: page })),
@@ -27,6 +39,13 @@ const setup = () => {
         delete: vi.fn(async () => ({ data: { data: reactivated } })),
     };
     return { apiClient, service: createAdminUserService(apiClient as unknown as AxiosInstance) };
+};
+
+const setupServer = () => {
+    const apiClient = {
+        get: vi.fn(async () => ({ data: serverPage })),
+    };
+    return { apiClient, service: createAdminServerService(apiClient as unknown as AxiosInstance) };
 };
 
 describe('createAdminUserService listUsers', () => {
@@ -112,5 +131,45 @@ describe('createAdminUserService reactivateUser', () => {
         apiClient.delete.mockRejectedValueOnce(new Error('409'));
 
         await expect(service.reactivateUser('u1')).rejects.toThrow('409');
+    });
+});
+
+describe('createAdminServerService listServers', () => {
+    it('calls GET /api/v1/admin/servers with the params and the abort signal', async () => {
+        const { apiClient, service } = setupServer();
+        const { signal } = new AbortController();
+
+        await service.listServers({ search: 'discordia', limit: 20, offset: 40 }, signal);
+
+        expect(apiClient.get).toHaveBeenCalledWith('/api/v1/admin/servers', {
+            params: { search: 'discordia', limit: 20, offset: 40 },
+            signal,
+        });
+    });
+
+    it('does not send a blank search nor undefined keys', async () => {
+        const { apiClient, service } = setupServer();
+
+        await service.listServers({ search: '   ', limit: 20, offset: 0 });
+
+        expect(apiClient.get).toHaveBeenCalledWith('/api/v1/admin/servers', {
+            params: { limit: 20, offset: 0 },
+            signal: undefined,
+        });
+    });
+
+    it('returns the whole body with data and meta', async () => {
+        const { service } = setupServer();
+
+        const result = await service.listServers({ limit: 20, offset: 0 });
+
+        expect(result).toEqual(serverPage);
+    });
+
+    it('lets the error through when the request fails', async () => {
+        const { apiClient, service } = setupServer();
+        apiClient.get.mockRejectedValueOnce(new Error('request failed'));
+
+        await expect(service.listServers()).rejects.toThrow('request failed');
     });
 });

@@ -3,6 +3,7 @@ import type {
     InvalidateFrame,
     MessageAckFrame,
     MessageCreatedFrame,
+    ReadStateUpdatedFrame,
     ServerFrame,
     VoiceParticipantsUpdatedFrame,
 } from './protocol';
@@ -67,6 +68,7 @@ export interface RealtimeEventMap {
     messageCreated: (frame: MessageCreatedFrame) => void;
     invalidate: (frame: InvalidateFrame) => void;
     voiceParticipants: (frame: VoiceParticipantsUpdatedFrame) => void;
+    readStateUpdated: (frame: ReadStateUpdatedFrame) => void;
     errorFrame: (frame: ErrorFrame) => void;
     terminated: (event: { code: number; reason: string }) => void;
 }
@@ -126,6 +128,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         messageCreated: new Set(),
         invalidate: new Set(),
         voiceParticipants: new Set(),
+        readStateUpdated: new Set(),
         errorFrame: new Set(),
         terminated: new Set(),
     };
@@ -204,6 +207,10 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
                     ) {
                         emit('voiceParticipants', frame);
                     }
+                    break;
+                case 'read-state.updated':
+                    // Without a list there is nothing to apply.
+                    if (Array.isArray(frame.states)) emit('readStateUpdated', frame);
                     break;
                 case 'error':
                     emit('errorFrame', frame);
