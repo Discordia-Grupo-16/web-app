@@ -32,6 +32,7 @@ export interface AdminServer {
     name: string;
     memberCount: number;
     createdAt: string;
+    is_suspended: boolean;
 }
 
 export interface AdminServerListResponse {

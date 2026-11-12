@@ -27,6 +27,7 @@ const serverPage: AdminServerListResponse = {
             name: 'Discordia',
             memberCount: 42,
             createdAt: '2026-10-01T00:00:00Z',
+            is_suspended: false,
         },
     ],
     meta: { total: 1, limit: 20, offset: 0 },
@@ -44,7 +45,10 @@ const setup = () => {
 const setupServer = () => {
     const apiClient = {
         get: vi.fn(async () => ({ data: serverPage })),
-        delete: vi.fn(async () => undefined),
+        post: vi.fn(async () => ({ data: serverPage.data[0] })),
+        delete: vi.fn(async (url: string) => (
+            url.endsWith('/suspension') ? { data: serverPage.data[0] } : undefined
+        )),
     };
     return { apiClient, service: createAdminServerService(apiClient as unknown as AxiosInstance) };
 };
@@ -156,6 +160,24 @@ describe('createAdminServerService listServers', () => {
 
             expect(apiClient.delete).toHaveBeenCalledTimes(1);
             expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/admin/servers/s1');
+        });
+
+        it('calls POST /api/v1/admin/servers/{id}/suspension and returns the server response', async () => {
+            const { apiClient, service } = setupServer();
+
+            const result = await service.suspendServer('s1');
+
+            expect(apiClient.post).toHaveBeenCalledWith('/api/v1/admin/servers/s1/suspension');
+            expect(result).toEqual(serverPage.data[0]);
+        });
+
+        it('calls DELETE /api/v1/admin/servers/{id}/suspension and returns the server response', async () => {
+            const { apiClient, service } = setupServer();
+
+            const result = await service.reactivateServer('s1');
+
+            expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/admin/servers/s1/suspension');
+            expect(result).toEqual(serverPage.data[0]);
         });
 
         it('resolves without a value', async () => {
