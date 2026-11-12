@@ -1,0 +1,77 @@
+# Builds the Android APK with EAS.
+# - On a `v*` tag: builds the `preview` profile (standalone, AWS URLs) and uploads the
+#   .apk to the GitHub release of that tag, creating the release if it does not exist.
+#   Tags with a dash (v0.3.0-rc.2) become prereleases.
+# - By hand (Actions -> Run workflow): builds the chosen branch and profile and writes the
+#   .apk link in the job summary, so anyone can get an APK without an Expo account.
+# The build runs on the brunoc23 Expo account through the EXPO_TOKEN repository secret.
+
+name: APK
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        type: choice
+        options: [preview, development]
+        default: preview
+
+permissions:
+  contents: write # create the release and upload the .apk
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    # The EAS free tier queues builds; the job waits for the build to finish.
+    timeout-minutes: 120
+    env:
+      PROFILE: ${{ inputs.profile || 'preview' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # EAS CLI needs node_modules to resolve the config plugins in app.json.
+      - run: npm ci
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build on EAS
+        id: build
+        working-directory: apps/mobile
+        run: |
+          eas build --platform android --profile "$PROFILE" --non-interactive --json > build.json
+          url=$(jq -r '.[0].artifacts.buildUrl' build.json)
+          if [ -z "$url" ] || [ "$url" = "null" ]; then
+            echo "EAS did not return an artifact URL" >&2
+            cat build.json >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### APK (${PROFILE}, ${GITHUB_REF_NAME})" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          APK_URL: ${{ steps.build.outputs.url }}
+        run: |
+          curl -fsSL -o "discordia-${TAG}.apk" "$APK_URL"
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            prerelease=""
+            case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$TAG" --verify-tag --title "$TAG" $prerelease \
+              --notes "APK de Android (perfil preview, contra AWS) adjunta abajo."
+          fi
+          gh release upload "$TAG" "discordia-${TAG}.apk" --clobber
