@@ -22,7 +22,7 @@ export const EditChannelModal = ({ serverId, channel, categories = [], onClose, 
         e.preventDefault();
         setLoading(true);
         setError(null);
-        const newCategoryId = categoryId || undefined;
+        const newCategoryId = categories.length > 0 ? categoryId : undefined;
         try {
             const updated = await channelsService.updateChannel(serverId, channel.id, name, topic || undefined, newCategoryId);
             onUpdated(updated);

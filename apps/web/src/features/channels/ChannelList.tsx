@@ -112,16 +112,34 @@ export const ChannelList = ({
         const [item] = reordered.splice(fromIndex, 1);
         reordered.splice(toIndex, 0, item);
 
-        // Optimistic update: assign new positions keeping the rest intact
-        const newPositions = new Map(reordered.map((c, i) => [c.id, i]));
+        // Build the full global order: replace the group's channels with the reordered ones,
+        // keeping every other channel in place. This avoids position collisions across groups.
+        const groupIds = new Set(groupChannels.map(c => c.id));
+        const globalSorted = [...channels].sort((a, b) => a.position - b.position);
+        let reorderedIdx = 0;
+        const newGlobalOrder = globalSorted.map(c =>
+            groupIds.has(c.id) ? reordered[reorderedIdx++] : c
+        );
+
+        const newPositions = new Map(newGlobalOrder.map((c, i) => [c.id, i]));
         onChannelsChange(prev =>
-            prev.map(c => newPositions.has(c.id) ? { ...c, position: newPositions.get(c.id)! } : c)
+            prev.map(c => ({ ...c, position: newPositions.get(c.id) ?? c.position }))
         );
 
         try {
-            await channelsService.reorderChannels(serverId, reordered.map(c => c.id));
+            await channelsService.reorderChannels(serverId, newGlobalOrder.map(c => c.id));
         } catch {
             // Silently revert on error — the next server refresh will restore the real order
+        }
+    };
+
+    const handleAssignChannelToCategory = async (channelId: string, categoryId: string | null) => {
+        onChannelsChange(prev => prev.map(c => c.id === channelId ? { ...c, category_id: categoryId } : c));
+        try {
+            await channelsService.updateChannel(serverId, channelId, undefined, undefined, categoryId ?? '');
+        } catch (err) {
+            const error = err as { response?: { data?: { detail?: string } } };
+            window.alert(error.response?.data?.detail || 'Error al mover el canal');
         }
     };
 
@@ -174,7 +192,7 @@ export const ChannelList = ({
             )}
 
             {categories.map(cat => {
-                const catChannels = channels.filter(c => c.category_id === cat.id);
+                const catChannels = channels.filter(c => c.category_id === cat.id).sort((a, b) => a.position - b.position);
                 return (
                     <div
                         key={cat.id}
@@ -194,8 +212,8 @@ export const ChannelList = ({
                         <ChannelGroup
                             label={cat.name}
                             channels={catChannels}
-                            onAdd={() => setCreateType('text')}
                             onReorder={(fromId, toId) => handleChannelReorder(catChannels, fromId, toId)}
+                            onChannelDrop={canManage ? (channelId) => handleAssignChannelToCategory(channelId, cat.id) : undefined}
                             headerActions={canManage ? (
                                 <>
                                     <button
@@ -227,8 +245,8 @@ export const ChannelList = ({
             })}
 
             {(() => {
-                const textChannels = channels.filter(c => c.type === 'text' && !c.category_id);
-                const voiceChannels = channels.filter(c => c.type === 'voice' && !c.category_id);
+                const textChannels = channels.filter(c => c.type === 'text' && !c.category_id).sort((a, b) => a.position - b.position);
+                const voiceChannels = channels.filter(c => c.type === 'voice' && !c.category_id).sort((a, b) => a.position - b.position);
                 return (
                     <>
                         <ChannelGroup
@@ -236,6 +254,7 @@ export const ChannelList = ({
                             channels={textChannels}
                             onAdd={() => setCreateType('text')}
                             onReorder={(fromId, toId) => handleChannelReorder(textChannels, fromId, toId)}
+                            onChannelDrop={canManage ? (channelId) => handleAssignChannelToCategory(channelId, null) : undefined}
                             {...groupProps}
                         />
                         <ChannelGroup
@@ -243,6 +262,7 @@ export const ChannelList = ({
                             channels={voiceChannels}
                             onAdd={() => setCreateType('voice')}
                             onReorder={(fromId, toId) => handleChannelReorder(voiceChannels, fromId, toId)}
+                            onChannelDrop={canManage ? (channelId) => handleAssignChannelToCategory(channelId, null) : undefined}
                             {...groupProps}
                         />
                     </>

@@ -2,10 +2,11 @@ import type { AxiosInstance } from 'axios';
 import type { Channel } from './types';
 
 export const createChannelsService = (apiClient: AxiosInstance) => ({
-    createChannel: (serverId: string, name: string, type: 'text' | 'voice' = 'text'): Promise<Channel> => {
+    createChannel: (serverId: string, name: string, type: 'text' | 'voice' = 'text', categoryId?: string): Promise<Channel> => {
         const form = new FormData();
         form.append('name', name);
         form.append('type', type);
+        if (categoryId !== undefined) form.append('category_id', categoryId);
         return apiClient.post<{ data: Channel }>(`/api/v1/servers/${serverId}/channels/`, form).then(r => r.data.data);
     },
 
