@@ -11,7 +11,7 @@ const member: ServerMember = {
 
 const setup = () => {
     const apiClient = {
-        get: vi.fn(async () => ({ data: [member] })),
+        get: vi.fn(async () => ({ data: { data: [member] } })),
         put: vi.fn(async () => ({ data: undefined })),
         delete: vi.fn(async () => ({ data: undefined })),
     };
@@ -78,7 +78,7 @@ describe('createMembersService listBans', () => {
             reason: null,
             created_at: '2026-10-01T00:00:00Z',
         };
-        const apiClient = { get: vi.fn(async () => ({ data: [ban] })) };
+        const apiClient = { get: vi.fn(async () => ({ data: { data: [ban] } })) };
         const service = createMembersService(apiClient as unknown as AxiosInstance);
 
         const bans = await service.listBans('srv');
