@@ -32,6 +32,7 @@ const server: Server = {
   description: null,
   owner_id: 'owner',
   avatar_url: null,
+  banner_url: null,
   created_at: '2026-10-01T00:00:00Z',
   my_permissions: VIEW_CHANNEL | SEND_MESSAGES,
   my_permission_names: [],
