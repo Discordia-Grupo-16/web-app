@@ -7,7 +7,11 @@ import { voiceService } from '@/shared/api';
 import { useCurrentServer } from '@/features/servers';
 import { ServerPanel } from './ServerPanel';
 
-vi.mock('@/shared/api', () => ({ channelsService: {}, voiceService: { getServerVoiceParticipants: vi.fn() } }));
+vi.mock('@/shared/api', () => ({
+    channelsService: {},
+    ownershipSource: {},
+    voiceService: { getServerVoiceParticipants: vi.fn() },
+}));
 vi.mock('@/features/invitations', () => ({ InviteButton: () => null }));
 vi.mock('@/features/roles', () => ({
     RolesSection: () => null,
@@ -28,6 +32,8 @@ vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
     useAuth: () => ({ user: { id: 'me', name: 'Milton' } }),
     useVoice: vi.fn(),
+    // The ownership transfer of the panel has its own tests (ServerPanel.test.tsx).
+    useOutgoingOwnershipTransfer: () => ({ view: { kind: 'none' }, busy: null, error: null, reload: vi.fn() }),
     useVoiceCallParticipants: (participants: { userId: string }[]) =>
         participants.map(p => ({ userId: p.userId, name: `Nombre ${p.userId}`, loading: false, muted: false })),
     // The roster and its names have their own tests in core; here only what the panel does with them.
