@@ -24,7 +24,7 @@ import {
 import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
-import { OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
+import { dismissedRejections, OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
 import { RolesSection, useRoles } from '@/features/roles';
 import { ServerActions, useServerDetails } from '@/features/servers';
 import { VoiceParticipantList } from '@/features/voice';
@@ -83,7 +83,12 @@ export default function ServerScreen() {
   const isOwner = !!user && server?.owner_id === user.id;
 
   // Only the owner transfers the ownership, whatever its permissions (SCRUM-35).
-  const transfer = useOutgoingOwnershipTransfer({ source: ownershipSource, serverId, isOwner });
+  const transfer = useOutgoingOwnershipTransfer({
+    source: ownershipSource,
+    dismissedRejections,
+    serverId,
+    isOwner,
+  });
   useLiveRefresh({ resources: ['ownershipTransfers'], serverId, refresh: transfer.reload });
   const [proposingTo, setProposingTo] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);

@@ -23,7 +23,7 @@ import {
 import { ChannelList } from '@/features/channels';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
-import { OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
+import { dismissedRejections, OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
 import { RolesSection, useRoles } from '@/features/roles';
 import { LeaveServerButton, ServerHeader, useCurrentServer } from '@/features/servers';
 import { VoiceParticipantList } from '@/features/voice';
@@ -106,7 +106,12 @@ export const ServerPanel = () => {
     const isOwner = !!user && server?.owner_id === user.id;
 
     // Only the owner transfers the ownership, whatever its permissions (SCRUM-35).
-    const transfer = useOutgoingOwnershipTransfer({ source: ownershipSource, serverId, isOwner });
+    const transfer = useOutgoingOwnershipTransfer({
+        source: ownershipSource,
+        dismissedRejections,
+        serverId,
+        isOwner,
+    });
     useLiveRefresh({ resources: ['ownershipTransfers'], serverId, refresh: transfer.reload, enabled: isOwner });
     const [proposingTo, setProposingTo] = useState<string | null>(null);
     const membersRef = useRef<HTMLDivElement>(null);

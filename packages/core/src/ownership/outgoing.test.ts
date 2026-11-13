@@ -34,7 +34,7 @@ describe('toOutgoingView', () => {
         });
     });
 
-    it('hides the rejection the owner closed in this session', () => {
+    it('hides the rejection the owner closed on this device', () => {
         expect(toOutgoingView(transfer({ status: 'rejected' }), '2026-11-05T10:00:00Z')).toEqual({ kind: 'none' });
     });
 
