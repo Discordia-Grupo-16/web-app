@@ -27,6 +27,10 @@ export const isGoneError = (err: unknown): boolean => {
     return status === 404 || status === 403;
 };
 
+// 404: what was asked about no longer exists, such as a role another administrator deleted.
+export const isNotFoundError = (err: unknown): boolean =>
+    (err as { response?: { status?: number } })?.response?.status === 404;
+
 // The `detail` of an error response as text. FastAPI validation errors (422) send a list of
 // { msg } instead of a string, which is joined.
 export const getErrorDetail = (error: unknown): string | undefined => {

@@ -62,6 +62,7 @@ const renderSection = async ({
   const onRolesChange = jest.fn();
   const onMemberKicked = jest.fn();
   const onMemberBanned = jest.fn();
+  const onStale = jest.fn();
   const source: PublicProfileSource = {
     getPublicProfiles: async () => profiles,
     peekPublicProfile: () => undefined,
@@ -81,10 +82,11 @@ const renderSection = async ({
         onMemberKicked={onMemberKicked}
         onMemberBanned={onMemberBanned}
         renderMemberActions={renderMemberActions}
+        onStale={onStale}
       />
     </PublicProfilesProvider>,
   );
-  return { onRolesChange, onMemberKicked, onMemberBanned, user };
+  return { onRolesChange, onMemberKicked, onMemberBanned, onStale, user };
 };
 
 // A Switch reports through onValueChange, and act() is what flushes the re-render.
@@ -389,5 +391,39 @@ describe('MembersSection: el perfil público', () => {
 
     expect(await screen.findByText('Acción de milton')).toBeOnTheScreen();
     expect(screen.getByText('Acción de owner')).toBeOnTheScreen();
+  });
+});
+
+describe('MembersSection con un rol eliminado (SCRUM-64)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('dice que el rol ya no existe y pide releer las listas', async () => {
+    jest.mocked(rolesService.assignRole).mockRejectedValue({
+      response: { status: 404, data: { detail: 'Ese rol ya no existe' } },
+    });
+    const { user, onStale } = await renderSection();
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.editMemberRoles('Milton')));
+    await toggleRole('Moderador', true);
+
+    expect(await screen.findByText('Ese rol ya no existe')).toBeOnTheScreen();
+    expect(onStale).toHaveBeenCalled();
+  });
+
+  it('no pide releer con un 403', async () => {
+    jest.mocked(rolesService.assignRole).mockRejectedValue({
+      response: { status: 403, data: { detail: 'No podés gestionar un rol que está en tu misma posición o por encima' } },
+    });
+    const { user, onStale } = await renderSection();
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText(PERMISSION_COPY.editMemberRoles('Milton')));
+    await toggleRole('Admin', true);
+
+    await screen.findByText(/por encima/);
+    expect(onStale).not.toHaveBeenCalled();
   });
 });

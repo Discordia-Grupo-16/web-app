@@ -51,6 +51,7 @@ export type InvalidateResource =
     | 'permissions'
     | 'members'
     | 'bans'
+    | 'roles'
     | 'profile'
     | 'ownershipTransfers';
 

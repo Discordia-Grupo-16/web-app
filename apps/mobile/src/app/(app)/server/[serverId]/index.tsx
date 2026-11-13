@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Channel, ServerMember } from '@discordia/api';
 import {
   BAN_MEMBERS,
@@ -14,6 +14,7 @@ import {
   UNAVAILABLE_USER_NAME,
   VIEW_CHANNEL,
   hasPermission,
+  rolesOfMember,
   useAuth,
   useOutgoingOwnershipTransfer,
   usePublicProfiles,
@@ -21,6 +22,7 @@ import {
   useServerVoiceRoster,
   useVoiceCallParticipants,
   useVoiceRosterViews,
+  type RoleDeletionActor,
   type VoiceParticipant,
 } from '@discordia/core';
 import { voiceService } from '@/shared/api';
@@ -71,7 +73,16 @@ export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { user } = useAuth();
   const { server, loading: loadingServer, updateChannels, setLeaving } = useServerDetails(serverId);
-  const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
+  const router = useRouter();
+  const {
+    roles,
+    loading: loadingRoles,
+    addRole,
+    updateRole,
+    reload: reloadRoles,
+    removeRole,
+    replaceRoles,
+  } = useRoles(serverId);
   const {
     members,
     loading: loadingMembers,
@@ -106,6 +117,14 @@ export default function ServerScreen() {
   // Up here and not with the other permissions because a hook cannot go after the early return.
   // The same bit bans and revokes (ADR-0011); without it the hook does not even ask.
   const canBan = hasPermission(server?.my_permissions ?? NONE, BAN_MEMBERS);
+
+  // Who deletes a role (SCRUM-64): their own roles come from their row in the member list. Up
+  // here because a hook cannot go after the early return.
+  const myPermissions = server?.my_permissions ?? NONE;
+  const roleDeletionActor = useMemo<RoleDeletionActor>(
+    () => ({ isOwner, permissions: myPermissions, roles: rolesOfMember(members, user?.id) }),
+    [isOwner, myPermissions, members, user?.id],
+  );
   const {
     bans,
     loading: loadingBans,
@@ -188,6 +207,14 @@ export default function ServerScreen() {
           canManage={canManageRoles}
           onRoleCreated={addRole}
           onRoleUpdated={updateRole}
+          actor={roleDeletionActor}
+          onRoleDeleted={roleId => {
+            removeRole(roleId);
+            // The role also leaves the roles of every member that had it.
+            reloadMembers();
+          }}
+          onRolesReloaded={replaceRoles}
+          onServerGone={() => router.back()}
         />
         <View onLayout={event => (membersY.current = event.nativeEvent.layout.y)}>
           <OutgoingTransferNotice
@@ -212,6 +239,10 @@ export default function ServerScreen() {
               reloadBans();
             }}
             renderMemberActions={renderMemberActions}
+            onStale={() => {
+              reloadRoles();
+              reloadMembers();
+            }}
           />
         </View>
         {/* Not part of the spinner above: the bans only start loading once the server says

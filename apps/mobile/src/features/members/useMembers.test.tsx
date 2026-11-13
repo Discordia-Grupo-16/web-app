@@ -2,6 +2,7 @@ import { render, screen, userEvent, waitFor } from '@testing-library/react-nativ
 import { Pressable, Text } from 'react-native';
 import type { Role, ServerMember } from '@discordia/api';
 import { membersService } from '@/shared/api';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 import { useMembers } from './useMembers';
 
 jest.mock('@/shared/api', () => ({ membersService: { listMembers: jest.fn() } }));
@@ -9,6 +10,7 @@ jest.mock('@/shared/api', () => ({ membersService: { listMembers: jest.fn() } })
 // que esta sonda no tiene. El poll no es lo que estos tests miran: lo que miran
 // es qué hace `setMemberRoles` con lo que ya está en memoria.
 jest.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
+jest.mock('@/shared/hooks/useLiveRefresh', () => ({ useLiveRefresh: jest.fn() }));
 
 const role = (id: string, name: string, position: number): Role => ({
   id,
@@ -81,5 +83,17 @@ describe('useMembers setMemberRoles', () => {
     await user.press(screen.getByLabelText('disparar'));
 
     expect(screen.getByText('u1:Novato|u2:Admin')).toBeOnTheScreen();
+  });
+});
+
+describe('useMembers with notices', () => {
+  it('also reads the members again when the permissions of whoever looks change', async () => {
+    // Assigning or removing a role of theirs only sends `permissions`, and their own roles come from
+    // this list.
+    await mounted([{ user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [] }], () => undefined);
+
+    expect(useLiveRefresh).toHaveBeenCalledWith(
+      expect.objectContaining({ resources: ['members', 'permissions'], serverId: 'srv' }),
+    );
   });
 });

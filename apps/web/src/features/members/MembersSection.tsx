@@ -20,6 +20,8 @@ interface MembersSectionProps {
     onMemberBanned: (userId: string) => void;
     /** Extra actions drawn at the end of each row, such as transferring the ownership. */
     renderMemberActions?: (member: ServerMember) => ReactNode;
+    /** A 404 when giving or taking a role: the lists are out of date (SCRUM-64). */
+    onStale?: () => void;
 }
 
 export const MembersSection = ({
@@ -34,6 +36,7 @@ export const MembersSection = ({
     onMemberKicked,
     onMemberBanned,
     renderMemberActions,
+    onStale,
 }: MembersSectionProps) => {
     const { user } = useAuth();
     const { openProfile } = useProfileViewer();
@@ -149,6 +152,7 @@ export const MembersSection = ({
                     roles={roles}
                     onClose={() => setEditing(null)}
                     onRolesChange={onRolesChange}
+                    onStale={onStale}
                 />
             )}
 

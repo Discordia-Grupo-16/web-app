@@ -2,9 +2,13 @@ import { render, screen, userEvent, waitFor } from '@testing-library/react-nativ
 import { Pressable, Text } from 'react-native';
 import type { Role } from '@discordia/api';
 import { rolesService } from '@/shared/api';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 import { useRoles } from './useRoles';
 
 jest.mock('@/shared/api', () => ({ rolesService: { listRoles: jest.fn() } }));
+// Los avisos y el poll tienen sus propios tests (useLiveRefresh.test.tsx): acá solo importa
+// qué recurso escucha la lista de roles.
+jest.mock('@/shared/hooks/useLiveRefresh', () => ({ useLiveRefresh: jest.fn() }));
 
 const role = (id: string, name: string, isDefault = false): Role => ({
   id,
@@ -90,5 +94,35 @@ describe('useRoles addRole', () => {
 
     await waitFor(() => expect(rolesService.listRoles).toHaveBeenCalledTimes(2));
     expect(screen.getByText('everyone=true|Moderador=false')).toBeOnTheScreen();
+  });
+});
+
+describe('useRoles with notices', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('listens to the roles notices of its server', async () => {
+    await mounted([role('r1', 'everyone', true)], () => undefined);
+
+    expect(useLiveRefresh).toHaveBeenCalledWith(expect.objectContaining({ resources: ['roles'], serverId: 'srv' }));
+  });
+
+  it('removes a deleted role right away', async () => {
+    const user = await mounted([role('r1', 'everyone', true), role('r2', 'Moderador')], api => api.removeRole('r2'));
+
+    await user.press(screen.getByLabelText('disparar'));
+
+    expect(screen.getByText('everyone=true')).toBeOnTheScreen();
+  });
+
+  it('replaces the list with the one read again', async () => {
+    const user = await mounted([role('r1', 'everyone', true), role('r2', 'Moderador')], api =>
+      api.replaceRoles([role('r1', 'everyone', true)]),
+    );
+
+    await user.press(screen.getByLabelText('disparar'));
+
+    expect(screen.getByText('everyone=true')).toBeOnTheScreen();
   });
 });

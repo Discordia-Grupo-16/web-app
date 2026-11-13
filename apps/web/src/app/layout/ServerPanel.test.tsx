@@ -13,7 +13,7 @@ import {
     SEND_MESSAGES,
     VIEW_CHANNEL,
 } from '@discordia/core';
-import type { OwnershipTransfer, Server, ServerBan, ServerMember } from '@discordia/api';
+import type { OwnershipTransfer, Role, Server, ServerBan, ServerMember } from '@discordia/api';
 import { CurrentServerProvider } from '@/features/servers';
 import { membersService, ownershipSource, rolesService, serversService } from '@/shared/api';
 import { ServerPanel } from './ServerPanel';
@@ -33,7 +33,7 @@ vi.mock('@/shared/api', () => ({
         getServers: vi.fn(),
     },
     serversService: { getServer: vi.fn() },
-    rolesService: { listRoles: vi.fn() },
+    rolesService: { listRoles: vi.fn(), deleteRole: vi.fn() },
     membersService: {
         listMembers: vi.fn(),
         banMember: vi.fn(),
@@ -98,9 +98,10 @@ const renderPanel = async (
     myPermissions: number,
     ownerId = OWNER,
     members: ServerMember[] = [],
+    roles: Role[] = [],
 ) => {
     vi.mocked(serversService.getServer).mockResolvedValue(server(myPermissions, ownerId));
-    vi.mocked(rolesService.listRoles).mockResolvedValue([]);
+    vi.mocked(rolesService.listRoles).mockResolvedValue(roles);
     vi.mocked(membersService.listMembers).mockResolvedValue(members);
     vi.mocked(membersService.listBans).mockResolvedValue([]);
     // Unless a test says otherwise, the server never had an ownership transfer.
@@ -114,6 +115,7 @@ const renderPanel = async (
             <MemoryRouter initialEntries={['/servers/srv']}>
                 <Routes>
                     <Route path="/servers/:serverId" element={<CurrentServerProvider><ServerPanel /></CurrentServerProvider>} />
+                    <Route path="/" element={<p>Inicio</p>} />
                 </Routes>
             </MemoryRouter>
         </PublicProfilesProvider>,
@@ -290,5 +292,49 @@ describe('ServerPanel: transferir la propiedad', () => {
 
         expect(await screen.findByRole('status')).toHaveTextContent(/^Transferencia pendiente a /);
         expect(transferButtons()[0]).toBeDisabled();
+    });
+});
+
+describe('ServerPanel: eliminar un rol', () => {
+    const MODERADOR: Role = {
+        id: 'r1',
+        server_id: 'srv',
+        name: 'Moderador',
+        is_default: false,
+        permissions: 0,
+        permission_names: [],
+        position: 1,
+        created_at: '2026-10-01T00:00:00Z',
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('saca el rol de la lista y relee los miembros', async () => {
+        vi.mocked(rolesService.deleteRole).mockResolvedValue(undefined);
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME, [], [MODERADOR]);
+        vi.mocked(membersService.listMembers).mockClear();
+        const user = userEvent.setup();
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar el rol Moderador' }));
+        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+        await waitFor(() => expect(screen.queryByText('Moderador')).not.toBeInTheDocument());
+        expect(membersService.listMembers).toHaveBeenCalled();
+    });
+
+    it('vuelve al inicio cuando el servidor ya no existe', async () => {
+        vi.mocked(rolesService.deleteRole).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME, [], [MODERADOR]);
+        vi.mocked(rolesService.listRoles).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+        const user = userEvent.setup();
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar el rol Moderador' }));
+        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+        await screen.findByText('El servidor ya no existe');
+        await user.click(screen.getAllByRole('button', { name: 'Cerrar' }).at(-1)!);
+
+        expect(await screen.findByText('Inicio')).toBeInTheDocument();
     });
 });

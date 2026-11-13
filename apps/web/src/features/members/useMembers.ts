@@ -57,7 +57,9 @@ export const useMembers = (serverId: string | undefined) => {
             .catch(console.error);
     }, [serverId]);
 
-    useLiveRefresh({ resources: ['members'], serverId, refresh: refreshMembers, enabled: !!serverId });
+    // Con `permissions` también: cuando a quien mira le asignan o le quitan un
+    // rol solo le llega ese aviso, y sus propios roles salen de esta lista.
+    useLiveRefresh({ resources: ['members', 'permissions'], serverId, refresh: refreshMembers, enabled: !!serverId });
 
     /**
      * Replaces the roles of one member in the list.

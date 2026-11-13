@@ -20,8 +20,12 @@ import ServerScreen from '@/app/(app)/server/[serverId]';
 
 let mockParams: Record<string, string> = {};
 
+// Stable, like the real one: the screen lists it as an effect dependency.
+const mockRouter = { back: jest.fn() };
+
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
+  useRouter: () => mockRouter,
   // useLiveRefresh follows the focus with it; this screen is never unfocused here.
   useFocusEffect: () => undefined,
 }));

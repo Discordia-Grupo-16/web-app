@@ -113,3 +113,13 @@ describe('setDefaultRole', () => {
         await expect(service.setDefaultRole('srv', 'role-1')).resolves.toBeUndefined();
     });
 });
+
+describe('deleteRole', () => {
+    it('deletes the role of the server', async () => {
+        const { apiClient, service } = setup();
+
+        await expect(service.deleteRole('srv', 'role-1')).resolves.toBeUndefined();
+
+        expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/servers/srv/roles/role-1');
+    });
+});

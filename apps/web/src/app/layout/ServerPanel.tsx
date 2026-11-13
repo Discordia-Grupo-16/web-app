@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowRightLeft } from 'lucide-react';
 import type { Channel, ServerMember } from '@discordia/api';
 import {
@@ -12,6 +12,7 @@ import {
     PERMISSION_COPY,
     VIEW_CHANNEL,
     hasPermission,
+    rolesOfMember,
     useAuth,
     useOutgoingOwnershipTransfer,
     usePublicProfiles,
@@ -20,6 +21,7 @@ import {
     useServerVoiceRoster,
     useVoiceCallParticipants,
     useVoiceRosterViews,
+    type RoleDeletionActor,
     type VoiceParticipant,
 } from '@discordia/core';
 import { voiceService } from '@/shared/api';
@@ -71,7 +73,16 @@ export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
     const { server, loading: loadingServer, updateChannels } = useCurrentServer();
-    const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
+    const navigate = useNavigate();
+    const {
+        roles,
+        loading: loadingRoles,
+        addRole,
+        updateRole,
+        reload: reloadRoles,
+        removeRole,
+        replaceRoles,
+    } = useRoles(serverId);
     const {
         members,
         loading: loadingMembers,
@@ -127,6 +138,21 @@ export const ServerPanel = () => {
         serverId,
         isOwner,
     });
+
+    // Who deletes a role (SCRUM-64): their own roles come from their row in the member list.
+    const roleDeletionActor = useMemo<RoleDeletionActor>(
+        () => ({ isOwner, permissions, roles: rolesOfMember(members, user?.id) }),
+        [isOwner, permissions, members, user?.id],
+    );
+    const handleRoleDeleted = (roleId: string) => {
+        removeRole(roleId);
+        // The role also leaves the roles of every member that had it.
+        reloadMembers();
+    };
+    const handleStale = () => {
+        reloadRoles();
+        reloadMembers();
+    };
     useLiveRefresh({ resources: ['ownershipTransfers'], serverId, refresh: transfer.reload, enabled: isOwner });
     const [proposingTo, setProposingTo] = useState<string | null>(null);
     const membersRef = useRef<HTMLDivElement>(null);
@@ -196,6 +222,10 @@ export const ServerPanel = () => {
                             canManage={hasPermission(permissions, MANAGE_ROLES)}
                             onRoleCreated={addRole}
                             onRoleUpdated={updateRole}
+                            actor={roleDeletionActor}
+                            onRoleDeleted={handleRoleDeleted}
+                            onRolesReloaded={replaceRoles}
+                            onServerGone={() => navigate('/')}
                         />
                         <div ref={membersRef}>
                             <OutgoingTransferNotice
@@ -220,6 +250,7 @@ export const ServerPanel = () => {
                                     reloadBans();
                                 }}
                                 renderMemberActions={renderMemberActions}
+                                onStale={handleStale}
                             />
                         </div>
                         {/* Not part of the panel's `loading`: the bans only start loading once the
