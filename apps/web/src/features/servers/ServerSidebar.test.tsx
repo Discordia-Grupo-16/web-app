@@ -118,7 +118,8 @@ describe('ServerSidebar unread marks', () => {
         error.mockRestore();
     });
 
-    it('leaves the selected server when it is removed from the server list', async () => {
+    it('shows an in-app dialog when the selected server disappears, then returns home', async () => {
+        const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
         const handlers = new Set<(frame: InvalidateFrame) => void>();
         const realtime = {
             status: 'open',
@@ -152,7 +153,35 @@ describe('ServerSidebar unread marks', () => {
             vi.useRealTimers();
         }
 
+        expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+            'El servidor en el que estabas fue eliminado o suspendido.',
+        );
+        expect(screen.getByTestId('route')).toHaveTextContent('server');
+        expect(alert).not.toHaveBeenCalled();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Entendido' }));
+
         expect(await screen.findByTestId('route')).toHaveTextContent('home');
         expect(screen.queryByTitle('Alfa')).not.toBeInTheDocument();
+        alert.mockRestore();
+    });
+
+    it('shows the dialog when the current server route reports that the server is gone', async () => {
+        render(
+            <UnreadContext.Provider value={{ state: { byChannel: {} }, setActiveChannel: vi.fn(), markAllRead }}>
+                <MemoryRouter initialEntries={[{ pathname: '/', state: { serverGone: true } }]}>
+                    <Routes>
+                        <Route path="/" element={<HomeRoute />} />
+                    </Routes>
+                </MemoryRouter>
+            </UnreadContext.Provider>,
+        );
+
+        expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+            'El servidor en el que estabas fue eliminado o suspendido.',
+        );
+        expect(screen.getByTestId('route')).toHaveTextContent('home');
+        await userEvent.click(screen.getByRole('button', { name: 'Entendido' }));
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     });
 });

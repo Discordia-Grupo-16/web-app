@@ -25,7 +25,7 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
                 const srv = await serversService.getServer(serverId);
                 if (isMounted) setServer(srv);
             } catch (err) {
-                if (isMounted && isGoneError(err)) navigate('/');
+                if (isMounted && isGoneError(err)) navigate('/', { state: { serverGone: true } });
                 else console.error(err);
             } finally {
                 if (isMounted) setLoading(false);
@@ -64,7 +64,9 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
                 } : prev);
             })
             .catch(err => {
-                if (isGoneError(err) && currentServerIdRef.current === serverId) navigate('/');
+                if (isGoneError(err) && currentServerIdRef.current === serverId) {
+                    navigate('/', { state: { serverGone: true } });
+                }
             });
     }, [serverId, navigate]);
 

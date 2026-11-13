@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { CheckCheck, Plus } from 'lucide-react';
 import { serversService } from '@/shared/api';
 import type { Server } from '@discordia/api';
@@ -39,14 +39,23 @@ export const ServerSidebar = () => {
     const { anyUnread, markAllRead } = useMarkAllRead();
     const [servers, setServers] = useState<Server[]>([]);
     const [showCreate, setShowCreate] = useState(false);
+    const [showGoneNotice, setShowGoneNotice] = useState(false);
+    const location = useLocation();
     const { serverId } = useParams();
     const navigate = useNavigate();
+    const navigatedFromGoneServer =
+        location.state !== null &&
+        typeof location.state === 'object' &&
+        'serverGone' in location.state &&
+        location.state.serverGone === true;
 
     // A response from before a local change (e.g. creating a server) would drop it again.
     const localChangeRef = useRef(0);
     const currentServerIdRef = useRef(serverId);
+    const reportedGoneRef = useRef<string | null>(null);
     useEffect(() => {
         currentServerIdRef.current = serverId;
+        if (reportedGoneRef.current !== serverId) reportedGoneRef.current = null;
     }, [serverId]);
 
     const refreshServers = useCallback(() => {
@@ -58,13 +67,15 @@ export const ServerSidebar = () => {
                 if (
                     serverId &&
                     currentServerIdRef.current === serverId &&
-                    !list.some(server => server.id === serverId)
+                    !list.some(server => server.id === serverId) &&
+                    reportedGoneRef.current !== serverId
                 ) {
-                    navigate('/');
+                    reportedGoneRef.current = serverId;
+                    setShowGoneNotice(true);
                 }
             })
             .catch(console.error);
-    }, [navigate, serverId]);
+    }, [serverId]);
 
     // Reload on every server change too: leaving or losing a server navigates away from it.
     useEffect(() => {
@@ -160,6 +171,39 @@ export const ServerSidebar = () => {
 
             {showCreate && (
                 <CreateServerModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />
+            )}
+            {(showGoneNotice || navigatedFromGoneServer) && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                    <div
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="server-gone-title"
+                        aria-describedby="server-gone-description"
+                        className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
+                        style={{ background: '#36393f' }}
+                    >
+                        <h2 id="server-gone-title" className="text-lg font-bold text-white">
+                            Servidor no disponible
+                        </h2>
+                        <p id="server-gone-description" className="mt-2 text-sm" style={{ color: '#b9bbbe' }}>
+                            El servidor en el que estabas fue eliminado o suspendido.
+                        </p>
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                type="button"
+                                autoFocus
+                                onClick={() => {
+                                    setShowGoneNotice(false);
+                                    navigate('/', { state: null });
+                                }}
+                                className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors"
+                                style={{ background: '#5865f2' }}
+                            >
+                                Entendido
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </>
     );
