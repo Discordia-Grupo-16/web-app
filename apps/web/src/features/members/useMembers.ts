@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Role, ServerMember } from '@discordia/api';
 import { membersService } from '@/shared/api';
-import { usePolling } from '@/shared/hooks/usePolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 /**
  * Los roles de un miembro, ordenados por `position` ascendente.
@@ -47,15 +47,19 @@ export const useMembers = (serverId: string | undefined) => {
     }, [serverId]);
 
     // Quien entra al servidor después de que se cargó la lista no aparecía
-    // hasta recargar, así que no se le podía asignar un rol. Mismo poll que
-    // los canales: nada de esto se empuja por el socket.
-    usePolling(() => {
+    // hasta recargar, así que no se le podía asignar un rol. Ahora llega como
+    // un aviso de `members`; el poll de respaldo cubre el que se pierda.
+    const refreshMembers = useCallback(() => {
         if (!serverId) return;
         membersService.listMembers(serverId)
             .then(setMembers)
             // Un servidor que ya no está lo resuelve quien lo carga.
             .catch(console.error);
-    }, !!serverId);
+    }, [serverId]);
+
+    // Con `permissions` también: cuando a quien mira le asignan o le quitan un
+    // rol solo le llega ese aviso, y sus propios roles salen de esta lista.
+    useLiveRefresh({ resources: ['members', 'permissions'], serverId, refresh: refreshMembers, enabled: !!serverId });
 
     /**
      * Replaces the roles of one member in the list.
@@ -78,7 +82,7 @@ export const useMembers = (serverId: string | undefined) => {
     /**
      * Drops a banned member from the list (SCRUM-69).
      *
-     * The poll would do it a few seconds later, but the row has to go the
+     * The refresh would do it a moment later, but the row has to go the
      * moment the ban is confirmed: leaving it there invites a second ban of
      * someone who is no longer a member, which answers 404.
      */
@@ -87,5 +91,7 @@ export const useMembers = (serverId: string | undefined) => {
         [],
     );
 
-    return { members, loading, setMemberRoles, removeMember };
+    // reload: after a refused action that means the list is out of date, such as proposing the
+    // ownership to someone who already left.
+    return { members, loading, setMemberRoles, removeMember, reload: refreshMembers };
 };

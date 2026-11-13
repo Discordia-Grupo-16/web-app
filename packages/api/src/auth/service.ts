@@ -3,17 +3,45 @@ import type {
     AuthApiResponse,
     AuthResponse,
     LoginCredentials,
+    LoginResult,
+    MfaAuthResponse,
+    MfaChallenge,
+    MfaLoginApiResponse,
+    MfaLoginPayload,
     RegisterUserData,
 } from './types';
 
+export const isMfaChallenge = (result: LoginResult): result is MfaChallenge =>
+    'mfaRequired' in result && result.mfaRequired === true;
+
 export const createAuthService = (apiClient: AxiosInstance) => ({
-    async login(credentials: LoginCredentials): Promise<AuthResponse> {
-        const { data } = await apiClient.post<AuthApiResponse>('/api/v1/sessions', credentials);
+    async login(credentials: LoginCredentials): Promise<LoginResult> {
+        const { data } = await apiClient.post<AuthApiResponse | { data: MfaChallenge }>(
+            '/api/v1/sessions',
+            credentials,
+        );
+        const body = data.data;
+        if ('mfaRequired' in body) {
+            return { mfaRequired: true, mfaToken: body.mfaToken };
+        }
         return {
+            token: body.accessToken,
+            user: body.user,
+            refreshToken: body.refreshToken,
+        };
+    },
+
+    async verifyMfa(payload: MfaLoginPayload): Promise<MfaAuthResponse> {
+        const { data } = await apiClient.post<MfaLoginApiResponse>('/api/v1/sessions/mfa', payload);
+        const result: MfaAuthResponse = {
             token: data.data.accessToken,
             user: data.data.user,
             refreshToken: data.data.refreshToken,
         };
+        if (data.data.recoveryCodesRemaining !== undefined) {
+            result.recoveryCodesRemaining = data.data.recoveryCodesRemaining;
+        }
+        return result;
     },
 
     async register(userData: RegisterUserData): Promise<AuthResponse> {
@@ -38,5 +66,19 @@ export const createAuthService = (apiClient: AxiosInstance) => ({
 
     async logout(): Promise<void> {
         await apiClient.delete('/api/v1/sessions');
+    },
+
+    // Always resolves the same way whether or not the account exists (the server answers 202 either way).
+    async requestPasswordReset(email: string): Promise<void> {
+        await apiClient.post('/api/v1/password-resets', { email });
+    },
+
+    // Rejects with a 400 when the token does not exist, expired or was already used.
+    async checkPasswordReset(token: string): Promise<void> {
+        await apiClient.post('/api/v1/password-resets/check', { token });
+    },
+
+    async confirmPasswordReset(token: string, newPassword: string): Promise<void> {
+        await apiClient.post('/api/v1/password-resets/confirm', { token, newPassword });
     },
 });

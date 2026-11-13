@@ -31,7 +31,6 @@ export const CreateChannelModal = ({ serverId, type, onClose, onCreated }: Props
         }
     };
 
-    // Discord normaliza el nombre: minúsculas, espacios → guiones
     const handleNameChange = (value: string) =>
         setName(value.toLowerCase().replace(/\s+/g, '-'));
 

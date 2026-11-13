@@ -1,41 +1,25 @@
-import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
-import type { Server } from '@discordia/api';
-import { NONE, SEND_MESSAGES, canJoinVoice, hasPermission } from '@discordia/core';
+import { MANAGE_MESSAGES, NONE, SEND_MESSAGES, canJoinVoice, hasPermission, useMarkChannelRead } from '@discordia/core';
 import { ChatPanel } from '@/features/chat';
+import { useCurrentServer } from '@/features/servers';
 import { VoiceChannelPanel } from '@/features/voice';
-import { serversService } from '@/shared/api';
-import { usePolling } from '@/shared/hooks/usePolling';
+import { useTabVisible } from '@/shared/hooks/useTabVisible';
 
 // The channel screen: the header, and the chat or the voice panel depending on the channel type.
 export const ChannelRoute = () => {
-    const { serverId, channelId } = useParams();
+    const { channelId } = useParams();
     // The whole server and not just the channel: `my_permissions` comes with it, and it is what
-    // decides whether the composer is usable.
-    const [server, setServer] = useState<Server | null>(null);
-
-    useEffect(() => {
-        if (!serverId || !channelId) return;
-        serversService.getServer(serverId)
-            .then(setServer)
-            .catch(console.error);
-    }, [serverId, channelId]);
-
-    // Los permisos cambian sin que nadie los empuje por el socket, y el poll de
-    // `useServer` vive en el panel lateral: sin este, quitarle SEND_MESSAGES a
-    // alguien dejaba la caja como estaba hasta que cambiara de canal o
-    // recargara. El mobile ya lo refresca en ChannelScreen, así que sin esto
-    // las dos plataformas no hacen lo mismo.
-    usePolling(() => {
-        if (!serverId) return;
-        serversService.getServer(serverId)
-            .then(srv => setServer(prev => (prev && prev.id === srv.id ? srv : prev)))
-            // Un servidor que ya no está lo resuelve quien lo carga en el panel.
-            .catch(console.error);
-    }, !!serverId);
+    // decides whether the composer is usable. It is the one the side panel already loaded, so a
+    // change in permissions costs a single request and reaches both at once.
+    const { server } = useCurrentServer();
 
     const channel = server?.channels.find(c => c.id === channelId) ?? null;
+
+    // Reading is what the user does with a text channel in front of them: a voice channel has no
+    // messages, and a hidden tab does not read what arrives.
+    const tabVisible = useTabVisible();
+    useMarkChannelRead(channel?.id ?? '', tabVisible && channel?.type === 'text');
 
     // Until the new channel loads, don't keep rendering the previous one.
     if (!channel) return null;
@@ -75,6 +59,7 @@ export const ChannelRoute = () => {
                     channelName={channel.name}
                     topic={channel.topic}
                     canSendMessages={hasPermission(server?.my_permissions ?? NONE, SEND_MESSAGES)}
+                    canManageMessages={hasPermission(server?.my_permissions ?? NONE, MANAGE_MESSAGES)}
                 />
             )}
         </div>

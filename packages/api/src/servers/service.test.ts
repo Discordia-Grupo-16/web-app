@@ -8,15 +8,16 @@ const server: Server = {
     name: 'Discordia',
     description: null,
     owner_id: 'owner',
-    avatar_url: null,
+    avatar_url: null, banner_url: null,
     created_at: '2026-10-01T00:00:00Z',
     my_permissions: 7,
     my_permission_names: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'CONNECT'],
     channels: [],
+    categories: [],
 };
 
 const setup = () => {
-    const apiClient = { get: vi.fn(async () => ({ data: [server] })) };
+    const apiClient = { get: vi.fn(async () => ({ data: { data: [server] } })) };
     return { apiClient, service: createServersService(apiClient as unknown as AxiosInstance) };
 };
 

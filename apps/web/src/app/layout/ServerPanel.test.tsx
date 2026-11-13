@@ -3,24 +3,38 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    ADMINISTRATOR,
     BAN_MEMBERS,
     KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
+    MANAGE_SERVER,
     PERMISSION_COPY,
+    PublicProfilesProvider,
     SEND_MESSAGES,
     VIEW_CHANNEL,
 } from '@discordia/core';
-import type { Server, ServerBan, ServerMember } from '@discordia/api';
-import { membersService, rolesService, serversService } from '@/shared/api';
+import type { OwnershipTransfer, Role, Server, ServerBan, ServerMember } from '@discordia/api';
+import { CurrentServerProvider } from '@/features/servers';
+import { membersService, ownershipSource, rolesService, serversService } from '@/shared/api';
 import { ServerPanel } from './ServerPanel';
 
 const OWNER = 'owner';
 const ME = 'me';
 
 vi.mock('@/shared/api', () => ({
-    serversService: { getServer: vi.fn() },
-    rolesService: { listRoles: vi.fn() },
+    ownershipSource: {
+        getServerTransfer: vi.fn(),
+        proposeTransfer: vi.fn(),
+        cancelTransfer: vi.fn(),
+        acceptTransfer: vi.fn(),
+        rejectTransfer: vi.fn(),
+        listMyTransfers: vi.fn(),
+        getServer: vi.fn(),
+        getServers: vi.fn(),
+    },
+    serversService: { getServer: vi.fn(), updateServer: vi.fn() },
+    rolesService: { listRoles: vi.fn(), deleteRole: vi.fn() },
     membersService: {
         listMembers: vi.fn(),
         banMember: vi.fn(),
@@ -28,6 +42,7 @@ vi.mock('@/shared/api', () => ({
         listBans: vi.fn(),
         revokeBan: vi.fn(),
     },
+    voiceService: { getServerVoiceParticipants: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -36,6 +51,8 @@ vi.mock('@discordia/core', async (importOriginal) => ({
     // The voice call list under a channel has its own tests (ServerPanel.voice.test.tsx).
     useVoice: () => ({ call: { status: 'idle' } }),
     useVoiceCallParticipants: () => [],
+    useServerVoiceRoster: () => new Map(),
+    useVoiceRosterViews: () => new Map(),
 }));
 // El botón real depende de un contexto que este panel no provee: acá solo importa si aparece.
 vi.mock('@/features/invitations', () => ({ InviteButton: () => <button>Invitar</button> }));
@@ -48,7 +65,7 @@ const server = (myPermissions: number, ownerId = OWNER): Server => ({
     name: 'Discordia',
     description: null,
     owner_id: ownerId,
-    avatar_url: null,
+    avatar_url: null, banner_url: null,
     created_at: '2026-10-01T00:00:00Z',
     my_permissions: myPermissions,
     my_permission_names: [],
@@ -59,10 +76,12 @@ const server = (myPermissions: number, ownerId = OWNER): Server => ({
             name: 'general',
             type: 'text',
             topic: null,
+            category_id: null,
             position: 0,
             created_at: '2026-10-01T00:00:00Z',
         },
     ],
+    categories: [],
 });
 
 const MILTON: ServerMember = {
@@ -70,6 +89,9 @@ const MILTON: ServerMember = {
     joined_at: '2026-10-01T00:00:00Z',
     roles: [],
 };
+
+// The owner is a member too: the member list always has their row.
+const OWNER_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [] };
 
 const BAN_OF_MILTON: ServerBan = {
     user_id: 'milton',
@@ -82,17 +104,27 @@ const renderPanel = async (
     myPermissions: number,
     ownerId = OWNER,
     members: ServerMember[] = [],
+    roles: Role[] = [],
 ) => {
     vi.mocked(serversService.getServer).mockResolvedValue(server(myPermissions, ownerId));
-    vi.mocked(rolesService.listRoles).mockResolvedValue([]);
+    vi.mocked(rolesService.listRoles).mockResolvedValue(roles);
     vi.mocked(membersService.listMembers).mockResolvedValue(members);
     vi.mocked(membersService.listBans).mockResolvedValue([]);
+    // Unless a test says otherwise, the server never had an ownership transfer.
+    if (!vi.mocked(ownershipSource.getServerTransfer).getMockImplementation()) {
+        vi.mocked(ownershipSource.getServerTransfer).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+    }
+    // The ownership hook of core reads the profiles itself, past the mock of usePublicProfiles.
+    const profiles = { getPublicProfiles: async () => new Map(), peekPublicProfile: () => undefined };
     render(
-        <MemoryRouter initialEntries={['/servers/srv']}>
-            <Routes>
-                <Route path="/servers/:serverId" element={<ServerPanel />} />
-            </Routes>
-        </MemoryRouter>,
+        <PublicProfilesProvider source={profiles}>
+            <MemoryRouter initialEntries={['/servers/srv']}>
+                <Routes>
+                    <Route path="/servers/:serverId" element={<CurrentServerProvider><ServerPanel /></CurrentServerProvider>} />
+                    <Route path="/" element={<p>Inicio</p>} />
+                </Routes>
+            </MemoryRouter>
+        </PublicProfilesProvider>,
     );
     await waitFor(() => expect(screen.getByText('general')).toBeInTheDocument());
 };
@@ -203,11 +235,51 @@ describe('ServerPanel: qué se ve según el permiso', () => {
         expect(banMember()).not.toBeInTheDocument();
     });
 
-    it('irse del servidor sigue decidiéndose por ser dueño, no por un bit', async () => {
-        // No es un permiso sino una condición: el dueño no puede irse, elimina.
-        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME);
+    it('al dueño también se le ofrece abandonar: al confirmar, le pide transferir antes', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME, [OWNER_AS_MEMBER, MILTON]);
 
-        expect(screen.queryByText(/abandonar/i)).not.toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Abandonar servidor' })).toBeInTheDocument();
+    });
+
+    it('al dueño que es el único miembro no se le ofrece abandonar: no hay a quién transferirle', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME, [OWNER_AS_MEMBER]);
+
+        expect(await screen.findByText(PERMISSION_COPY.membersTitle(1))).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Abandonar servidor' })).not.toBeInTheDocument();
+    });
+
+    it('a un miembro que no es dueño se le ofrece abandonar aunque la lista no haya cargado', async () => {
+        await renderPanel(VIEW_CHANNEL, OWNER);
+
+        expect(screen.getByRole('button', { name: 'Abandonar servidor' })).toBeInTheDocument();
+    });
+});
+
+describe('ServerPanel: configuración del servidor', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('con MANAGE_SERVER aparece el botón de configuración', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_SERVER);
+
+        expect(screen.getByTitle('Configuración del servidor')).toBeInTheDocument();
+    });
+
+    it('sin MANAGE_SERVER no aparece el botón de configuración', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_CHANNELS | MANAGE_ROLES);
+
+        expect(screen.queryByTitle('Configuración del servidor')).not.toBeInTheDocument();
+    });
+
+    it('hacer clic en el botón abre el modal con el nombre actual', async () => {
+        const user = userEvent.setup();
+        await renderPanel(VIEW_CHANNEL | MANAGE_SERVER);
+
+        await user.click(screen.getByTitle('Configuración del servidor'));
+
+        expect(await screen.findByRole('heading', { name: 'Configuración del servidor' })).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Discordia')).toBeInTheDocument();
     });
 });
 
@@ -226,5 +298,90 @@ describe('ServerPanel: invitar', () => {
         await renderPanel(VIEW_CHANNEL);
 
         expect(screen.queryByRole('button', { name: 'Invitar' })).not.toBeInTheDocument();
+    });
+});
+
+describe('ServerPanel: transferir la propiedad', () => {
+    const PENDING_TO_MILTON: OwnershipTransfer = {
+        server_id: 'srv',
+        server_name: 'Discordia',
+        from_user_id: ME,
+        to_user_id: 'milton',
+        status: 'pending',
+        created_at: '2026-11-05T10:00:00Z',
+        resolved_at: null,
+    };
+    const ME_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [] };
+    const transferButtons = () => screen.queryAllByRole('button', { name: 'Transferir servidor' });
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(ownershipSource.getServerTransfer).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+    });
+
+    it('el dueño la ve en la fila de los demás y no en la suya', async () => {
+        await renderPanel(VIEW_CHANNEL, ME, [ME_AS_MEMBER, MILTON]);
+
+        await waitFor(() => expect(transferButtons()).toHaveLength(1));
+    });
+
+    it('un miembro con ADMINISTRATOR que no es dueño no la ve', async () => {
+        await renderPanel(ADMINISTRATOR | VIEW_CHANNEL, OWNER, [ME_AS_MEMBER, MILTON]);
+
+        expect(transferButtons()).toHaveLength(0);
+        expect(ownershipSource.getServerTransfer).not.toHaveBeenCalled();
+    });
+
+    it('con una pendiente se ve el aviso y la acción queda deshabilitada', async () => {
+        vi.mocked(ownershipSource.getServerTransfer).mockResolvedValue(PENDING_TO_MILTON);
+
+        await renderPanel(VIEW_CHANNEL, ME, [ME_AS_MEMBER, MILTON]);
+
+        expect(await screen.findByRole('status')).toHaveTextContent(/^Transferencia pendiente a /);
+        expect(transferButtons()[0]).toBeDisabled();
+    });
+});
+
+describe('ServerPanel: eliminar un rol', () => {
+    const MODERADOR: Role = {
+        id: 'r1',
+        server_id: 'srv',
+        name: 'Moderador',
+        is_default: false,
+        permissions: 0,
+        permission_names: [],
+        position: 1,
+        created_at: '2026-10-01T00:00:00Z',
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('saca el rol de la lista y relee los miembros', async () => {
+        vi.mocked(rolesService.deleteRole).mockResolvedValue(undefined);
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME, [], [MODERADOR]);
+        vi.mocked(membersService.listMembers).mockClear();
+        const user = userEvent.setup();
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar el rol Moderador' }));
+        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+        await waitFor(() => expect(screen.queryByText('Moderador')).not.toBeInTheDocument());
+        expect(membersService.listMembers).toHaveBeenCalled();
+    });
+
+    it('vuelve al inicio cuando el servidor ya no existe', async () => {
+        vi.mocked(rolesService.deleteRole).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME, [], [MODERADOR]);
+        vi.mocked(rolesService.listRoles).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+        const user = userEvent.setup();
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar el rol Moderador' }));
+        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+        await screen.findByText('El servidor ya no existe');
+        await user.click(screen.getAllByRole('button', { name: 'Cerrar' }).at(-1)!);
+
+        expect(await screen.findByText('Inicio')).toBeInTheDocument();
     });
 });

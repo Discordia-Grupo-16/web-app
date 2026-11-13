@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Redirect, Stack, usePathname } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { useAuth } from '@discordia/core';
+import { UnreadProvider, useAuth } from '@discordia/core';
 import type { User } from '@discordia/api';
 import { ProfileButton } from '@/features/profile';
 import { RealtimeProvider } from '@/features/chat';
 import { buildAuthHref, LOGIN_ROUTE } from '@/features/auth';
+import { IncomingTransferBanner } from '@/features/ownership';
 import { VoiceBar, VoiceProvider } from '@/features/voice';
+import { readStatesService } from '@/shared/api';
 
 export default function AppLayout() {
   const { token, isLoading, user, signedOutByUser } = useAuth();
@@ -37,31 +39,36 @@ export default function AppLayout() {
 
   return (
     <RealtimeProvider>
-      <VoiceProvider>
-        <View className="flex-1 bg-[#23272a]">
-          <Stack
-            screenOptions={{
-              headerStyle: { backgroundColor: '#2f3136' },
-              headerTintColor: '#ffffff',
-              headerTitleStyle: { fontWeight: 'bold' },
-              contentStyle: { backgroundColor: '#23272a' },
-            }}
-          >
-            <Stack.Screen
-              name="index"
-              options={() => ({
-                title: 'Discordia',
-                headerRight: () => <ProfileButton user={user as User} />
-              })}
-            />
-            <Stack.Screen name="join" options={{ title: 'Unirse a servidor' }} />
-            <Stack.Screen name="invite/[code]" options={{ title: 'Invitación' }} />
-            <Stack.Screen name="server/[serverId]/index" options={{ title: '' }} />
-            <Stack.Screen name="server/[serverId]/channel/[channelId]" options={{ title: '' }} />
-          </Stack>
-          <VoiceBar />
-        </View>
-      </VoiceProvider>
+      {/* Next to the socket it listens to; it keeps counting on every screen of the stack. */}
+      <UnreadProvider service={readStatesService} logger={console}>
+        <VoiceProvider>
+          <View className="flex-1 bg-[#23272a]">
+            {/* On top of every screen with a session, like the web: a transfer waits wherever the user is. */}
+            <IncomingTransferBanner />
+            <Stack
+              screenOptions={{
+                headerStyle: { backgroundColor: '#2f3136' },
+                headerTintColor: '#ffffff',
+                headerTitleStyle: { fontWeight: 'bold' },
+                contentStyle: { backgroundColor: '#23272a' },
+              }}
+            >
+              <Stack.Screen
+                name="index"
+                options={() => ({
+                  title: 'Discordia',
+                  headerRight: () => <ProfileButton user={user as User} />
+                })}
+              />
+              <Stack.Screen name="join" options={{ title: 'Unirse a servidor' }} />
+              <Stack.Screen name="invite/[code]" options={{ title: 'Invitación' }} />
+              <Stack.Screen name="server/[serverId]/index" options={{ title: '' }} />
+              <Stack.Screen name="server/[serverId]/channel/[channelId]" options={{ title: '' }} />
+            </Stack>
+            <VoiceBar />
+          </View>
+        </VoiceProvider>
+      </UnreadProvider>
     </RealtimeProvider>
   );
 }

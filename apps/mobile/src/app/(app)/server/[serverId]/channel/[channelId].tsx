@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import type { Channel } from '@discordia/api';
@@ -6,7 +6,7 @@ import { NONE, canJoinVoice } from '@discordia/core';
 import { ChannelScreen } from '@/features/chat';
 import { VoiceChannelScreen } from '@/features/voice';
 import { serversService } from '@/shared/api';
-import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 type ChannelParams = { serverId: string; channelId: string; name?: string; type?: Channel['type'] };
 type ChannelInfo = Pick<Channel, 'name' | 'type'>;
@@ -19,6 +19,7 @@ export default function ChannelRoute() {
   const [channel, setChannel] = useState<ChannelInfo | null>(name && type ? { name, type } : null);
   // The voice call needs the server permissions; null while unknown. The chat loads its own.
   const [permissions, setPermissions] = useState<number | null>(null);
+  const goneRef = useRef(false);
   const isText = channel?.type === 'text';
 
   useEffect(() => {
@@ -44,11 +45,31 @@ export default function ChannelRoute() {
   }, [isText, serverId, channelId, router]);
 
   // Losing CONNECT takes "Unirse" away without a reload. A deleted channel cuts the call by itself.
-  useFocusedPolling(() => {
-    if (channel?.type !== 'voice') return;
-    serversService.getServer(serverId)
-      .then((server) => setPermissions(server.my_permissions ?? NONE))
-      .catch(() => undefined);
+  useLiveRefresh({
+    resources: ['server', 'channels', 'permissions'],
+    serverId,
+    refresh: () => {
+      if (channel?.type !== 'voice') return;
+      serversService.getServer(serverId)
+        .then((server) => setPermissions(server.my_permissions ?? NONE))
+        .catch(console.error);
+    },
+  });
+  useLiveRefresh({
+    resources: ['servers'],
+    serverId,
+    refresh: () => {
+      if (goneRef.current) return;
+      serversService.getServers()
+        .then(servers => {
+          if (goneRef.current || servers.some(server => server.id === serverId)) return;
+          goneRef.current = true;
+          Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o suspendido.');
+          if (router.canDismiss()) router.dismissAll();
+          else router.back();
+        })
+        .catch(() => undefined);
+    },
   });
 
   useEffect(() => {

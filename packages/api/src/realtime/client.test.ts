@@ -50,9 +50,9 @@ function latestSocket(): FakeWebSocket {
     return socket;
 }
 
-// Timers are faked, but getToken() resolves through the real microtask queue.
+// Timers are faked, but getTicket() resolves through the real microtask queue.
 // advanceTimersByTimeAsync interleaves both, which is what lets a scheduled
-// reconnect's getToken().then(...) actually run within the same await.
+// reconnect's getTicket().then(...) actually run within the same await.
 async function flush(): Promise<void> {
     await vi.advanceTimersByTimeAsync(0);
 }
@@ -60,7 +60,7 @@ async function flush(): Promise<void> {
 function baseConfig(overrides: Record<string, unknown> = {}) {
     return {
         url: 'ws://localhost:8080/api/v1/ws',
-        getToken: vi.fn(async () => 'token-123'),
+        getTicket: vi.fn(async () => 'ticket-123'),
         webSocketImpl: FakeWebSocket,
         minBackoffMs: 100,
         maxBackoffMs: 800,
@@ -85,16 +85,16 @@ afterEach(() => {
 });
 
 describe('connection and authentication', () => {
-    it('connect() calls getToken() and opens the socket at url?access_token=<token>, url-encoded', async () => {
-        const getToken = vi.fn(async () => 'a+b/c=');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+    it('connect() calls getTicket() and opens the socket at url?ticket=<token>, url-encoded', async () => {
+        const getTicket = vi.fn(async () => 'a+b/c=');
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         await flush();
 
-        expect(getToken).toHaveBeenCalledTimes(1);
+        expect(getTicket).toHaveBeenCalledTimes(1);
         expect(latestSocket().url).toBe(
-            'ws://localhost:8080/api/v1/ws?access_token=' + encodeURIComponent('a+b/c='),
+            'ws://localhost:8080/api/v1/ws?ticket=' + encodeURIComponent('a+b/c='),
         );
     });
 
@@ -104,7 +104,7 @@ describe('connection and authentication', () => {
         client.connect();
         await flush();
 
-        expect(latestSocket().url).toBe('ws://localhost:8080/api/v1/ws?foo=1&access_token=token-123');
+        expect(latestSocket().url).toBe('ws://localhost:8080/api/v1/ws?foo=1&ticket=ticket-123');
     });
 
     it('goes idle -> connecting -> open on onopen, emitting stateChange once per transition', async () => {
@@ -135,8 +135,8 @@ describe('connection and authentication', () => {
         expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
-    it('if getToken() resolves null, does not open a socket, goes closed, and never reconnects on its own', async () => {
-        const client = createRealtimeClient(baseConfig({ getToken: vi.fn(async () => null) }));
+    it('if getTicket() resolves null, does not open a socket, goes closed, and never reconnects on its own', async () => {
+        const client = createRealtimeClient(baseConfig({ getTicket: vi.fn(async () => null) }));
 
         client.connect();
         await flush();
@@ -148,12 +148,12 @@ describe('connection and authentication', () => {
         expect(FakeWebSocket.instances).toHaveLength(0);
     });
 
-    it('if getToken() rejects, goes reconnecting and retries after the backoff', async () => {
-        const getToken = vi
+    it('if getTicket() rejects, goes reconnecting and retries after the backoff', async () => {
+        const getTicket = vi
             .fn()
             .mockRejectedValueOnce(new Error('network error'))
-            .mockResolvedValueOnce('token-123');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+            .mockResolvedValueOnce('ticket-123');
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         await flush();
@@ -161,7 +161,7 @@ describe('connection and authentication', () => {
         expect(FakeWebSocket.instances).toHaveLength(0);
 
         await vi.advanceTimersByTimeAsync(100);
-        expect(getToken).toHaveBeenCalledTimes(2);
+        expect(getTicket).toHaveBeenCalledTimes(2);
         expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
@@ -170,7 +170,7 @@ describe('connection and authentication', () => {
         delete (globalThis as { WebSocket?: unknown }).WebSocket;
 
         try {
-            expect(() => createRealtimeClient({ url: 'ws://x', getToken: vi.fn() })).toThrow(
+            expect(() => createRealtimeClient({ url: 'ws://x', getTicket: vi.fn() })).toThrow(
                 /no WebSocket implementation available/,
             );
         } finally {
@@ -301,6 +301,165 @@ describe('receiving', () => {
         expect(onError).toHaveBeenNthCalledWith(2, withDetails);
     });
 
+    it('emits invalidate with the parsed frame, with and without serverId and userId', async () => {
+        const { client, socket } = await openClient();
+        const onInvalidate = vi.fn();
+        client.on('invalidate', onInvalidate);
+
+        const ofAServer = { type: 'invalidate', serverId: 's1', resources: ['members', 'bans'] };
+        const ofTheUser = { type: 'invalidate', resources: ['servers'] };
+        const ofAProfile = { type: 'invalidate', serverId: 's1', resources: ['members'], userId: 'u1' };
+        socket.message(ofAServer);
+        socket.message(ofTheUser);
+        socket.message(ofAProfile);
+
+        expect(onInvalidate).toHaveBeenNthCalledWith(1, ofAServer);
+        expect(onInvalidate).toHaveBeenNthCalledWith(2, ofTheUser);
+        expect(onInvalidate).toHaveBeenNthCalledWith(3, ofAProfile);
+    });
+
+    it('emits messageUpdated with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onUpdated = vi.fn();
+        client.on('messageUpdated', onUpdated);
+
+        const frame = {
+            type: 'message.updated',
+            messageId: 'm1',
+            channelId: 'c1',
+            serverId: 's1',
+            authorId: 'u1',
+            content: 'corregido',
+            editedAt: '2026-11-09T15:30:00.123Z',
+        };
+        socket.message(frame);
+
+        expect(onUpdated).toHaveBeenCalledTimes(1);
+        expect(onUpdated).toHaveBeenCalledWith(frame);
+    });
+
+    it.each([
+        ['messageId', { channelId: 'c1', content: 'x', editedAt: '2026-11-09T15:30:00Z' }],
+        ['channelId', { messageId: 'm1', content: 'x', editedAt: '2026-11-09T15:30:00Z' }],
+        ['content', { messageId: 'm1', channelId: 'c1', editedAt: '2026-11-09T15:30:00Z' }],
+        ['editedAt', { messageId: 'm1', channelId: 'c1', content: 'x' }],
+    ])('drops a message.updated without %s: there is nothing to apply it to or to order it by', async (_field, rest) => {
+        const { client, socket } = await openClient();
+        const onUpdated = vi.fn();
+        client.on('messageUpdated', onUpdated);
+
+        expect(() => socket.message({ type: 'message.updated', serverId: 's1', authorId: 'u1', ...rest })).not.toThrow();
+
+        expect(onUpdated).not.toHaveBeenCalled();
+    });
+
+    it('emits messageDeleted with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onDeleted = vi.fn();
+        client.on('messageDeleted', onDeleted);
+
+        const frame = { type: 'message.deleted', messageId: 'm1', channelId: 'c1', serverId: 's1', deletedAt: '2026-11-10T15:30:00Z' };
+        socket.message(frame);
+
+        expect(onDeleted).toHaveBeenCalledWith(frame);
+    });
+
+    it.each([
+        ['messageId', { channelId: 'c1' }],
+        ['channelId', { messageId: 'm1' }],
+    ])('drops a message.deleted without %s: there is nothing to remove', async (_field, rest) => {
+        const { client, socket } = await openClient();
+        const onDeleted = vi.fn();
+        client.on('messageDeleted', onDeleted);
+
+        expect(() => socket.message({ type: 'message.deleted', serverId: 's1', deletedAt: '2026-11-10T15:30:00Z', ...rest })).not.toThrow();
+
+        expect(onDeleted).not.toHaveBeenCalled();
+    });
+
+    it('emits readStateUpdated with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onReadState = vi.fn();
+        client.on('readStateUpdated', onReadState);
+
+        const frame = {
+            type: 'read-state.updated',
+            userId: 'u1',
+            states: [{ channelId: 'c1', serverId: 's1', lastReadMessageId: 'm1', lastReadAt: '2026-11-02T12:00:00Z' }],
+        };
+        socket.message(frame);
+
+        expect(onReadState).toHaveBeenCalledTimes(1);
+        expect(onReadState).toHaveBeenCalledWith(frame);
+    });
+
+    it('ignores a read-state.updated without a list of states: there is nothing to apply', async () => {
+        const { client, socket } = await openClient();
+        const onReadState = vi.fn();
+        client.on('readStateUpdated', onReadState);
+
+        expect(() => socket.message({ type: 'read-state.updated', userId: 'u1' })).not.toThrow();
+        expect(() => socket.message({ type: 'read-state.updated', userId: 'u1', states: 'c1' })).not.toThrow();
+
+        expect(onReadState).not.toHaveBeenCalled();
+    });
+
+    it('delivers an invalidate with a resource it does not know: filtering is the subscriber\'s job', async () => {
+        const { client, socket } = await openClient();
+        const onInvalidate = vi.fn();
+        client.on('invalidate', onInvalidate);
+
+        const frame = { type: 'invalidate', serverId: 's1', resources: ['channels', 'a-future-resource'] };
+        socket.message(frame);
+
+        expect(onInvalidate).toHaveBeenCalledWith(frame);
+    });
+
+    it('ignores an invalidate without a resource list: there is nothing to refetch', async () => {
+        const { client, socket } = await openClient();
+        const onInvalidate = vi.fn();
+        client.on('invalidate', onInvalidate);
+
+        expect(() => socket.message({ type: 'invalidate', serverId: 's1' })).not.toThrow();
+        expect(() => socket.message({ type: 'invalidate', resources: 'members' })).not.toThrow();
+
+        expect(onInvalidate).not.toHaveBeenCalled();
+    });
+
+    it('emits voiceParticipants with the parsed frame, also when the channel is empty', async () => {
+        const { client, socket } = await openClient();
+        const onVoice = vi.fn();
+        client.on('voiceParticipants', onVoice);
+
+        const withPeople = {
+            type: 'voice-participants.updated',
+            serverId: 's1',
+            channelId: 'c1',
+            participants: [{ userId: 'u1', joinedAt: '2026-11-05T10:00:00Z' }],
+            syncedAt: '2026-11-05T10:00:05.5Z',
+        };
+        const empty = { ...withPeople, participants: [] };
+        socket.message(withPeople);
+        socket.message(empty);
+
+        expect(onVoice).toHaveBeenNthCalledWith(1, withPeople);
+        expect(onVoice).toHaveBeenNthCalledWith(2, empty);
+    });
+
+    it('ignores a voice-participants.updated that cannot be placed or compared', async () => {
+        const { client, socket } = await openClient();
+        const onVoice = vi.fn();
+        client.on('voiceParticipants', onVoice);
+        const whole = { type: 'voice-participants.updated', serverId: 's1', channelId: 'c1', participants: [], syncedAt: 'x' };
+
+        expect(() => socket.message({ ...whole, serverId: undefined })).not.toThrow();
+        socket.message({ ...whole, channelId: undefined });
+        socket.message({ ...whole, syncedAt: undefined });
+        socket.message({ ...whole, participants: 'u1' });
+
+        expect(onVoice).not.toHaveBeenCalled();
+    });
+
     it('ignores a frame with an unknown type without throwing or emitting', async () => {
         const { client, socket } = await openClient();
         const onAck = vi.fn();
@@ -308,10 +467,13 @@ describe('receiving', () => {
         const onError = vi.fn();
         client.on('ack', onAck);
         client.on('messageCreated', onCreated);
+        const onInvalidate = vi.fn();
         client.on('errorFrame', onError);
+        client.on('invalidate', onInvalidate);
 
         expect(() => socket.message({ type: 'future.frame' })).not.toThrow();
 
+        expect(onInvalidate).not.toHaveBeenCalled();
         expect(onAck).not.toHaveBeenCalled();
         expect(onCreated).not.toHaveBeenCalled();
         expect(onError).not.toHaveBeenCalled();
@@ -339,9 +501,9 @@ describe('receiving', () => {
 });
 
 describe('reconnection', () => {
-    it('an unrequested close (1006) goes reconnecting and reconnects after minBackoffMs, calling getToken() again', async () => {
-        const getToken = vi.fn(async () => 'token-123');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+    it('an unrequested close (1006) goes reconnecting and reconnects after minBackoffMs, calling getTicket() again', async () => {
+        const getTicket = vi.fn(async () => 'ticket-123');
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         await flush();
@@ -349,10 +511,10 @@ describe('reconnection', () => {
 
         latestSocket().remoteClose(1006);
         expect(client.getState()).toBe('reconnecting');
-        expect(getToken).toHaveBeenCalledTimes(1);
+        expect(getTicket).toHaveBeenCalledTimes(1);
 
         await vi.advanceTimersByTimeAsync(100);
-        expect(getToken).toHaveBeenCalledTimes(2);
+        expect(getTicket).toHaveBeenCalledTimes(2);
         expect(FakeWebSocket.instances).toHaveLength(2);
     });
 
@@ -398,22 +560,22 @@ describe('reconnection', () => {
         expect(FakeWebSocket.instances).toHaveLength(3); // fired at 100ms
     });
 
-    it('calls getToken() again on every retry and connects with whatever it returns', async () => {
-        const getToken = vi
+    it('calls getTicket() again on every retry and connects with whatever it returns', async () => {
+        const getTicket = vi
             .fn()
             .mockResolvedValueOnce('token-1')
             .mockResolvedValueOnce('token-2');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         await flush();
-        expect(latestSocket().url).toContain('access_token=token-1');
+        expect(latestSocket().url).toContain('ticket=token-1');
 
         latestSocket().remoteClose(1006);
         await vi.advanceTimersByTimeAsync(100);
 
-        expect(getToken).toHaveBeenCalledTimes(2);
-        expect(latestSocket().url).toContain('access_token=token-2');
+        expect(getTicket).toHaveBeenCalledTimes(2);
+        expect(latestSocket().url).toContain('ticket=token-2');
     });
 
     it.each([1001, 1011])('a close with code %i also triggers a reconnect', async (code) => {
@@ -549,16 +711,16 @@ describe('deliberate close', () => {
         expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
-    it('disconnect() while getToken() is pending prevents opening a socket once it resolves', async () => {
+    it('disconnect() while getTicket() is pending prevents opening a socket once it resolves', async () => {
         let resolveToken!: (token: string | null) => void;
-        const getToken = vi.fn(() => new Promise<string | null>((resolve) => (resolveToken = resolve)));
-        const client = createRealtimeClient(baseConfig({ getToken }));
+        const getTicket = vi.fn(() => new Promise<string | null>((resolve) => (resolveToken = resolve)));
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
         client.connect();
         client.disconnect();
         expect(client.getState()).toBe('closed');
 
-        resolveToken('token-123');
+        resolveToken('ticket-123');
         await flush();
 
         expect(FakeWebSocket.instances).toHaveLength(0);
@@ -640,21 +802,21 @@ describe('stale attempt guards (races between superseded and current connections
         expect(FakeWebSocket.instances).toHaveLength(2); // no extra reconnect triggered
     });
 
-    it('a rejected getToken() from a superseded attempt does not schedule a reconnect', async () => {
+    it('a rejected getTicket() from a superseded attempt does not schedule a reconnect', async () => {
         let rejectToken!: (err: Error) => void;
-        const getToken = vi
+        const getTicket = vi
             .fn()
             .mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectToken = reject)))
-            .mockResolvedValueOnce('token-123');
-        const client = createRealtimeClient(baseConfig({ getToken }));
+            .mockResolvedValueOnce('ticket-123');
+        const client = createRealtimeClient(baseConfig({ getTicket }));
 
-        client.connect(); // attempt #1, getToken() left pending
+        client.connect(); // attempt #1, getTicket() left pending
         client.disconnect();
         client.connect(); // attempt #2
         await flush();
         latestSocket().open();
 
-        rejectToken(new Error('late failure')); // attempt #1's getToken() rejects after being superseded
+        rejectToken(new Error('late failure')); // attempt #1's getTicket() rejects after being superseded
         await flush();
 
         expect(client.getState()).toBe('open');

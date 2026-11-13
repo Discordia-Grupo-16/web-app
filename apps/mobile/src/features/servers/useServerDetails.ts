@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
-import { isGoneError, type Channel, type Server } from '@discordia/api';
+import { isGoneError, type Category, type Channel, type Server } from '@discordia/api';
 import { serversService } from '@/shared/api';
-import { useFocusedPolling } from '@/shared/hooks/useFocusedPolling';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 // Loads the server, titles the screen with its name and keeps its channels fresh. Goes back when the
 // server cannot be loaded or disappears (deleted, or we were removed).
@@ -41,37 +41,69 @@ export const useServerDetails = (serverId: string | undefined) => {
   }, [serverId, navigation, router]);
 
   // Channels created or deleted from another client, and permissions changed by someone else,
-  // show up on focus and on the next poll.
+  // arrive as a notice, and show up on focus.
   const goneRef = useRef(false);
-  useFocusedPolling(() => {
+  const refresh = () => {
     if (!serverId || goneRef.current) return;
     serversService.getServer(serverId)
       .then(srv => {
         // Only the fields that change behind our back: replacing the whole server would throw
-        // away a channel the user just created but the poll has not seen yet.
+        // away a channel the user just created but this answer has not seen yet.
         setServer(prev => prev && prev.id === srv.id ? {
           ...prev,
+          // The owner and the name change with an ownership transfer and a server edit.
+          owner_id: srv.owner_id,
+          name: srv.name,
           channels: srv.channels,
+          categories: srv.categories,
           my_permissions: srv.my_permissions,
           my_permission_names: srv.my_permission_names,
         } : prev);
+        navigation.setOptions({ title: srv.name });
       })
       .catch(err => {
         if (!isGoneError(err) || goneRef.current) return;
         goneRef.current = true;
         Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o ya no sos miembro.');
-        router.back();
+        if (router.canDismiss()) router.dismissAll();
+        else router.back();
       });
+  };
+  useLiveRefresh({ resources: ['server', 'channels', 'permissions'], serverId, refresh });
+  useLiveRefresh({
+    resources: ['servers'],
+    serverId,
+    refresh: () => {
+      if (!serverId || goneRef.current) return;
+      serversService.getServers()
+        .then(servers => {
+          if (goneRef.current || servers.some(candidate => candidate.id === serverId)) return;
+          goneRef.current = true;
+          Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o suspendido.');
+          if (router.canDismiss()) router.dismissAll();
+          else router.back();
+        })
+        .catch(console.error);
+    },
   });
 
   const updateChannels = useCallback((update: (channels: Channel[]) => Channel[]) => {
     setServer(prev => prev ? { ...prev, channels: update(prev.channels) } : prev);
   }, []);
 
-  // While we leave or delete the server ourselves, the poll must not report it as gone.
+  const updateCategories = useCallback((update: (categories: Category[]) => Category[]) => {
+    setServer(prev => prev ? { ...prev, categories: update(prev.categories) } : prev);
+  }, []);
+
+  const updateServer = useCallback((updated: Server) => {
+    setServer(prev => prev ? { ...prev, ...updated } : prev);
+    navigation.setOptions({ title: updated.name });
+  }, [navigation]);
+
+  // While we leave or delete the server ourselves, the refresh must not report it as gone.
   const setLeaving = useCallback((leaving: boolean) => {
     goneRef.current = leaving;
   }, []);
 
-  return { server, loading, updateChannels, setLeaving };
+  return { server, loading, updateChannels, updateCategories, updateServer, setLeaving };
 };

@@ -1,17 +1,23 @@
 import { useState } from 'react';
-import { Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import type { Channel } from '@discordia/api';
-import { channelsService } from '@/shared/api';
+import { Keyboard, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import type { Category, Channel } from '@discordia/api';
 import { getErrorDetail } from '@discordia/api';
+import { channelsService } from '@/shared/api';
 
-export function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
-  channel: Channel; serverId: string;
+export function EditChannelModal({ channel, serverId, categories = [], onClose, onUpdated }: {
+  channel: Channel; serverId: string; categories?: Category[];
   onClose: () => void; onUpdated: (ch: Channel) => void;
 }) {
   const [name, setName] = useState(channel.name);
   const [topic, setTopic] = useState(channel.topic ?? '');
+  const [categoryId, setCategoryId] = useState<string>(channel.category_id ?? '');
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedCategoryName = categoryId
+    ? (categories.find(c => c.id === categoryId)?.name ?? 'Sin categoría')
+    : 'Sin categoría';
 
   const handleSave = async () => {
     setLoading(true);
@@ -22,6 +28,7 @@ export function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
         channel.id,
         name.toLowerCase().replace(/\s+/g, '-'),
         channel.type === 'text' ? topic || undefined : undefined,
+        categoryId || undefined,
       );
       onUpdated(updated);
     } catch (err) {
@@ -39,6 +46,7 @@ export function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
           <Text className="text-[#99aab5] text-sm mb-5">
             Canal de {channel.type === 'text' ? 'texto' : 'voz'}
           </Text>
+
           <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-1">
             Nombre *
           </Text>
@@ -52,6 +60,7 @@ export function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
             onSubmitEditing={Keyboard.dismiss}
             className="bg-[#23272a] text-white rounded-lg px-4 py-3 mb-4"
           />
+
           {channel.type === 'text' && (
             <>
               <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-1">
@@ -68,6 +77,45 @@ export function EditChannelModal({ channel, serverId, onClose, onUpdated }: {
               />
             </>
           )}
+
+          {categories.length > 0 && (
+            <>
+              <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-1">
+                Categoría
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowCategoryPicker(v => !v)}
+                className="bg-[#23272a] rounded-lg px-4 py-3 mb-1 flex-row justify-between items-center"
+              >
+                <Text className="text-white">{selectedCategoryName}</Text>
+                <Text className="text-[#99aab5]">{showCategoryPicker ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {showCategoryPicker && (
+                <ScrollView className="bg-[#23272a] rounded-lg mb-4 max-h-40" nestedScrollEnabled>
+                  <TouchableOpacity
+                    onPress={() => { setCategoryId(''); setShowCategoryPicker(false); }}
+                    className="px-4 py-3 border-b border-[#2c2f33]"
+                  >
+                    <Text className={categoryId === '' ? 'text-[#7289da] font-bold' : 'text-white'}>
+                      Sin categoría
+                    </Text>
+                  </TouchableOpacity>
+                  {categories.map(cat => (
+                    <TouchableOpacity
+                      key={cat.id}
+                      onPress={() => { setCategoryId(cat.id); setShowCategoryPicker(false); }}
+                      className="px-4 py-3 border-b border-[#2c2f33]"
+                    >
+                      <Text className={categoryId === cat.id ? 'text-[#7289da] font-bold' : 'text-white'}>
+                        {cat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </>
+          )}
+
           {error ? <Text className="text-[#ed4245] text-sm mb-3">{error}</Text> : null}
           <TouchableOpacity
             onPress={handleSave}

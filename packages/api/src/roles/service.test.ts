@@ -16,9 +16,9 @@ const role: Role = {
 
 const setup = () => {
     const apiClient = {
-        get: vi.fn(async () => ({ data: [role] })),
-        post: vi.fn(async () => ({ data: role })),
-        patch: vi.fn(async () => ({ data: role })),
+        get: vi.fn(async () => ({ data: { data: [role] } })),
+        post: vi.fn(async () => ({ data: { data: role } })),
+        patch: vi.fn(async () => ({ data: { data: role } })),
         put: vi.fn(async () => ({ data: undefined })),
         delete: vi.fn(async () => ({ data: undefined })),
     };
@@ -111,5 +111,15 @@ describe('setDefaultRole', () => {
         const { service } = setup();
 
         await expect(service.setDefaultRole('srv', 'role-1')).resolves.toBeUndefined();
+    });
+});
+
+describe('deleteRole', () => {
+    it('deletes the role of the server', async () => {
+        const { apiClient, service } = setup();
+
+        await expect(service.deleteRole('srv', 'role-1')).resolves.toBeUndefined();
+
+        expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/servers/srv/roles/role-1');
     });
 });

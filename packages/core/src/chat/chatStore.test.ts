@@ -353,3 +353,183 @@ describe('chatReducer — historial', () => {
         expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2']);
     });
 });
+
+describe('chatReducer — edición de mensajes', () => {
+    const updated = (messageId: string, content: string, editedAt: string, channelId = 'ch1'): ChatAction => ({
+        type: 'updated',
+        channelId,
+        messageId,
+        content,
+        editedAt,
+    });
+    const loaded = () => run([historyLoaded([histMsg('m1'), histMsg('m2')])]);
+
+    it('applies an edit to the message and marks it as edited', () => {
+        const s = run([updated('m1', 'corregido', '2026-11-09T15:30:00.123Z')], loaded());
+
+        expect(s.byChannel.ch1[0]).toMatchObject({ content: 'corregido', editedAt: '2026-11-09T15:30:00.123Z' });
+        expect(s.byChannel.ch1[1].content).toBe('msg');
+    });
+
+    it('applies a newer edit over an older one', () => {
+        const s = run(
+            [updated('m1', 'uno', '2026-11-09T15:30:00Z'), updated('m1', 'dos', '2026-11-09T15:31:00Z')],
+            loaded(),
+        );
+
+        expect(s.byChannel.ch1[0]).toMatchObject({ content: 'dos', editedAt: '2026-11-09T15:31:00Z' });
+    });
+
+    it('ignores an older edit that arrives after a newer one (crossed frames)', () => {
+        const base = run([updated('m1', 'nuevo', '2026-11-09T15:31:00Z')], loaded());
+
+        const s = run([updated('m1', 'viejo', '2026-11-09T15:30:00Z')], base);
+
+        expect(s).toBe(base);
+        expect(s.byChannel.ch1[0].content).toBe('nuevo');
+    });
+
+    it('ignores a repeated edit', () => {
+        const base = run([updated('m1', 'uno', '2026-11-09T15:30:00Z')], loaded());
+
+        expect(run([updated('m1', 'uno', '2026-11-09T15:30:00Z')], base)).toBe(base);
+    });
+
+    it('compares the dates as instants and not as text: .5 is later than .45 although it sorts before', () => {
+        const base = run([updated('m1', 'a', '2026-11-09T15:30:00.45Z')], loaded());
+
+        const s = run([updated('m1', 'b', '2026-11-09T15:30:00.5Z')], base);
+
+        expect(s.byChannel.ch1[0].content).toBe('b');
+    });
+
+    it('ignores an edit with an unreadable date', () => {
+        const base = loaded();
+
+        expect(run([updated('m1', 'x', 'ayer')], base)).toBe(base);
+    });
+
+    it('ignores an edit of a message that is not loaded, or of a channel that is not', () => {
+        const base = loaded();
+
+        expect(run([updated('desconocido', 'x', '2026-11-09T15:30:00Z')], base)).toBe(base);
+        expect(run([updated('m1', 'x', '2026-11-09T15:30:00Z', 'otro-canal')], base)).toBe(base);
+    });
+
+    it('a message that arrives as new starts without an edit', () => {
+        const s = run([created('m9')]);
+
+        expect(s.byChannel.ch1[0].editedAt).toBeNull();
+    });
+
+    describe('lastPageRefreshed (the last page after a reconnection)', () => {
+        const edited = (messageId: string, content: string, editedAt: string): ChatMessage => ({
+            ...histMsg(messageId),
+            content,
+            editedAt,
+        });
+
+        it('brings the edits the session missed while it was offline', () => {
+            const s = run(
+                [{ type: 'lastPageRefreshed', channelId: 'ch1', messages: [edited('m1', 'corregido', '2026-11-09T15:30:00Z')] }],
+                loaded(),
+            );
+
+            expect(s.byChannel.ch1[0]).toMatchObject({ content: 'corregido', editedAt: '2026-11-09T15:30:00Z' });
+        });
+
+        it('does not take back an edit that already arrived by the socket', () => {
+            const base = run([updated('m1', 'nuevo', '2026-11-09T15:31:00Z')], loaded());
+
+            const s = run(
+                [{ type: 'lastPageRefreshed', channelId: 'ch1', messages: [edited('m1', 'viejo', '2026-11-09T15:30:00Z')] }],
+                base,
+            );
+
+            expect(s).toBe(base);
+        });
+
+        it('does not add messages the store does not have, and ignores the ones never edited', () => {
+            const base = loaded();
+
+            const s = run(
+                [{ type: 'lastPageRefreshed', channelId: 'ch1', messages: [histMsg('m1', 'ch1', 'otro'), histMsg('m2'), edited('m7', 'x', '2026-11-09T15:30:00Z')] }],
+                base,
+            );
+
+            expect(s).toBe(base);
+        });
+    });
+});
+
+describe('chatReducer — borrado de mensajes', () => {
+    const at = (messageId: string, minute: number): ChatMessage => ({
+        ...histMsg(messageId),
+        createdAt: `2026-11-10T12:${String(minute).padStart(2, '0')}:00Z`,
+    });
+    const loaded = () => run([historyLoaded([at('m1', 1), at('m2', 2), at('m3', 3)])]);
+    const deleted = (messageId: string, channelId = 'ch1'): ChatAction => ({ type: 'deleted', channelId, messageId });
+
+    it('takes the message out of the list', () => {
+        const s = run([deleted('m2')], loaded());
+
+        expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm3']);
+    });
+
+    it('a repeated delete, or one of a message that is not loaded, changes nothing', () => {
+        const once = run([deleted('m2')], loaded());
+
+        expect(run([deleted('m2')], once)).toBe(once);
+        expect(run([deleted('desconocido')], once)).toBe(once);
+        expect(run([deleted('m1', 'otro-canal')], once)).toBe(once);
+    });
+
+    it('a message.created that arrives late, crossed with the delete, does not bring it back', () => {
+        const s = run([created('m9'), deleted('m9'), created('m9')]);
+
+        expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual([]);
+    });
+
+    it('an edit of a deleted message does not bring it back', () => {
+        const s = run(
+            [deleted('m2'), { type: 'updated', channelId: 'ch1', messageId: 'm2', content: 'x', editedAt: '2026-11-10T13:00:00Z' }],
+            loaded(),
+        );
+
+        expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm3']);
+    });
+
+    describe('lastPageRefreshed (the last page after a reconnection)', () => {
+        const refreshed = (messages: ChatMessage[]): ChatAction => ({ type: 'lastPageRefreshed', channelId: 'ch1', messages });
+
+        it('drops what was deleted while the session was offline', () => {
+            const s = run([refreshed([at('m1', 1), at('m3', 3)])], loaded());
+
+            expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm3']);
+        });
+
+        it('keeps what is older than the page: the page does not say anything about it', () => {
+            const s = run([refreshed([at('m2', 2), at('m3', 3)])], loaded());
+
+            expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2', 'm3']);
+        });
+
+        it('keeps what is newer than the page: it may have arrived after the request', () => {
+            const s = run([refreshed([at('m1', 1), at('m2', 2)])], loaded());
+
+            expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2', 'm3']);
+        });
+
+        it('an empty page changes nothing: it cannot tell what stretch it covers', () => {
+            const base = loaded();
+
+            expect(run([refreshed([])], base)).toBe(base);
+        });
+
+        it('a page identical to the list changes nothing', () => {
+            const base = loaded();
+
+            expect(run([refreshed([at('m1', 1), at('m2', 2), at('m3', 3)])], base)).toBe(base);
+        });
+    });
+});

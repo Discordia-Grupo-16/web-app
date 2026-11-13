@@ -1,3 +1,5 @@
+import type { VoiceRosterParticipant } from '../voice/types';
+
 export interface MessageSendFrame {
     type: 'message.send';
     channelId: string;
@@ -23,6 +25,94 @@ export interface MessageCreatedFrame {
     clientMessageId: string;
 }
 
+/**
+ * A message was edited (SCRUM-44). It carries the data, not just a notice: the message belongs to
+ * `chat`, so there is no other service to ask. The client applies it only if `editedAt` is newer
+ * than the one it has, so a repeated or crossed frame never takes an edit back.
+ */
+export interface MessageUpdatedFrame {
+    type: 'message.updated';
+    messageId: string;
+    channelId: string;
+    serverId: string;
+    authorId: string;
+    content: string;
+    editedAt: string;
+}
+
+/**
+ * A message was deleted (SCRUM-45). It carries no content: the text of a deleted message never
+ * leaves `chat` again. A delete cannot be undone, so a repeated or late frame only removes what
+ * was already gone.
+ */
+export interface MessageDeletedFrame {
+    type: 'message.deleted';
+    messageId: string;
+    channelId: string;
+    serverId: string;
+    deletedAt: string;
+}
+
+/**
+ * What a client has to fetch again (ADR-0017). The set is open: the server may add values, and a
+ * client ignores the ones it does not know, so `resources` is typed as plain strings.
+ */
+export type InvalidateResource =
+    | 'servers'
+    | 'server'
+    | 'channels'
+    | 'permissions'
+    | 'members'
+    | 'bans'
+    | 'roles'
+    | 'profile'
+    | 'ownershipTransfers';
+
+/**
+ * Something the client has loaded went stale. It carries no data: the client asks again over HTTP,
+ * because the source is `community` or `identity`, not `chat`. A repeated or out-of-order notice
+ * only costs a refetch.
+ */
+export interface InvalidateFrame {
+    type: 'invalidate';
+    /** Absent when the resources are not a server's (`servers`, `profile`). */
+    serverId?: string;
+    resources: string[];
+    /** Whose profile changed. Present only when a profile is the cause. */
+    userId?: string;
+}
+
+/**
+ * Who is connected to a voice channel changed (SCRUM-54, ADR-0017). Unlike `invalidate` it carries
+ * the data, because it is `chat`'s own: the whole list, not a delta. An empty `participants` means
+ * the channel is empty. Apply it only if `syncedAt` is newer than the one already held for the channel.
+ */
+export interface VoiceParticipantsUpdatedFrame {
+    type: 'voice-participants.updated';
+    serverId: string;
+    channelId: string;
+    participants: VoiceRosterParticipant[];
+    syncedAt: string;
+}
+
+export interface ReadStateEntry {
+    channelId: string;
+    serverId: string;
+    lastReadMessageId: string;
+    lastReadAt: string;
+}
+
+/**
+ * The user read something in another session. Unlike `invalidate` it carries the data: the read
+ * state belongs to `chat`, so there is no other service to ask. It also reaches the session that
+ * made the request, and applying it twice changes nothing because a read state only moves forward.
+ */
+export interface ReadStateUpdatedFrame {
+    type: 'read-state.updated';
+    userId: string;
+    states: ReadStateEntry[];
+}
+
 export type RealtimeErrorCode =
     | 'CHANNEL_NOT_FOUND'
     | 'FORBIDDEN'
@@ -40,4 +130,12 @@ export interface ErrorFrame {
     };
 }
 
-export type ServerFrame = MessageAckFrame | MessageCreatedFrame | ErrorFrame;
+export type ServerFrame =
+    | MessageAckFrame
+    | MessageCreatedFrame
+    | MessageUpdatedFrame
+    | MessageDeletedFrame
+    | InvalidateFrame
+    | ReadStateUpdatedFrame
+    | VoiceParticipantsUpdatedFrame
+    | ErrorFrame;

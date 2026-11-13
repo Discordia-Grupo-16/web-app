@@ -10,6 +10,9 @@ const mockUser = { id: '1', name: 'Milton', avatarUrl: null };
 
 vi.mock('@discordia/core', () => ({
     useAuth: () => ({ user: mockUser, signOut, updateUser }),
+    // Sin tiempo real, como en este test: no llega ningún aviso y el poll vuelve a los 5 s.
+    useServerEvents: vi.fn(),
+    usePollIntervalMs: () => 5000,
 }));
 
 vi.mock('@/shared/api', () => ({

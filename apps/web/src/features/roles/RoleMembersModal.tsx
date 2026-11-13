@@ -1,5 +1,5 @@
 import { Crown, X } from 'lucide-react';
-import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
+import { PERMISSION_COPY, ROLE_DELETION_TEXTS, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
     members: ServerMember[];
     ownerId: string | undefined;
     onClose: () => void;
+    /** The role left the list: only "Ese rol ya no existe" and closing (SCRUM-64). */
+    roleGone?: boolean;
 }
 
 /**
@@ -16,7 +18,7 @@ interface Props {
  * every member arrives with their roles, so there is nothing to fetch and no
  * second source of truth to keep in step.
  */
-export const RoleMembersModal = ({ role, members, ownerId, onClose }: Props) => {
+export const RoleMembersModal = ({ role, members, ownerId, onClose, roleGone = false }: Props) => {
     const { user } = useAuth();
     const withRole = members.filter(member => member.roles.some(r => r.id === role.id));
 
@@ -53,7 +55,11 @@ export const RoleMembersModal = ({ role, members, ownerId, onClose }: Props) => 
                     {role.name} · {PERMISSION_COPY.membersTitle(withRole.length)}
                 </p>
 
-                {withRole.length === 0 ? (
+                {roleGone ? (
+                    <p role="alert" className="text-sm" style={{ color: '#ed4245' }}>
+                        {ROLE_DELETION_TEXTS.roleGone}
+                    </p>
+                ) : withRole.length === 0 ? (
                     <p className="text-sm" style={{ color: '#99aab5' }}>
                         {PERMISSION_COPY.noMembersWithRole}
                     </p>

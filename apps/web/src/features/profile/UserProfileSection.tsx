@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ProfilePopup } from './ProfilePopup';
 import { UserProfileEditModal } from './UserProfileEditModal';
+import { SecurityModal } from './SecurityModal';
 import { useAuth } from "@discordia/core";
 import { LogoutIcon } from "@discordia/ui";
 import { userService } from "@/shared/api";
-import { usePolling } from "@/shared/hooks/usePolling"
+import { useLiveRefresh } from "@/shared/hooks/useLiveRefresh"
 
 export const UserProfileSection = () => {
     const [showProfile, setShowProfile] = useState(false)
     const [showEditModal, setShowEditModal] = useState(false)
+    const [showSecurity, setShowSecurity] = useState(false)
     const { user, signOut, updateUser } = useAuth();
 
     const localChangeRef = useRef(0);
@@ -28,7 +30,7 @@ export const UserProfileSection = () => {
         refreshProfile();
     }, [refreshProfile]);
 
-    usePolling(refreshProfile);
+    useLiveRefresh({ resources: ['profile'], refresh: refreshProfile });
 
     if (!user) {
         return <div>Cargando...</div>;
@@ -40,12 +42,14 @@ export const UserProfileSection = () => {
                 user={user}
                 onClose={() => setShowProfile(false)}
                 onEditProfile={() => setShowEditModal(true)}
+                onOpenSecurity={() => setShowSecurity(true)}
             />
         }
         {showEditModal && (<UserProfileEditModal
             isOpen={showEditModal}
             onClose={() => setShowEditModal(false)}
         />)}
+        {showSecurity && <SecurityModal onClose={() => setShowSecurity(false)} />}
         <div
             className="h-14 flex items-center px-2 gap-2 cursor-pointer transition-colors duration-150"
             style={{ background: showProfile ? 'rgba(114,137,218,0.1)' : 'transparent' }}

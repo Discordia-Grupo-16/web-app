@@ -7,11 +7,11 @@ tal cual desde `apps/web` (Vite) y, más adelante, desde `apps/mobile` (React Na
 ## Uso
 
 ```typescript
-import { createRealtimeClient } from '@discordia/api';
+import { createRealtimeClient, createWsTicketGetter } from '@discordia/api';
 
 const client = createRealtimeClient({
     url: 'ws://localhost:8080/api/v1/ws',
-    getToken: () => storage.getToken(),
+    getTicket: createWsTicketGetter(apiClient),
 });
 
 const off = client.on('messageCreated', (frame) => { /* ... */ });
@@ -25,15 +25,18 @@ client.disconnect();
 (`crypto.randomUUID()` aparece solo en el ejemplo: generar el `clientMessageId` le toca a quien
 llama. En React Native hay que buscar otra fuente de UUID.)
 
-## Cómo viaja el token
+## Cómo viaja la credencial: ticket de un solo uso
 
-La API `WebSocket` del navegador no permite mandar headers en el handshake, así que el token
-viaja como query param: `<url>?access_token=<jwt urlencoded>`. Lo arma el propio cliente a
-partir de `getToken()`.
+La API `WebSocket` del navegador no permite mandar headers en el handshake, así que la credencial
+viaja como query param: `<url>?ticket=<ticket urlencoded>`. Ya **no** se manda el JWT en la URL
+(ADR-0008): el ticket lo emite el gateway (`POST /api/v1/ws-ticket`), vive 30 segundos y se canjea
+una sola vez, así que si queda en un log no sirve para nada.
 
-`getToken()` se llama **en cada intento de conexión**, no solo una vez: el JWT únicamente se
-valida en el handshake, así que si el token venció, la reconexión (que abre un handshake nuevo)
-es lo único que lo nota. Si tu storage renovó el token, el siguiente intento ya usa el nuevo.
+`getTicket()` se llama **en cada intento de conexión**, incluidas las reconexiones, porque cada
+ticket sirve una vez. `createWsTicketGetter(apiClient)` lo pide con la misma instancia de axios
+que el resto de la app, por lo que si el access token venció se renueva antes de pedir el ticket.
+Si el pedido da `401` (no hay sesión usable) devuelve `null` y el cliente pasa a `closed` sin
+reintentar; cualquier otro error hace que reintente con backoff.
 
 Un 401/403 en el handshake **no se puede distinguir desde JS** de una caída de red — el
 navegador solo entrega un `close` con código 1006 sin status HTTP. El cliente trata ambos casos
@@ -90,3 +93,22 @@ correcta por config.
 Todavía no hay tests automatizados: el monorepo no tiene framework de testing definido. La
 lista de casos a cubrir: conexión, envío, recepción, reconexión, cierre deliberado y
 suscripciones.
+
+## Avisos de invalidación (`invalidate`)
+
+Cuando cambia algo que el cliente tiene cargado (la lista de canales, los permisos, los
+miembros...), `chat` manda un frame `invalidate` y el cliente lo entrega como el evento
+`invalidate`. **El frame no trae el dato nuevo**: hay que volver a pedirlo por HTTP, porque la
+fuente es `community` o `identity` (ADR-0017).
+
+```typescript
+client.on('invalidate', ({ serverId, resources, userId }) => {
+    if (resources.includes('channels')) refetchChannels(serverId);
+});
+```
+
+- `resources` es un conjunto abierto: un valor que no conocés se ignora, no se trata como error.
+  El cliente no filtra por recurso, eso lo hace quien se suscribe.
+- Un frame sin `resources` (o que no sea una lista) se descarta: no hay nada que pedir.
+- Los avisos que pasan mientras el socket está caído se pierden. Quien escucha tiene que volver
+  a pedir todo al reconectar; `onReconnect` de `@discordia/core` avisa cuándo.

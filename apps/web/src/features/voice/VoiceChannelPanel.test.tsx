@@ -1,14 +1,27 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useVoice, VOICE_JOIN_ERROR_TEXTS, VOICE_TEXTS, type VoiceChannelRef, type VoiceJoinError } from '@discordia/core';
+import {
+    useVoice,
+    useVoiceCallParticipants,
+    VOICE_JOIN_ERROR_TEXTS,
+    VOICE_TEXTS,
+    VoiceSpeakersContext,
+    type VoiceChannelRef,
+    type VoiceJoinError,
+} from '@discordia/core';
 import { voiceValue } from './testing';
 import { VoiceChannelPanel } from './VoiceChannelPanel';
+
+// vi.mock is hoisted above the imports, so the default list of the call is hoisted with it.
+const { ANA_ONLY } = vi.hoisted(() => ({
+    ANA_ONLY: [{ userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: true }],
+}));
 
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
     useVoice: vi.fn(),
-    useVoiceCallParticipants: vi.fn(() => [{ userId: 'u1', name: 'Ana', loading: false, muted: true }]),
+    useVoiceCallParticipants: vi.fn(() => ANA_ONLY),
 }));
 
 const general: VoiceChannelRef = { id: 'c1', serverId: 's1', name: 'General' };
@@ -26,7 +39,10 @@ const connectedTo = (channel: VoiceChannelRef, extra: { micAvailable?: boolean; 
 });
 
 describe('VoiceChannelPanel', () => {
-    beforeEach(() => vi.mocked(useVoice).mockReturnValue(voiceValue()));
+    beforeEach(() => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue());
+        vi.mocked(useVoiceCallParticipants).mockReturnValue(ANA_ONLY);
+    });
 
     it('offers to join without connecting on open', async () => {
         const value = voiceValue();
@@ -72,6 +88,40 @@ describe('VoiceChannelPanel', () => {
 
         expect(screen.getByText('Ana')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Unirse' })).not.toBeInTheDocument();
+    });
+
+    it('highlights in the call who is speaking, and nobody who is muted (SCRUM-56)', () => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+        vi.mocked(useVoiceCallParticipants).mockReturnValue([
+            { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false },
+            { userId: 'u2', name: 'Beto', userAvatar: '', loading: false, muted: true },
+            { userId: 'u3', name: 'Cora', userAvatar: '', loading: false, muted: false },
+        ]);
+        render(
+            <VoiceSpeakersContext.Provider value={new Set(['u1', 'u2'])}>
+                <VoiceChannelPanel channel={general} canJoin />
+            </VoiceSpeakersContext.Provider>,
+        );
+
+        const items = screen.getAllByRole('listitem');
+        expect(items.filter((i) => i.hasAttribute('data-speaking')).map((i) => i.textContent)).toEqual(['AAna']);
+    });
+
+    it('mutes someone locally from the call list, with no button on the own row (SCRUM-57)', async () => {
+        const value = voiceValue({ call: connectedTo(general) });
+        vi.mocked(useVoice).mockReturnValue(value);
+        vi.mocked(useVoiceCallParticipants).mockReturnValue([
+            { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false, isSelf: false },
+            { userId: 'me', name: 'Milton', userAvatar: '', loading: false, muted: false, isSelf: true },
+        ]);
+        render(<VoiceChannelPanel channel={general} canJoin />);
+
+        const [ana, me] = screen.getAllByRole('listitem');
+        expect(within(me).queryByRole('button')).not.toBeInTheDocument();
+        await userEvent.click(within(ana).getByRole('button', { name: VOICE_TEXTS.localMute }));
+
+        expect(value.toggleLocalMute).toHaveBeenCalledTimes(1);
+        expect(value.toggleLocalMute).toHaveBeenCalledWith('u1');
     });
 
     it('offers to join another channel while in a call', () => {
