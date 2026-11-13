@@ -9,9 +9,9 @@ const ANA_ID = '22222222-2222-2222-2222-222222222222';
 const BOB_ID = '44444444-4444-4444-4444-444444444444';
 
 const participants: ChannelParticipantView[] = [
-    { userId: ANA_ID, name: 'Ana', loading: false, muted: false, isSelf: false },
-    { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
-    { userId: BOB_ID, name: 'Bob', loading: false, muted: false, isSelf: false },
+    { userId: ANA_ID, name: 'Ana', userAvatar: '', loading: false, muted: false, isSelf: false },
+    { userId: 'me', name: 'Milton', userAvatar: '', loading: false, muted: false, isSelf: true },
+    { userId: BOB_ID, name: 'Bob', userAvatar: '', loading: false, muted: false, isSelf: false },
 ];
 
 const highlighted = () =>

@@ -15,7 +15,7 @@ import { VoiceChannelPanel } from './VoiceChannelPanel';
 
 // vi.mock is hoisted above the imports, so the default list of the call is hoisted with it.
 const { ANA_ONLY } = vi.hoisted(() => ({
-    ANA_ONLY: [{ userId: 'u1', name: 'Ana', loading: false, muted: true }],
+    ANA_ONLY: [{ userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: true }],
 }));
 
 vi.mock('@discordia/core', async (importOriginal) => ({
@@ -93,9 +93,9 @@ describe('VoiceChannelPanel', () => {
     it('highlights in the call who is speaking, and nobody who is muted (SCRUM-56)', () => {
         vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
         vi.mocked(useVoiceCallParticipants).mockReturnValue([
-            { userId: 'u1', name: 'Ana', loading: false, muted: false },
-            { userId: 'u2', name: 'Beto', loading: false, muted: true },
-            { userId: 'u3', name: 'Cora', loading: false, muted: false },
+            { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false },
+            { userId: 'u2', name: 'Beto', userAvatar: '', loading: false, muted: true },
+            { userId: 'u3', name: 'Cora', userAvatar: '', loading: false, muted: false },
         ]);
         render(
             <VoiceSpeakersContext.Provider value={new Set(['u1', 'u2'])}>
@@ -111,8 +111,8 @@ describe('VoiceChannelPanel', () => {
         const value = voiceValue({ call: connectedTo(general) });
         vi.mocked(useVoice).mockReturnValue(value);
         vi.mocked(useVoiceCallParticipants).mockReturnValue([
-            { userId: 'u1', name: 'Ana', loading: false, muted: false, isSelf: false },
-            { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
+            { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false, isSelf: false },
+            { userId: 'me', name: 'Milton', userAvatar: '', loading: false, muted: false, isSelf: true },
         ]);
         render(<VoiceChannelPanel channel={general} canJoin />);
 

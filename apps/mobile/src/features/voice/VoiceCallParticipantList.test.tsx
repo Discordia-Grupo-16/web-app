@@ -4,9 +4,9 @@ import { voiceValue } from './testing';
 import { VoiceCallParticipantList } from './VoiceCallParticipantList';
 
 const participants: ChannelParticipantView[] = [
-  { userId: 'u1', name: 'Ana', loading: false, muted: false, isSelf: false },
-  { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
-  { userId: 'u3', name: 'Bob', loading: false, muted: false, isSelf: false },
+  { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false, isSelf: false },
+  { userId: 'me', name: 'Milton', userAvatar: '', loading: false, muted: false, isSelf: true },
+  { userId: 'u3', name: 'Bob', userAvatar: '', loading: false, muted: false, isSelf: false },
 ];
 
 describe('VoiceCallParticipantList', () => {
