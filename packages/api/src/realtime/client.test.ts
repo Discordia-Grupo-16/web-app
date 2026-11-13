@@ -318,6 +318,41 @@ describe('receiving', () => {
         expect(onInvalidate).toHaveBeenNthCalledWith(3, ofAProfile);
     });
 
+    it('emits messageUpdated with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onUpdated = vi.fn();
+        client.on('messageUpdated', onUpdated);
+
+        const frame = {
+            type: 'message.updated',
+            messageId: 'm1',
+            channelId: 'c1',
+            serverId: 's1',
+            authorId: 'u1',
+            content: 'corregido',
+            editedAt: '2026-11-09T15:30:00.123Z',
+        };
+        socket.message(frame);
+
+        expect(onUpdated).toHaveBeenCalledTimes(1);
+        expect(onUpdated).toHaveBeenCalledWith(frame);
+    });
+
+    it.each([
+        ['messageId', { channelId: 'c1', content: 'x', editedAt: '2026-11-09T15:30:00Z' }],
+        ['channelId', { messageId: 'm1', content: 'x', editedAt: '2026-11-09T15:30:00Z' }],
+        ['content', { messageId: 'm1', channelId: 'c1', editedAt: '2026-11-09T15:30:00Z' }],
+        ['editedAt', { messageId: 'm1', channelId: 'c1', content: 'x' }],
+    ])('drops a message.updated without %s: there is nothing to apply it to or to order it by', async (_field, rest) => {
+        const { client, socket } = await openClient();
+        const onUpdated = vi.fn();
+        client.on('messageUpdated', onUpdated);
+
+        expect(() => socket.message({ type: 'message.updated', serverId: 's1', authorId: 'u1', ...rest })).not.toThrow();
+
+        expect(onUpdated).not.toHaveBeenCalled();
+    });
+
     it('emits readStateUpdated with the parsed frame', async () => {
         const { client, socket } = await openClient();
         const onReadState = vi.fn();

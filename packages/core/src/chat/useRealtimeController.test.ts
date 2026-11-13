@@ -51,6 +51,7 @@ describe('useRealtimeController', () => {
                 token: 'token',
                 newClientMessageId: () => `msg-${++ids}`,
                 api: { get: vi.fn().mockResolvedValue({ data: { data: [], hasMore: false } }) },
+                messagesService: { editMessage: vi.fn() },
                 logger: { error: vi.fn() },
                 ...overrides,
             },
@@ -67,7 +68,7 @@ describe('useRealtimeController', () => {
         const { rerender } = render();
         expect(fake.client.connect).toHaveBeenCalledTimes(1);
 
-        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x', api: { get: vi.fn() }, logger: { error: vi.fn() } });
+        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x', api: { get: vi.fn() }, messagesService: { editMessage: vi.fn() }, logger: { error: vi.fn() } });
         expect(fake.client.disconnect).toHaveBeenCalled();
     });
 
@@ -441,5 +442,106 @@ describe('useRealtimeController', () => {
 
         expect(unsubscribed).not.toHaveBeenCalled();
         expect(healthy).toHaveBeenCalledTimes(1);
+    });
+
+    describe('editing messages', () => {
+        const stored = (overrides: Record<string, unknown> = {}) => ({
+            messageId: 'm1', clientMessageId: 'c1', channelId: CHANNEL, serverId: 's1', authorId: 'u1',
+            content: 'original', createdAt: '2026-01-01T00:00:00Z', editedAt: null, ...overrides,
+        });
+        const loadChannel = async (result: ReturnType<typeof render>['result']) => {
+            fake.emit('stateChange', 'open');
+            await act(async () => {
+                result.current.value.loadHistory(CHANNEL);
+                await Promise.resolve();
+            });
+        };
+        const history = (messages: unknown[]) =>
+            vi.fn().mockResolvedValue({ data: { data: messages, hasMore: false } });
+
+        it('applies a message.updated frame to the message in the list', async () => {
+            const { result } = render({ api: { get: history([stored()]) } });
+            await loadChannel(result);
+
+            fake.emit('messageUpdated', {
+                type: 'message.updated', messageId: 'm1', channelId: CHANNEL, serverId: 's1', authorId: 'u1',
+                content: 'corregido', editedAt: '2026-11-09T15:30:00Z',
+            });
+
+            expect(result.current.value.state.byChannel[CHANNEL]?.[0]).toMatchObject({
+                content: 'corregido', editedAt: '2026-11-09T15:30:00Z',
+            });
+        });
+
+        it('editMessage calls the service and shows the saved content without waiting for the frame', async () => {
+            const editMessage = vi.fn().mockResolvedValue(stored({ content: 'corregido', editedAt: '2026-11-09T15:30:00Z' }));
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage } });
+            await loadChannel(result);
+
+            await act(async () => { await result.current.value.editMessage(CHANNEL, 'm1', 'corregido'); });
+
+            expect(editMessage).toHaveBeenCalledWith(CHANNEL, 'm1', 'corregido');
+            expect(result.current.value.state.byChannel[CHANNEL]?.[0]).toMatchObject({
+                content: 'corregido', editedAt: '2026-11-09T15:30:00Z',
+            });
+        });
+
+        it('the frame that follows the response changes nothing: its editedAt is not newer', async () => {
+            const editMessage = vi.fn().mockResolvedValue(stored({ content: 'corregido', editedAt: '2026-11-09T15:30:00Z' }));
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage } });
+            await loadChannel(result);
+            await act(async () => { await result.current.value.editMessage(CHANNEL, 'm1', 'corregido'); });
+            const afterResponse = result.current.value.state;
+
+            fake.emit('messageUpdated', {
+                type: 'message.updated', messageId: 'm1', channelId: CHANNEL, serverId: 's1', authorId: 'u1',
+                content: 'corregido', editedAt: '2026-11-09T15:30:00Z',
+            });
+
+            expect(result.current.value.state).toBe(afterResponse);
+        });
+
+        it('editMessage with the same content leaves the message as it was', async () => {
+            const editMessage = vi.fn().mockResolvedValue(stored());
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage } });
+            await loadChannel(result);
+            const before = result.current.value.state;
+
+            await act(async () => { await result.current.value.editMessage(CHANNEL, 'm1', 'original'); });
+
+            expect(result.current.value.state.byChannel).toBe(before.byChannel);
+        });
+
+        it('editMessage rejects with the server error and leaves the message untouched', async () => {
+            const failure = Object.assign(new Error('forbidden'), { response: { status: 403 } });
+            const editMessage = vi.fn().mockRejectedValue(failure);
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage } });
+            await loadChannel(result);
+
+            await act(async () => {
+                await expect(result.current.value.editMessage(CHANNEL, 'm1', 'x')).rejects.toBe(failure);
+            });
+
+            expect(result.current.value.state.byChannel[CHANNEL]?.[0].content).toBe('original');
+        });
+
+        it('brings the edits it missed while offline when the socket comes back', async () => {
+            const apiGet = vi.fn()
+                .mockResolvedValueOnce({ data: { data: [stored()], hasMore: false } }) // initial history
+                .mockResolvedValueOnce({ data: { data: [], hasMore: false } }) // ?after: nothing new
+                .mockResolvedValueOnce({ // the last page again
+                    data: { data: [stored({ content: 'corregido offline', editedAt: '2026-11-09T15:30:00Z' })], hasMore: false },
+                });
+            const { result } = render({ api: { get: apiGet } });
+            await loadChannel(result);
+
+            fake.emit('stateChange', 'reconnecting');
+            fake.emit('stateChange', 'open');
+            await act(async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); });
+
+            expect(result.current.value.state.byChannel[CHANNEL]?.[0]).toMatchObject({
+                content: 'corregido offline', editedAt: '2026-11-09T15:30:00Z',
+            });
+        });
     });
 });

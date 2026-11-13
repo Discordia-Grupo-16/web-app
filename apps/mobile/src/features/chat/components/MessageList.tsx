@@ -22,11 +22,22 @@ interface MessageListProps {
   loadMoreError: boolean;
   onLoadMore: () => void;
   onRetryLoadMore: () => void;
+  /** The user can still write in the channel (SEND_MESSAGES): without it their messages cannot be edited. */
+  canEditOwn: boolean;
+  /** The user chose "Editar" in the menu of one of their own messages. */
+  onStartEdit: (messageId: string) => void;
 }
 
 // There is no tooltip on mobile: the correlationId (for searching the logs) is shown on long-press.
 const showErrorDetails = (errorCode: string | undefined, correlationId: string | undefined) =>
   Alert.alert('Detalle del error', `Código: ${errorCode ?? 'desconocido'}\ncorrelationId: ${correlationId ?? 'sin dato'}`);
+
+// The long-press menu of an own message. "Editar" is the only action for now.
+const showMessageMenu = (onEdit: () => void) =>
+  Alert.alert('Mensaje', undefined, [
+    { text: 'Editar', onPress: onEdit },
+    { text: 'Cancelar', style: 'cancel' },
+  ]);
 
 type ListItem =
   | { kind: 'pending'; message: PendingMessage }
@@ -48,6 +59,8 @@ export const MessageList = ({
   loadMoreError,
   onLoadMore,
   onRetryLoadMore,
+  canEditOwn,
+  onStartEdit,
 }: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
   const pendingCountRef = useRef(pending.length);
@@ -132,6 +145,9 @@ export const MessageList = ({
         if (item.kind === 'confirmed') {
           const { authorId } = item.message;
           const author = authorView(authorId, currentUser, profiles.get(authorId));
+          // Read from the props on every render, never kept: if SEND_MESSAGES is taken away with the
+          // screen open the menu stops existing on the next render.
+          const canEdit = canEditOwn && currentUser !== null && authorId === currentUser.id;
           return (
             <MessageItem
               authorId={authorId}
@@ -139,6 +155,8 @@ export const MessageList = ({
               authorAvatarUrl={author.avatarUrl}
               content={item.message.content}
               createdAt={item.message.createdAt}
+              editedAt={item.message.editedAt}
+              onLongPress={canEdit ? () => showMessageMenu(() => onStartEdit(item.message.messageId)) : undefined}
               onSelectAuthor={() => router.push({ pathname: '/user/[userId]', params: { userId: authorId } })}
             />
           );

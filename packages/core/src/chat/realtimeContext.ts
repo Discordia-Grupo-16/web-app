@@ -26,6 +26,11 @@ export interface RealtimeContextValue {
     discard: (clientMessageId: string) => void;
     lastRejected: RejectedMessage | null;
     clearRejected: () => void;
+    /**
+     * Edits one of the user's own messages (SCRUM-44). Resolves when it is saved and already applied
+     * to the list; rejects with the HTTP error, which `editErrorText` turns into text.
+     */
+    editMessage: (channelId: string, messageId: string, content: string) => Promise<void>;
     loadHistory: (channelId: string) => void;
     retryHistory: (channelId: string) => void;
     loadMoreHistory: (channelId: string, beforeId: string) => void;

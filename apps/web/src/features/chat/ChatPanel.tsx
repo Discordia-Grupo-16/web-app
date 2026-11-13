@@ -14,7 +14,7 @@ export const ChatPanel = ({ channelId, channelName, topic, canSendMessages }: Ch
     const { user } = useAuth();
     const {
         messages, pending, status, maxLength,
-        send, retry, discard,
+        send, retry, discard, editMessage,
         historyLoaded, historyError, retryHistory,
         hasMore, loadingMore, loadMoreError, loadMore,
         rejected, clearRejected,
@@ -42,6 +42,9 @@ export const ChatPanel = ({ channelId, channelName, topic, canSendMessages }: Ch
                 loadMoreError={loadMoreError}
                 onLoadMore={loadMore}
                 onRetryLoadMore={loadMore}
+                canEditOwn={canSendMessages}
+                maxLength={maxLength}
+                onEdit={editMessage}
             />
             <MessageComposer
                 channelName={channelName}

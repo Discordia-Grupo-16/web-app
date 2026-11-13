@@ -110,3 +110,106 @@ describe('MessageComposer without SEND_MESSAGES', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 });
+
+describe('MessageComposer editing', () => {
+  const renderEditing = async (overrides: { onSave?: jest.Mock; status?: RealtimeStatus } = {}) => {
+    const onSave = overrides.onSave ?? jest.fn(async () => {});
+    const onCancel = jest.fn();
+    const user = userEvent.setup();
+    await render(
+      <MessageComposer
+        channelName="general"
+        status={overrides.status ?? 'open'}
+        maxLength={10}
+        rejected={null}
+        onSend={jest.fn()}
+        onRejectedHandled={jest.fn()}
+        canSendMessages
+        editing={{ initialContent: 'hola', onSave, onCancel }}
+      />,
+    );
+    return { user, onSave, onCancel };
+  };
+  const saveButton = () => screen.getByLabelText('Guardar edición');
+
+  it('starts with the text of the message and says it is editing', async () => {
+    await renderEditing();
+
+    expect(screen.getByDisplayValue('hola')).toBeOnTheScreen();
+    expect(screen.getByText('Editando mensaje')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Enviar mensaje')).not.toBeOnTheScreen();
+  });
+
+  it('saves the changed text instead of sending it', async () => {
+    const { user, onSave } = await renderEditing();
+
+    await user.type(screen.getByDisplayValue('hola'), '!');
+    await user.press(saveButton());
+
+    expect(onSave).toHaveBeenCalledWith('hola!');
+  });
+
+  it('closes without calling the server when nothing changed', async () => {
+    const { user, onSave, onCancel } = await renderEditing();
+
+    await user.press(saveButton());
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('has a visible Cancelar that leaves without saving', async () => {
+    const { user, onSave, onCancel } = await renderEditing();
+
+    await user.type(screen.getByDisplayValue('hola'), '!');
+    await user.press(screen.getByLabelText('Cancelar edición'));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('does not need the socket: editing goes over HTTP', async () => {
+    const { user } = await renderEditing({ status: 'closed' });
+
+    await user.type(screen.getByDisplayValue('hola'), '!');
+
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it('does not save an empty text or one over the limit', async () => {
+    const { user } = await renderEditing();
+
+    await user.clear(screen.getByDisplayValue('hola'));
+    expect(saveButton()).toBeDisabled();
+
+    await user.type(screen.getByPlaceholderText('Enviar mensaje a #general'), 'a'.repeat(11));
+    expect(saveButton()).toBeDisabled();
+  });
+
+  it.each([
+    ['an HTTP 500', Object.assign(new Error('boom'), { response: { status: 500 } })],
+    ['no answer at all (network down)', new Error('Network Error')],
+  ])('on %s stays in edit mode with the generic error: it must never look as if it saved', async (_case, failure) => {
+    const { user } = await renderEditing({ onSave: jest.fn(async () => { throw failure; }) });
+
+    await user.type(screen.getByDisplayValue('hola'), '!');
+    await user.press(saveButton());
+
+    expect(await screen.findByText('No se pudo editar el mensaje.')).toBeOnTheScreen();
+    expect(screen.getByText('Editando mensaje')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('hola!')).toBeOnTheScreen();
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it('stays open and says why when the server refuses', async () => {
+    const refused = Object.assign(new Error('forbidden'), { response: { status: 403 } });
+    const { user } = await renderEditing({ onSave: jest.fn(async () => { throw refused; }) });
+
+    await user.type(screen.getByDisplayValue('hola'), '!');
+    await user.press(saveButton());
+
+    expect(await screen.findByText('No tenés permiso para editar este mensaje.')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('hola!')).toBeOnTheScreen();
+    expect(saveButton()).toBeEnabled();
+  });
+});
