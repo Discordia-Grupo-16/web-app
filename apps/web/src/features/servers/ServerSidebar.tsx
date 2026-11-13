@@ -43,14 +43,11 @@ export const ServerSidebar = () => {
     const location = useLocation();
     const { serverId } = useParams();
     const navigate = useNavigate();
-
-    useEffect(() => {
-        const state = location.state;
-        if (state && typeof state === 'object' && 'serverGone' in state && state.serverGone === true) {
-            setShowGoneNotice(true);
-            navigate(location.pathname, { replace: true, state: null });
-        }
-    }, [location.pathname, location.state, navigate]);
+    const navigatedFromGoneServer =
+        location.state !== null &&
+        typeof location.state === 'object' &&
+        'serverGone' in location.state &&
+        location.state.serverGone === true;
 
     // A response from before a local change (e.g. creating a server) would drop it again.
     const localChangeRef = useRef(0);
@@ -175,7 +172,7 @@ export const ServerSidebar = () => {
             {showCreate && (
                 <CreateServerModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />
             )}
-            {showGoneNotice && (
+            {(showGoneNotice || navigatedFromGoneServer) && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
                     <div
                         role="alertdialog"
@@ -197,7 +194,7 @@ export const ServerSidebar = () => {
                                 autoFocus
                                 onClick={() => {
                                     setShowGoneNotice(false);
-                                    navigate('/');
+                                    navigate('/', { state: null });
                                 }}
                                 className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors"
                                 style={{ background: '#5865f2' }}
