@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NO_LOCAL_MUTES, NO_SPEAKERS, toggleId } from './participants';
 import { canRejoin } from './texts';
 import type {
     MicResult,
@@ -61,11 +62,14 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
     const [call, setCall] = useState<VoiceCall>({ status: 'idle' });
     const [attempt, setAttempt] = useState<VoiceJoinAttempt | null>(null);
     const [audioBlocked, setAudioBlocked] = useState(false);
+    const [speakers, setSpeakers] = useState<ReadonlySet<string>>(NO_SPEAKERS);
+    const [locallyMuted, setLocallyMuted] = useState<ReadonlySet<string>>(NO_LOCAL_MUTES);
 
     // Mirrors of the state for the async flow, which outlives the render that started it.
     const callRef = useRef(call);
     const attemptRef = useRef(attempt);
     const participantsRef = useRef<VoiceParticipant[]>([]);
+    const locallyMutedRef = useRef(locallyMuted);
     // While switching rooms, the exit from the previous one (own or forced by chat) is not shown.
     const switchingRef = useRef(false);
     // A disconnection hidden by the switch, shown after all if the switch fails before leaving the room.
@@ -86,6 +90,10 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
         attemptRef.current = next;
         setAttempt(next);
     }, []);
+    const updateLocallyMuted = useCallback((next: ReadonlySet<string>) => {
+        locallyMutedRef.current = next;
+        setLocallyMuted(next);
+    }, []);
 
     useEffect(() => {
         if (!adapter) return;
@@ -95,6 +103,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                 const current = callRef.current;
                 if (current.status === 'connected') updateCall({ ...current, participants: snapshot });
             }),
+            adapter.onActiveSpeakersChanged(setSpeakers),
             adapter.onDisconnected((info) => {
                 const current = callRef.current;
                 if (current.status !== 'connected') return;
@@ -134,7 +143,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
     );
 
     const startJoin = useCallback(
-        (channel: VoiceChannelRef, micPlan: MicPlan) => {
+        (channel: VoiceChannelRef, micPlan: MicPlan, keepLocalMutes = false) => {
             if (!adapter) return;
             const previous = callRef.current;
             rememberedMuteRef.current = false;
@@ -170,6 +179,11 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                         participantsRef.current = [];
                         if (stopped()) return;
                     }
+                    // The old room is gone from here on. A join from scratch starts with nobody muted; "Volver a
+                    // unirse" keeps them. Either way the adapter gets the whole set before connecting, so the first
+                    // audio of a muted participant already plays at volume 0.
+                    if (!keepLocalMutes) updateLocallyMuted(NO_LOCAL_MUTES);
+                    adapter.setLocallyMuted(locallyMutedRef.current);
                     await adapter.connect(token.url, token.token);
                 } catch (error) {
                     if (stopped()) return;
@@ -207,7 +221,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                 updateCall({ ...current, ...micState(mic, micPlan.kind === 'muted') });
             })();
         },
-        [adapter, requestToken, updateAttempt, updateCall],
+        [adapter, requestToken, updateAttempt, updateCall, updateLocallyMuted],
     );
 
     // A channel's "Unirse". Switching rooms keeps the microphone as it was; from no call it starts on.
@@ -230,7 +244,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
         const current = callRef.current;
         if (!adapter || attemptRef.current?.status === 'connecting') return;
         if (current.status !== 'disconnected' || !canRejoin(current.reason)) return;
-        startJoin(current.channel, rememberedMuteRef.current ? { kind: 'muted' } : { kind: 'on' });
+        startJoin(current.channel, rememberedMuteRef.current ? { kind: 'muted' } : { kind: 'on' }, true);
     }, [adapter, startJoin]);
 
     const retry = useCallback(() => {
@@ -243,8 +257,9 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
     const dismiss = useCallback(() => {
         if (attemptRef.current?.status === 'failed') updateAttempt(null);
         rememberedMuteRef.current = false;
+        updateLocallyMuted(NO_LOCAL_MUTES);
         if (callRef.current.status === 'disconnected') updateCall({ status: 'idle' });
-    }, [updateAttempt, updateCall]);
+    }, [updateAttempt, updateCall, updateLocallyMuted]);
 
     const startAudio = useCallback(() => {
         void adapter?.startAudio?.();
@@ -276,9 +291,10 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
         participantsRef.current = [];
         micRequestRef.current += 1;
         rememberedMuteRef.current = false;
+        updateLocallyMuted(NO_LOCAL_MUTES);
         updateCall({ status: 'idle' });
         void adapter.disconnect();
-    }, [adapter, updateCall]);
+    }, [adapter, updateCall, updateLocallyMuted]);
 
     // Muting is immediate. Turning the microphone on waits for its answer: the control shows it is
     // active only once the system gave it.
@@ -303,6 +319,22 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
             });
     }, [adapter, updateCall]);
 
+    // Only on this device: the adapter turns the volume of that participant down or back up.
+    const toggleLocalMute = useCallback(
+        (userId: string) => {
+            const current = callRef.current;
+            if (!adapter || current.status !== 'connected' || attemptRef.current?.status === 'connecting') return;
+            const participant = current.participants.find((p) => p.userId === userId);
+            if (!participant || participant.isLocal) return;
+            const next = toggleId(locallyMutedRef.current, userId);
+            updateLocallyMuted(next);
+            adapter.setLocallyMuted(next);
+        },
+        [adapter, updateLocallyMuted],
+    );
+
+    const connected = call.status === 'connected';
+
     const value = useMemo(
         () => ({
             call,
@@ -313,12 +345,33 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
             rejoin,
             leave,
             toggleMute,
+            locallyMuted: connected ? locallyMuted : NO_LOCAL_MUTES,
+            toggleLocalMute,
             retry,
             dismiss,
             startAudio,
         }),
-        [call, attempt, adapter, audioBlocked, join, rejoin, leave, toggleMute, retry, dismiss, startAudio],
+        [
+            call,
+            attempt,
+            adapter,
+            audioBlocked,
+            join,
+            rejoin,
+            leave,
+            toggleMute,
+            connected,
+            locallyMuted,
+            toggleLocalMute,
+            retry,
+            dismiss,
+            startAudio,
+        ],
     );
 
-    return { value, disconnectWithReason };
+    // Outside a connected call nobody is speaking, whatever the adapter said last. The memo keeps the
+    // reference while nothing changes, so the readers of the context do not re-render.
+    const speakingIds = useMemo(() => (connected ? speakers : NO_SPEAKERS), [connected, speakers]);
+
+    return { value, speakingIds, disconnectWithReason };
 };

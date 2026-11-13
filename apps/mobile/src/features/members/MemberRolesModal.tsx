@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { PERMISSION_COPY } from '@discordia/core';
-import { getErrorDetail, type Role, type ServerMember } from '@discordia/api';
+import { getErrorDetail, isNotFoundError, type Role, type ServerMember } from '@discordia/api';
 import { rolesService } from '@/shared/api';
 
 interface Props {
@@ -12,6 +12,8 @@ interface Props {
   roles: Role[];
   onClose: () => void;
   onRolesChange: (userId: string, roles: Role[]) => void;
+  /** A 404 when giving or taking a role: the role list or the member list is out of date (SCRUM-64). */
+  onStale?: () => void;
 }
 
 /**
@@ -30,6 +32,7 @@ export function MemberRolesModal({
   roles,
   onClose,
   onRolesChange,
+  onStale,
 }: Props) {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +58,7 @@ export function MemberRolesModal({
       // and this screen does not. The list is left untouched, so the switch goes back to
       // what the server still holds.
       setError(getErrorDetail(err) || PERMISSION_COPY.memberRoleError);
+      if (isNotFoundError(err)) onStale?.();
     } finally {
       setPending(null);
     }

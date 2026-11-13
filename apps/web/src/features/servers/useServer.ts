@@ -54,6 +54,9 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
                 // throw away a channel the user just created but this answer has not seen yet.
                 setServer(prev => prev && prev.id === srv.id ? {
                     ...prev,
+                    // The owner and the name change with an ownership transfer and a server edit.
+                    owner_id: srv.owner_id,
+                    name: srv.name,
                     channels: srv.channels,
                     categories: srv.categories,
                     my_permissions: srv.my_permissions,

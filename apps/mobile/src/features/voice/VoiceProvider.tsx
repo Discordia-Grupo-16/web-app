@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useVoiceController, VoiceContext, type VoiceRoomAdapter } from '@discordia/core';
+import { useVoiceController, VoiceContext, VoiceSpeakersContext, type VoiceRoomAdapter } from '@discordia/core';
 import { voiceService } from '@/shared/api';
 import { loadVoice } from './loadVoice';
 import { useBackgroundCut, type BackgroundCut } from './useBackgroundCut';
@@ -30,7 +30,7 @@ export const VoiceProvider = ({ children }: { children: ReactNode }) => {
     const loaded = loadVoice();
     return loaded && withPermissionPrompt(loaded, promptGate);
   });
-  const { value, disconnectWithReason } = useVoiceController({
+  const { value, speakingIds, disconnectWithReason } = useVoiceController({
     adapter,
     requestToken: voiceService.createVoiceToken,
   });
@@ -43,5 +43,9 @@ export const VoiceProvider = ({ children }: { children: ReactNode }) => {
     promptGate.set(runWithPermissionPrompt);
   }, [promptGate, runWithPermissionPrompt]);
 
-  return <VoiceContext.Provider value={value}>{children}</VoiceContext.Provider>;
+  return (
+    <VoiceContext.Provider value={value}>
+      <VoiceSpeakersContext.Provider value={speakingIds}>{children}</VoiceSpeakersContext.Provider>
+    </VoiceContext.Provider>
+  );
 };

@@ -58,4 +58,11 @@ export const createRolesService = (apiClient: AxiosInstance) => ({
         apiClient
             .delete(`/api/v1/servers/${serverId}/roles/${roleId}/members/${userId}`)
             .then(() => undefined),
+
+    /**
+     * Deletes the role and its assignments (SCRUM-64). Rejects with 403, 404 or 409: a 404 means
+     * the role no longer exists, which the caller takes as done.
+     */
+    deleteRole: (serverId: string, roleId: string): Promise<void> =>
+        apiClient.delete(`/api/v1/servers/${serverId}/roles/${roleId}`).then(() => undefined),
 });

@@ -1,0 +1,20 @@
+{
+  "cli": { "appVersionSource": "local" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.discordia-g16.me",
+        "EXPO_PUBLIC_WS_URL": "wss://api.discordia-g16.me/api/v1/ws",
+        "EXPO_PUBLIC_WEB_URL": "https://discordia-g16.me",
+        "EXPO_PUBLIC_API_TIMEOUT_MS": "10000"
+      }
+    }
+  }
+}

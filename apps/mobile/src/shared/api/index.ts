@@ -5,12 +5,16 @@ import {
   createChannelsService,
   createInvitationsService,
   createMembersService,
+  createMfaService,
+  createMessagesService,
   createReadStatesService,
+  createOwnershipService,
   createRolesService,
   createServersService,
   createUserService,
   createVoiceService,
 } from '@discordia/api';
+import type { OwnershipTransferSource } from '@discordia/core';
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/shared/config/env';
 import { mobileAuthStorage } from '@/shared/session/authStorage';
 import { sessionExpiry } from '@/shared/session/sessionExpiry';
@@ -24,6 +28,7 @@ export const api = createApiClient({
 });
 
 export const authService = createAuthService(api);
+export const mfaService = createMfaService(api);
 export const userService = createUserService(api);
 export const serversService = createServersService(api);
 export const categoriesService = createCategoriesService(api);
@@ -33,6 +38,16 @@ export const membersService = createMembersService(api);
 export const invitationsService = createInvitationsService(api);
 export const voiceService = createVoiceService(api);
 export const readStatesService = createReadStatesService(api);
+export const messagesService = createMessagesService(api);
+export const ownershipService = createOwnershipService(api);
+
+// What the ownership hooks of core need: the transfer endpoints plus the servers, to tell a deleted
+// server apart and to drop the banners of servers the user is no longer in.
+export const ownershipSource: OwnershipTransferSource = {
+  ...ownershipService,
+  getServer: serversService.getServer,
+  getServers: () => serversService.getServers(),
+};
 
 // The public profile cache belongs to one session: when the server ends it, the cache ends too.
 sessionExpiry.subscribe(() => userService.clearPublicProfiles());

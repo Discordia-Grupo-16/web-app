@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
@@ -18,6 +18,10 @@ interface MembersSectionProps {
   onRolesChange: (userId: string, roles: Role[]) => void;
   onMemberKicked: (userId: string) => void;
   onMemberBanned: (userId: string) => void;
+  /** Extra actions drawn at the end of each row, such as transferring the ownership. */
+  renderMemberActions?: (member: ServerMember) => ReactNode;
+  /** A 404 when giving or taking a role: the lists are out of date (SCRUM-64). */
+  onStale?: () => void;
 }
 
 export function MembersSection({
@@ -31,6 +35,8 @@ export function MembersSection({
   onRolesChange,
   onMemberKicked,
   onMemberBanned,
+  renderMemberActions,
+  onStale,
 }: MembersSectionProps) {
   const { user } = useAuth();
   const router = useRouter();
@@ -53,7 +59,8 @@ export function MembersSection({
         </Text>
       </View>
 
-      {members.map(({ user_id, roles: memberRoles }) => {
+      {members.map((rowMember) => {
+        const { user_id, roles: memberRoles } = rowMember;
         const isOwner = user_id === ownerId;
         // The highest role is the one that names the member in the list: it is the one the
         // backend's hierarchy uses, and the list comes ordered by position.
@@ -124,6 +131,8 @@ export function MembersSection({
                 <Text className="text-[#ed4245] text-xs">Banear ›</Text>
               </TouchableOpacity>
             )}
+
+            {renderMemberActions?.(rowMember)}
           </View>
         );
       })}
@@ -137,6 +146,7 @@ export function MembersSection({
           roles={roles}
           onClose={() => setEditing(null)}
           onRolesChange={onRolesChange}
+          onStale={onStale}
         />
       )}
 

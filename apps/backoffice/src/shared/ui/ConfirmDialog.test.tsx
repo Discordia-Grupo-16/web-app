@@ -63,6 +63,23 @@ describe('ConfirmDialog', () => {
         expect(onCancel).toHaveBeenCalledTimes(1);
     });
 
+    it('requires the confirmation text before enabling the confirm button', async () => {
+        const { onConfirm } = renderDialog({ confirmationText: 'Discordia' });
+        const confirmButton = screen.getByRole('button', { name: 'Suspender cuenta' });
+        const confirmationInput = screen.getByRole('textbox', { name: /escribí Discordia/i });
+
+        expect(confirmButton).toBeDisabled();
+        await userEvent.type(confirmationInput, 'Discord');
+        expect(confirmButton).toBeDisabled();
+
+        await userEvent.clear(confirmationInput);
+        await userEvent.type(confirmationInput, 'Discordia');
+        expect(confirmButton).toBeEnabled();
+        await userEvent.click(confirmButton);
+
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+    });
+
     it('while submitting disables both buttons, says Procesando… and ignores Escape', async () => {
         const { onCancel } = renderDialog({ isSubmitting: true });
 

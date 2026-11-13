@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { PublicProfilesProvider, type ChatMessage, type PublicProfileSource } from '@discordia/core';
 import type { PublicUser, User } from '@discordia/api';
@@ -24,6 +25,12 @@ const renderList = async (
   messages: ChatMessage[],
   profiles: Record<string, PublicUser | null>,
   getPublicProfiles?: PublicProfileSource['getPublicProfiles'],
+  edit: {
+    canEditOwn?: boolean;
+    onStartEdit?: (messageId: string) => void;
+    canManageMessages?: boolean;
+    onDelete?: (messageId: string) => Promise<void>;
+  } = {},
 ) => {
   const source: PublicProfileSource = {
     getPublicProfiles:
@@ -49,6 +56,10 @@ const renderList = async (
         loadMoreError={false}
         onLoadMore={jest.fn()}
         onRetryLoadMore={jest.fn()}
+        canEditOwn={edit.canEditOwn ?? true}
+        onStartEdit={edit.onStartEdit ?? jest.fn()}
+        canManageMessages={edit.canManageMessages ?? false}
+        onDelete={edit.onDelete ?? jest.fn(async () => {})}
       />
     </PublicProfilesProvider>,
   );
@@ -118,5 +129,173 @@ describe('MessageList authors', () => {
 
     expect(mockPush).toHaveBeenCalledTimes(2);
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/user/[userId]', params: { userId: 'milton' } });
+  });
+});
+
+describe('MessageList editing', () => {
+  beforeEach(() => jest.restoreAllMocks());
+
+  const edited = (messageId: string, authorId: string, editedAt: string | null): ChatMessage => ({
+    ...message(messageId, authorId),
+    editedAt,
+  });
+
+  // The buttons of the last Alert.alert, so a test can press "Editar" as the user would.
+  const alertSpy = () => jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  const menuTexts = (spy: jest.SpyInstance) =>
+    (spy.mock.calls[spy.mock.calls.length - 1][2] as { text: string }[]).map((button) => button.text);
+  const pressMenuButton = (spy: jest.SpyInstance, text: string) => {
+    const buttons = spy.mock.calls[spy.mock.calls.length - 1][2] as { text: string; onPress?: () => void }[];
+    buttons.find((button) => button.text === text)?.onPress?.();
+  };
+
+  it('opens a menu with "Editar" on the long press of an own message and starts the edit of that message', async () => {
+    const spy = alertSpy();
+    const onStartEdit = jest.fn();
+    const { user } = await renderList([message('mine', 'me')], {}, undefined, { onStartEdit });
+
+    await user.longPress(await screen.findByText('texto mine'));
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    pressMenuButton(spy, 'Editar');
+    expect(onStartEdit).toHaveBeenCalledWith('mine');
+  });
+
+  it('opens no menu on the long press of someone else\'s message', async () => {
+    const spy = alertSpy();
+    const onStartEdit = jest.fn();
+    const { user } = await renderList([message('theirs', 'milton')], { milton }, undefined, { onStartEdit });
+
+    await user.longPress(await screen.findByText('texto theirs'));
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(onStartEdit).not.toHaveBeenCalled();
+  });
+
+  it('without SEND_MESSAGES the menu of an own message has "Eliminar" but not "Editar"', async () => {
+    const spy = alertSpy();
+    const { user } = await renderList([message('mine', 'me')], {}, undefined, { canEditOwn: false });
+
+    await user.longPress(await screen.findByText('texto mine'));
+
+    expect(menuTexts(spy)).toEqual(['Eliminar', 'Cancelar']);
+  });
+
+  it('marks an edited message and not the others', async () => {
+    await renderList([edited('a', 'me', '2026-11-09T15:30:00Z'), edited('b', 'me', null)], {});
+
+    expect(await screen.findAllByText(/\(editado\)/)).toHaveLength(1);
+  });
+});
+
+describe('MessageList deleting', () => {
+  beforeEach(() => jest.restoreAllMocks());
+
+  const lastButtons = (spy: jest.SpyInstance) =>
+    spy.mock.calls[spy.mock.calls.length - 1][2] as { text: string; onPress?: () => void }[];
+  const press = (spy: jest.SpyInstance, text: string) => lastButtons(spy).find((b) => b.text === text)?.onPress?.();
+
+  const tree = (canManageMessages: boolean, onDelete: (id: string) => Promise<void>) => (
+    <PublicProfilesProvider source={{ getPublicProfiles: jest.fn(async () => new Map()), peekPublicProfile: () => undefined }}>
+      <MessageList
+        channelName="general"
+        messages={[message('mine', 'me'), message('theirs', 'milton')]}
+        pending={[]}
+        currentUser={me}
+        canRetry
+        onRetry={jest.fn()}
+        onDiscard={jest.fn()}
+        historyLoaded
+        historyError={false}
+        onRetryHistory={jest.fn()}
+        hasMore={false}
+        loadingMore={false}
+        loadMoreError={false}
+        onLoadMore={jest.fn()}
+        onRetryLoadMore={jest.fn()}
+        canEditOwn
+        onStartEdit={jest.fn()}
+        canManageMessages={canManageMessages}
+        onDelete={onDelete}
+      />
+    </PublicProfilesProvider>
+  );
+
+  it('the menu of an own message has "Editar" and "Eliminar" (CA1)', async () => {
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const { user } = await renderList([message('mine', 'me')], {});
+
+    await user.longPress(await screen.findByText('texto mine'));
+
+    expect(lastButtons(spy).map((b) => b.text)).toEqual(['Editar', 'Eliminar', 'Cancelar']);
+  });
+
+  it('with MANAGE_MESSAGES the menu of someone else\'s message has only "Eliminar" (CA2)', async () => {
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const { user } = await renderList([message('theirs', 'milton')], { milton }, undefined, { canManageMessages: true });
+
+    await user.longPress(await screen.findByText('texto theirs'));
+
+    expect(lastButtons(spy).map((b) => b.text)).toEqual(['Eliminar', 'Cancelar']);
+  });
+
+  it('asks for confirmation and deletes that message only after confirming', async () => {
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const onDelete = jest.fn(async () => {});
+    const { user } = await renderList([message('mine', 'me')], {}, undefined, { onDelete });
+
+    await user.longPress(await screen.findByText('texto mine'));
+    press(spy, 'Eliminar');
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(spy.mock.calls[spy.mock.calls.length - 1][0]).toBe('Eliminar mensaje');
+
+    press(spy, 'Eliminar');
+
+    expect(onDelete).toHaveBeenCalledWith('mine');
+  });
+
+  it('cancelling the confirmation deletes nothing', async () => {
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const onDelete = jest.fn(async () => {});
+    const { user } = await renderList([message('mine', 'me')], {}, undefined, { onDelete });
+
+    await user.longPress(await screen.findByText('texto mine'));
+    press(spy, 'Eliminar');
+    press(spy, 'Cancelar');
+
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it('tells why when the server refuses', async () => {
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const onDelete = jest.fn(async () => { throw Object.assign(new Error('x'), { response: { status: 403 } }); });
+    const { user } = await renderList([message('theirs', 'milton')], { milton }, undefined, { canManageMessages: true, onDelete });
+
+    await user.longPress(await screen.findByText('texto theirs'));
+    press(spy, 'Eliminar');
+    press(spy, 'Eliminar');
+
+    await waitFor(() => expect(spy).toHaveBeenLastCalledWith('No se pudo eliminar', 'No tenés permiso para eliminar este mensaje.'));
+  });
+
+  // Lesson of the unread bug: the permission is read from the current props on every render, so
+  // it is tried by changing it with the screen open.
+  it('offers "Eliminar" on someone else\'s message when MANAGE_MESSAGES is given with the screen open, and stops when it is taken away', async () => {
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const user = userEvent.setup();
+    const onDelete = jest.fn(async () => {});
+    const { rerender } = await render(tree(false, onDelete));
+
+    await user.longPress(await screen.findByText('texto theirs'));
+    expect(spy).not.toHaveBeenCalled();
+
+    await rerender(tree(true, onDelete));
+    await user.longPress(screen.getByText('texto theirs'));
+    expect(lastButtons(spy).map((b) => b.text)).toEqual(['Eliminar', 'Cancelar']);
+
+    spy.mockClear();
+    await rerender(tree(false, onDelete));
+    await user.longPress(screen.getByText('texto theirs'));
+    expect(spy).not.toHaveBeenCalled();
   });
 });

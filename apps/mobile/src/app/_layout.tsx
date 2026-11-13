@@ -16,7 +16,9 @@ const signOut = async () => {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AuthProvider storage={mobileAuthStorage} onSignOut={signOut} sessionExpiry={sessionExpiry}>
+      <AuthProvider storage={mobileAuthStorage} onSignOut={signOut}
+        onVerifyMfa={authService.verifyMfa}
+        sessionExpiry={sessionExpiry}>
         <PublicProfilesProvider source={userService}>
           <Slot />
         </PublicProfilesProvider>

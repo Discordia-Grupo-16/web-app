@@ -2,9 +2,10 @@ import type { AdminServer } from '@discordia/api';
 
 interface ServersTableProps {
     servers: AdminServer[];
+    onDelete: (server: AdminServer) => void;
 }
 
-export const ServersTable = ({ servers }: ServersTableProps) => (
+export const ServersTable = ({ servers, onDelete }: ServersTableProps) => (
     <div className="overflow-x-auto rounded-xl bg-discord-card">
         <table className="w-full text-left text-sm">
             <thead className="text-xs uppercase text-discord-muted">
@@ -20,6 +21,16 @@ export const ServersTable = ({ servers }: ServersTableProps) => (
                         <td className="px-4 py-3 font-medium">{server.name}</td>
                         <td className="px-4 py-3">{server.memberCount}</td>
                         <td className="px-4 py-3">{new Date(server.createdAt).toLocaleDateString('es-AR')}</td>
+                        <td className="px-4 py-3 text-right">
+                            <button
+                                type="button"
+                                aria-label={`Eliminar ${server.name}`}
+                                onClick={() => onDelete(server)}
+                                className="rounded bg-red-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                            >
+                                Eliminar
+                            </button>
+                        </td>
                     </tr>
                 ))}
             </tbody>
