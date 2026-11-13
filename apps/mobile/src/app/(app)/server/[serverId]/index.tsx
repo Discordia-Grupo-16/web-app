@@ -270,13 +270,17 @@ const canManageServer = hasPermission(permissions, MANAGE_SERVER);
           />
         )}
         <InvitationsSection serverId={server.id} canManage={isOwner} />
-<ServerActions
+        {/* The owner who is the only member has nobody to transfer the server to, so "Abandonar"
+            would be a dead end (CA2 of "Abandonar servidor": transfer or delete first). */}
+        {(!isOwner || members.length > 1) && (
+          <ServerActions
             server={server}
             isOwner={isOwner}
             onLeavingChange={setLeaving}
             pendingTransferTo={transfer.view.kind === 'pending' ? transfer.view.toName : null}
             onTransferRequested={() => scrollRef.current?.scrollTo({ y: membersY.current, animated: true })}
           />
+        )}
           {canManageServer && (
             <TouchableOpacity
               onPress={() => setShowSettings(true)}

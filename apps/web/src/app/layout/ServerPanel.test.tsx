@@ -90,6 +90,9 @@ const MILTON: ServerMember = {
     roles: [],
 };
 
+// The owner is a member too: the member list always has their row.
+const OWNER_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [] };
+
 const BAN_OF_MILTON: ServerBan = {
     user_id: 'milton',
     banned_by: ME,
@@ -233,7 +236,20 @@ describe('ServerPanel: qué se ve según el permiso', () => {
     });
 
     it('al dueño también se le ofrece abandonar: al confirmar, le pide transferir antes', async () => {
-        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME);
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME, [OWNER_AS_MEMBER, MILTON]);
+
+        expect(await screen.findByRole('button', { name: 'Abandonar servidor' })).toBeInTheDocument();
+    });
+
+    it('al dueño que es el único miembro no se le ofrece abandonar: no hay a quién transferirle', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME, [OWNER_AS_MEMBER]);
+
+        expect(await screen.findByText(PERMISSION_COPY.membersTitle(1))).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Abandonar servidor' })).not.toBeInTheDocument();
+    });
+
+    it('a un miembro que no es dueño se le ofrece abandonar aunque la lista no haya cargado', async () => {
+        await renderPanel(VIEW_CHANNEL, OWNER);
 
         expect(screen.getByRole('button', { name: 'Abandonar servidor' })).toBeInTheDocument();
     });
