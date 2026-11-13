@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { OwnershipTransfer, Server, ServerMember } from '@discordia/api';
-import { ADMINISTRATOR, PublicProfilesProvider, VIEW_CHANNEL } from '@discordia/core';
+import { ADMINISTRATOR, PERMISSION_COPY, PublicProfilesProvider, VIEW_CHANNEL } from '@discordia/core';
 import { membersService, ownershipSource, serversService } from '@/shared/api';
 import ServerScreen from '@/app/(app)/server/[serverId]/index';
 
@@ -85,9 +85,13 @@ const profiles = {
   peekPublicProfile: () => undefined,
 };
 
-const renderScreen = async (myPermissions: number, ownerId: string) => {
+const renderScreen = async (
+  myPermissions: number,
+  ownerId: string,
+  members: ServerMember[] = [member(ME), member('milton')],
+) => {
   jest.mocked(serversService.getServer).mockResolvedValue(server(myPermissions, ownerId));
-  jest.mocked(membersService.listMembers).mockResolvedValue([member(ME), member('milton')]);
+  jest.mocked(membersService.listMembers).mockResolvedValue(members);
   jest.mocked(membersService.listBans).mockResolvedValue([]);
   await render(
     <SafeAreaProvider initialMetrics={metrics}>
@@ -96,7 +100,7 @@ const renderScreen = async (myPermissions: number, ownerId: string) => {
       </PublicProfilesProvider>
     </SafeAreaProvider>,
   );
-  await waitFor(() => expect(screen.getByText('Abandonar servidor')).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByText(PERMISSION_COPY.membersTitle(members.length))).toBeOnTheScreen());
 };
 
 const transferButtons = () => screen.queryAllByLabelText('Transferir servidor');
@@ -131,6 +135,18 @@ describe('la pantalla del servidor: transferir la propiedad (SCRUM-35, Transferi
 
   it('al dueño también se le ofrece abandonar', async () => {
     await renderScreen(VIEW_CHANNEL, ME);
+
+    expect(screen.getByText('Abandonar servidor')).toBeOnTheScreen();
+  });
+
+  it('al dueño que es el único miembro no se le ofrece abandonar: no hay a quién transferirle', async () => {
+    await renderScreen(VIEW_CHANNEL, ME, [member(ME)]);
+
+    expect(screen.queryByText('Abandonar servidor')).not.toBeOnTheScreen();
+  });
+
+  it('a un miembro que no es dueño se le ofrece abandonar', async () => {
+    await renderScreen(VIEW_CHANNEL, 'owner', [member('owner'), member(ME)]);
 
     expect(screen.getByText('Abandonar servidor')).toBeOnTheScreen();
   });
