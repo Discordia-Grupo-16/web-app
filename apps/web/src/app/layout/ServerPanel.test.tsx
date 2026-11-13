@@ -23,19 +23,19 @@ const OWNER = 'owner';
 const ME = 'me';
 
 vi.mock('@/shared/api', () => ({
-ownershipSource: {
-          getServerTransfer: vi.fn(),
-          proposeTransfer: vi.fn(),
-          cancelTransfer: vi.fn(),
-          acceptTransfer: vi.fn(),
-          rejectTransfer: vi.fn(),
-          listMyTransfers: vi.fn(),
-          getServer: vi.fn(),
-          getServers: vi.fn(),
-      },
-      serversService: { getServer: vi.fn(), updateServer: vi.fn() },
-      rolesService: { listRoles: vi.fn(), deleteRole: vi.fn() },
-      membersService: {
+    ownershipSource: {
+        getServerTransfer: vi.fn(),
+        proposeTransfer: vi.fn(),
+        cancelTransfer: vi.fn(),
+        acceptTransfer: vi.fn(),
+        rejectTransfer: vi.fn(),
+        listMyTransfers: vi.fn(),
+        getServer: vi.fn(),
+        getServers: vi.fn(),
+    },
+    serversService: { getServer: vi.fn(), updateServer: vi.fn() },
+    rolesService: { listRoles: vi.fn(), deleteRole: vi.fn() },
+    membersService: {
         listMembers: vi.fn(),
         banMember: vi.fn(),
         kickMember: vi.fn(),
@@ -76,10 +76,12 @@ const server = (myPermissions: number, ownerId = OWNER): Server => ({
             name: 'general',
             type: 'text',
             topic: null,
+            category_id: null,
             position: 0,
             created_at: '2026-10-01T00:00:00Z',
         },
     ],
+    categories: [],
 });
 
 const MILTON: ServerMember = {

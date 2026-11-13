@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  Modal, TextInput, ActivityIndicator,
+  Modal, TextInput, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -20,6 +20,16 @@ function ServerRow({ server, onOpen }: { server: Server; onOpen: () => void }) {
       onPress={onOpen}
       className="bg-[#2c2f33] rounded-xl px-4 py-4 flex-row items-center justify-between"
     >
+      {server.avatar_url ? (
+        <Image
+          source={{ uri: server.avatar_url }}
+          style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }}
+        />
+      ) : (
+        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#7289da', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+          <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>{server.name[0].toUpperCase()}</Text>
+        </View>
+      )}
       <View className="flex-1 mr-3">
         <Text className={`text-white text-base ${unread ? 'font-black' : 'font-bold'}`}>{server.name}</Text>
         {server.description ? (
@@ -51,9 +61,6 @@ export function ServersScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Servers deleted or joined elsewhere (or left from the server screen) arrive as a notice of
-  // `servers`, and show up on focus. A response from before a local change (creating a server) is
-  // dropped.
   const localChangeRef = useRef(0);
   useLiveRefresh({
     resources: ['servers'],

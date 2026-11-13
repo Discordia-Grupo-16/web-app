@@ -17,6 +17,7 @@ const channel = (id: string, name: string, type: Channel['type'] = 'text'): Chan
   name,
   type,
   topic: null,
+  category_id: null,
   position: 0,
   created_at: '2026-10-01T00:00:00Z',
 });
@@ -32,8 +33,10 @@ const renderSection = async (canManage = true, renderBelowChannel?: (ch: Channel
     <ChannelSection
       serverId="srv"
       channels={[general, lobby]}
+      categories={[]}
       canManage={canManage}
       onChannelsChange={onChannelsChange}
+      onCategoriesChange={jest.fn()}
       renderBelowChannel={renderBelowChannel}
     />,
   );
@@ -102,7 +105,7 @@ describe('ChannelSection', () => {
     // The modal title is also "Crear canal": the button comes last.
     await user.press(screen.getAllByText('Crear canal').at(-1)!);
 
-    expect(channelsService.createChannel).toHaveBeenCalledWith('srv', 'nuevo-canal', 'text');
+    expect(channelsService.createChannel).toHaveBeenCalledWith('srv', 'nuevo-canal', 'text', undefined);
     expect(applied()).toEqual([general, lobby, created]);
   });
 

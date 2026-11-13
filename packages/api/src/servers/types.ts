@@ -1,3 +1,4 @@
+import type { Category } from '../categories/types'
 import type { Channel } from '../channels/types'
 
 export interface Server {
@@ -9,6 +10,7 @@ export interface Server {
     banner_url: string | null
     created_at: string
     channels: Channel[]
+    categories: Category[]
     /**
      * The permissions of whoever asked for the server, already resolved by
      * `community` (ADR-0011). The client only checks bits: it neither

@@ -20,6 +20,9 @@ export type * from './servers/types';
 export * from './channels/service';
 export type * from './channels/types';
 
+export * from './categories/service';
+export type * from './categories/types';
+
 export * from './roles/service';
 export type * from './roles/types';
 

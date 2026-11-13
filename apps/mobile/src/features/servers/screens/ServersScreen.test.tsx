@@ -19,6 +19,7 @@ const server = (id: string, name: string): Server => ({
   my_permissions: 0,
   my_permission_names: [],
   channels: [],
+  categories: [],
 });
 
 const entry = (serverId: string, overrides: Partial<ChannelUnreadEntry> = {}): ChannelUnreadEntry => ({

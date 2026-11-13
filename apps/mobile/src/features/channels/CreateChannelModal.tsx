@@ -4,8 +4,8 @@ import type { Channel } from '@discordia/api';
 import { channelsService } from '@/shared/api';
 import { getErrorDetail } from '@discordia/api';
 
-export function CreateChannelModal({ type, serverId, onClose, onCreated }: {
-  type: 'text' | 'voice'; serverId: string;
+export function CreateChannelModal({ type, serverId, categoryId, onClose, onCreated }: {
+  type: 'text' | 'voice'; serverId: string; categoryId?: string | null;
   onClose: () => void; onCreated: (ch: Channel) => void;
 }) {
   const [name, setName] = useState('');
@@ -16,7 +16,12 @@ export function CreateChannelModal({ type, serverId, onClose, onCreated }: {
     setLoading(true);
     setError(null);
     try {
-      const ch = await channelsService.createChannel(serverId, name.toLowerCase().replace(/\s+/g, '-'), type);
+      const ch = await channelsService.createChannel(
+        serverId,
+        name.toLowerCase().replace(/\s+/g, '-'),
+        type,
+        categoryId ?? undefined,
+      );
       setName('');
       onCreated(ch);
     } catch (err) {

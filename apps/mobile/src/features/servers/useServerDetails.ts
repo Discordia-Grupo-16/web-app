@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
-import { isGoneError, type Channel, type Server } from '@discordia/api';
+import { isGoneError, type Category, type Channel, type Server } from '@discordia/api';
 import { serversService } from '@/shared/api';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
@@ -55,6 +55,7 @@ export const useServerDetails = (serverId: string | undefined) => {
           owner_id: srv.owner_id,
           name: srv.name,
           channels: srv.channels,
+          categories: srv.categories,
           my_permissions: srv.my_permissions,
           my_permission_names: srv.my_permission_names,
         } : prev);
@@ -73,6 +74,10 @@ export const useServerDetails = (serverId: string | undefined) => {
     setServer(prev => prev ? { ...prev, channels: update(prev.channels) } : prev);
   }, []);
 
+  const updateCategories = useCallback((update: (categories: Category[]) => Category[]) => {
+    setServer(prev => prev ? { ...prev, categories: update(prev.categories) } : prev);
+  }, []);
+
   const updateServer = useCallback((updated: Server) => {
     setServer(prev => prev ? { ...prev, ...updated } : prev);
     navigation.setOptions({ title: updated.name });
@@ -83,5 +88,5 @@ export const useServerDetails = (serverId: string | undefined) => {
     goneRef.current = leaving;
   }, []);
 
-  return { server, loading, updateChannels, updateServer, setLeaving };
+  return { server, loading, updateChannels, updateCategories, updateServer, setLeaving };
 };

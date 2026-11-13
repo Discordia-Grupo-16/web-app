@@ -73,29 +73,29 @@ const ProposeDialog = ({ toUserId, serverName, transfer, onClose }: ProposeDialo
 export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
-    const { server, loading: loadingServer, updateChannels, updateServer } = useCurrentServer();
-      const navigate = useNavigate();
-      const [showSettings, setShowSettings] = useState(false);
-      const {
-          roles,
-          loading: loadingRoles,
-          addRole,
-          updateRole,
-          reload: reloadRoles,
-          removeRole,
-          replaceRoles,
-      } = useRoles(serverId);
-      const {
-          members,
-          loading: loadingMembers,
-          setMemberRoles,
-          removeMember,
-          reload: reloadMembers,
-      } = useMembers(serverId);
+    const { server, loading: loadingServer, updateChannels, updateCategories, updateServer } = useCurrentServer();
+    const navigate = useNavigate();
+    const [showSettings, setShowSettings] = useState(false);
+    const {
+        roles,
+        loading: loadingRoles,
+        addRole,
+        updateRole,
+        reload: reloadRoles,
+        removeRole,
+        replaceRoles,
+    } = useRoles(serverId);
+    const {
+        members,
+        loading: loadingMembers,
+        setMemberRoles,
+        removeMember,
+        reload: reloadMembers,
+    } = useMembers(serverId);
 
-      // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
-      // showing a button that then disappears is worse than showing it one render late.
-      const permissions = server?.my_permissions ?? NONE;
+    // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
+    // showing a button that then disappears is worse than showing it one render late.
+    const permissions = server?.my_permissions ?? NONE;
 
     const { call } = useVoice();
     const callChannelId = call.status === 'connected' ? call.channel.id : null;
@@ -234,9 +234,11 @@ export const ServerPanel = () => {
                             <ChannelList
                                 serverId={serverId}
                                 channels={server?.channels ?? []}
+                                categories={server?.categories ?? []}
                                 activeChannelId={channelId}
                                 canManage={hasPermission(permissions, MANAGE_CHANNELS)}
                                 onChannelsChange={updateChannels}
+                                onCategoriesChange={updateCategories}
                                 renderBelowChannel={renderBelowChannel}
                             />
                         )}

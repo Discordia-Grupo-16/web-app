@@ -73,7 +73,7 @@ function ProposeDialog({ toUserId, serverName, transfer, onClose }: ProposeDialo
 export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { user } = useAuth();
-  const { server, loading: loadingServer, updateChannels, updateServer, setLeaving } = useServerDetails(serverId);
+  const { server, loading: loadingServer, updateChannels, updateCategories, updateServer, setLeaving } = useServerDetails(serverId);
   const router = useRouter();
   const [showSettings, setShowSettings] = useState(false);
   const {
@@ -201,8 +201,10 @@ const canManageServer = hasPermission(permissions, MANAGE_SERVER);
           <ChannelSection
             serverId={server.id}
             channels={server.channels}
+            categories={server.categories}
             canManage={canManageChannels}
             onChannelsChange={updateChannels}
+            onCategoriesChange={updateCategories}
             renderBelowChannel={renderBelowChannel}
           />
         ) : (

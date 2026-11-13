@@ -32,6 +32,7 @@ const channel = (id: string, name: string, type: Channel['type']): Channel => ({
     name,
     type,
     topic: null,
+    category_id: null,
     position: 0,
     created_at: '2026-10-01T00:00:00Z',
 });
@@ -46,6 +47,7 @@ const server = (myPermissions = VIEW_CHANNEL | SEND_MESSAGES | CONNECT): Server 
     my_permissions: myPermissions,
     my_permission_names: [],
     channels: [channel('c1', 'general', 'text'), channel('c2', 'lobby', 'voice')],
+    categories: [],
 });
 
 const setActiveChannel = vi.fn();

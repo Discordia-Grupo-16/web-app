@@ -64,6 +64,7 @@ const server = (myPermissions: number, ownerId: string): Server => ({
   my_permissions: myPermissions,
   my_permission_names: [],
   channels: [],
+  categories: [],
 });
 
 const member = (userId: string): ServerMember => ({ user_id: userId, joined_at: '2026-10-01T00:00:00Z', roles: [] });

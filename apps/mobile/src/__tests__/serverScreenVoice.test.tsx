@@ -94,6 +94,7 @@ const channel = (id: string, name: string, type: Channel['type'] = 'voice'): Cha
   name,
   type,
   topic: null,
+  category_id: null,
   position: 0,
   created_at: '2026-10-01T00:00:00Z',
 });
