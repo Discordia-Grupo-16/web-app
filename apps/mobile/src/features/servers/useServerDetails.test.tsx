@@ -33,6 +33,7 @@ const server: Server = {
   my_permissions: 1,
   my_permission_names: ['VIEW_CHANNEL'],
   channels: [],
+  categories: [],
 };
 
 // A probe instead of renderHook, like the rest of the mobile hook tests.

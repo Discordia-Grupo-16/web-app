@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Alert, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { Category, Channel } from '@discordia/api';
@@ -26,7 +26,6 @@ function CategoryNameModal({ visible, initial, title, onClose, onSave }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { setName(initial); }, [initial]);
 
   const handleSave = async () => {
     setLoading(true);

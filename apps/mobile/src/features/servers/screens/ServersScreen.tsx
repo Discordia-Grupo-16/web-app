@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity,
-  Modal, TextInput, ActivityIndicator,
+  Modal, TextInput, ActivityIndicator, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
