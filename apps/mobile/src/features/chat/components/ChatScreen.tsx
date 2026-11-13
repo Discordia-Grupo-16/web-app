@@ -11,14 +11,16 @@ interface ChatScreenProps {
   channelId: string;
   channelName: string;
   canSendMessages: boolean;
+  /** MANAGE_MESSAGES, resolved by `community`. The backend checks it too: this only shows the option. */
+  canManageMessages: boolean;
 }
 
-export const ChatScreen = ({ channelId, channelName, canSendMessages }: ChatScreenProps) => {
+export const ChatScreen = ({ channelId, channelName, canSendMessages, canManageMessages }: ChatScreenProps) => {
   const { user } = useAuth();
   const headerHeight = useHeaderHeight();
   const {
     messages, pending, status, maxLength,
-    send, retry, discard, editMessage,
+    send, retry, discard, editMessage, deleteMessage,
     historyLoaded, historyError, retryHistory,
     hasMore, loadingMore, loadMoreError, loadMore,
     rejected, clearRejected,
@@ -54,6 +56,8 @@ export const ChatScreen = ({ channelId, channelName, canSendMessages }: ChatScre
           onRetryLoadMore={loadMore}
           canEditOwn={canSendMessages}
           onStartEdit={setEditingId}
+          canManageMessages={canManageMessages}
+          onDelete={deleteMessage}
         />
         <MessageComposer
           // Keyed by the message: starting or leaving an edit gives the composer a fresh state.

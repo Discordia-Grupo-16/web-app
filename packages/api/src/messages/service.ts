@@ -10,6 +10,13 @@ export const createMessagesService = (apiClient: AxiosInstance) => ({
         apiClient
             .patch<{ data: MessageDto }>(`/api/v1/channels/${channelId}/messages/${messageId}`, { content })
             .then(r => r.data.data),
+
+    /**
+     * Borra un mensaje: propio, o ajeno con `MANAGE_MESSAGES`. Responde 204, también si ya estaba
+     * borrado. Un 403 es "no es tuyo y no moderás" y un 404, "no existe en ese canal".
+     */
+    deleteMessage: (channelId: string, messageId: string): Promise<void> =>
+        apiClient.delete(`/api/v1/channels/${channelId}/messages/${messageId}`).then(() => undefined),
 });
 
 export type MessagesService = ReturnType<typeof createMessagesService>;

@@ -8,13 +8,15 @@ interface ChatPanelProps {
     channelName: string;
     topic: string | null;
     canSendMessages: boolean;
+    /** MANAGE_MESSAGES, resolved by `community`. The backend checks it too: this only shows the option. */
+    canManageMessages: boolean;
 }
 
-export const ChatPanel = ({ channelId, channelName, topic, canSendMessages }: ChatPanelProps) => {
+export const ChatPanel = ({ channelId, channelName, topic, canSendMessages, canManageMessages }: ChatPanelProps) => {
     const { user } = useAuth();
     const {
         messages, pending, status, maxLength,
-        send, retry, discard, editMessage,
+        send, retry, discard, editMessage, deleteMessage,
         historyLoaded, historyError, retryHistory,
         hasMore, loadingMore, loadMoreError, loadMore,
         rejected, clearRejected,
@@ -45,6 +47,8 @@ export const ChatPanel = ({ channelId, channelName, topic, canSendMessages }: Ch
                 canEditOwn={canSendMessages}
                 maxLength={maxLength}
                 onEdit={editMessage}
+                canManageMessages={canManageMessages}
+                onDelete={deleteMessage}
             />
             <MessageComposer
                 channelName={channelName}

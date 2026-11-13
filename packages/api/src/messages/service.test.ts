@@ -32,4 +32,21 @@ describe('createMessagesService', () => {
 
         await expect(service.editMessage('c1', 'm1', 'x')).rejects.toBe(failure);
     });
+
+    it('deleteMessage deletes that message of that channel and resolves with nothing', async () => {
+        const apiClient = { delete: vi.fn(async () => ({ status: 204, data: '' })) };
+        const service = createMessagesService(apiClient as unknown as AxiosInstance);
+
+        await expect(service.deleteMessage('c1', 'm1')).resolves.toBeUndefined();
+
+        expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/channels/c1/messages/m1');
+    });
+
+    it('deleteMessage lets the error through', async () => {
+        const failure = Object.assign(new Error('forbidden'), { response: { status: 403 } });
+        const apiClient = { delete: vi.fn(async () => { throw failure; }) };
+        const service = createMessagesService(apiClient as unknown as AxiosInstance);
+
+        await expect(service.deleteMessage('c1', 'm1')).rejects.toBe(failure);
+    });
 });

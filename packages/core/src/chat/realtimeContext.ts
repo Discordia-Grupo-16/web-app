@@ -31,6 +31,11 @@ export interface RealtimeContextValue {
      * to the list; rejects with the HTTP error, which `editErrorText` turns into text.
      */
     editMessage: (channelId: string, messageId: string, content: string) => Promise<void>;
+    /**
+     * Deletes a message: the user's own, or someone else's with MANAGE_MESSAGES (SCRUM-45). Resolves
+     * when it is deleted and already out of the list; rejects with the HTTP error (`deleteErrorText`).
+     */
+    deleteMessage: (channelId: string, messageId: string) => Promise<void>;
     loadHistory: (channelId: string) => void;
     retryHistory: (channelId: string) => void;
     loadMoreHistory: (channelId: string, beforeId: string) => void;

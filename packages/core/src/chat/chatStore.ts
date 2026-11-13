@@ -49,7 +49,8 @@ export type ChatAction =
     | { type: 'ack'; frame: MessageAckFrame }
     | { type: 'created'; frame: MessageCreatedFrame }
     | { type: 'updated'; channelId: string; messageId: string; content: string; editedAt: string }
-    | { type: 'editsRefreshed'; channelId: string; messages: ChatMessage[] }
+    | { type: 'deleted'; channelId: string; messageId: string }
+    | { type: 'lastPageRefreshed'; channelId: string; messages: ChatMessage[] }
     | { type: 'error'; frame: ErrorFrame }
     | { type: 'timeout'; clientMessageId: string }
     | { type: 'sendFailed'; clientMessageId: string }
@@ -104,6 +105,13 @@ const withEdits = (
         next[index] = { ...next[index], content: edit.content, editedAt: edit.editedAt };
     }
     return next;
+};
+
+// Orders two messages as the server does: by createdAt (as instants) and then by id.
+const compareMessages = (a: ChatMessage, b: ChatMessage): number => {
+    const diff = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+    if (diff !== 0) return diff;
+    return a.messageId < b.messageId ? -1 : a.messageId > b.messageId ? 1 : 0;
 };
 
 // Moves a still-sending message to failed and takes it out of the response queue.
@@ -212,16 +220,36 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             return { ...state, byChannel: { ...state.byChannel, [action.channelId]: next } };
         }
 
-        case 'editsRefreshed': {
+        case 'deleted': {
             const list = state.byChannel[action.channelId];
             if (!list) return state;
-            // Only messages that are already here and were edited: new ones arrive through the resync.
+            const next = list.filter((m) => m.messageId !== action.messageId);
+            if (next.length === list.length) return state;
+            // The id stays in seenMessageIds on purpose: a message.created that arrives late, crossed
+            // with the delete, must not bring the message back.
+            return { ...state, byChannel: { ...state.byChannel, [action.channelId]: next } };
+        }
+
+        case 'lastPageRefreshed': {
+            const list = state.byChannel[action.channelId];
+            if (!list || action.messages.length === 0) return state;
+            // The page brings the edits the session missed while offline. New messages are not added
+            // here: they arrive through the resync.
             const edits = action.messages.flatMap((m) =>
                 m.editedAt ? [{ messageId: m.messageId, content: m.content, editedAt: m.editedAt }] : [],
             );
-            const next = withEdits(list, edits);
-            if (next === list) return state;
-            return { ...state, byChannel: { ...state.byChannel, [action.channelId]: next } };
+            const edited = withEdits(list, edits);
+            // And it tells which ones were deleted: a stored message that falls inside the stretch
+            // the page covers but is not in it was deleted meanwhile. One newer than the page may have
+            // arrived after the request, so it is kept.
+            const inPage = new Set(action.messages.map((m) => m.messageId));
+            const first = action.messages[0];
+            const last = action.messages[action.messages.length - 1];
+            const kept = edited.filter(
+                (m) => inPage.has(m.messageId) || compareMessages(m, first) < 0 || compareMessages(m, last) > 0,
+            );
+            if (edited === list && kept.length === list.length) return state;
+            return { ...state, byChannel: { ...state.byChannel, [action.channelId]: kept } };
         }
 
         case 'error': {

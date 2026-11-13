@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectionState, RealtimeClient, RealtimeEventMap } from '@discordia/api';
 import { useRealtimeController, type RealtimeControllerOptions } from './useRealtimeController';
@@ -51,7 +51,7 @@ describe('useRealtimeController', () => {
                 token: 'token',
                 newClientMessageId: () => `msg-${++ids}`,
                 api: { get: vi.fn().mockResolvedValue({ data: { data: [], hasMore: false } }) },
-                messagesService: { editMessage: vi.fn() },
+                messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn() },
                 logger: { error: vi.fn() },
                 ...overrides,
             },
@@ -68,7 +68,7 @@ describe('useRealtimeController', () => {
         const { rerender } = render();
         expect(fake.client.connect).toHaveBeenCalledTimes(1);
 
-        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x', api: { get: vi.fn() }, messagesService: { editMessage: vi.fn() }, logger: { error: vi.fn() } });
+        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x', api: { get: vi.fn() }, messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn() }, logger: { error: vi.fn() } });
         expect(fake.client.disconnect).toHaveBeenCalled();
     });
 
@@ -475,7 +475,7 @@ describe('useRealtimeController', () => {
 
         it('editMessage calls the service and shows the saved content without waiting for the frame', async () => {
             const editMessage = vi.fn().mockResolvedValue(stored({ content: 'corregido', editedAt: '2026-11-09T15:30:00Z' }));
-            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage } });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn() } });
             await loadChannel(result);
 
             await act(async () => { await result.current.value.editMessage(CHANNEL, 'm1', 'corregido'); });
@@ -488,7 +488,7 @@ describe('useRealtimeController', () => {
 
         it('the frame that follows the response changes nothing: its editedAt is not newer', async () => {
             const editMessage = vi.fn().mockResolvedValue(stored({ content: 'corregido', editedAt: '2026-11-09T15:30:00Z' }));
-            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage } });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn() } });
             await loadChannel(result);
             await act(async () => { await result.current.value.editMessage(CHANNEL, 'm1', 'corregido'); });
             const afterResponse = result.current.value.state;
@@ -503,7 +503,7 @@ describe('useRealtimeController', () => {
 
         it('editMessage with the same content leaves the message as it was', async () => {
             const editMessage = vi.fn().mockResolvedValue(stored());
-            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage } });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn() } });
             await loadChannel(result);
             const before = result.current.value.state;
 
@@ -515,7 +515,7 @@ describe('useRealtimeController', () => {
         it('editMessage rejects with the server error and leaves the message untouched', async () => {
             const failure = Object.assign(new Error('forbidden'), { response: { status: 403 } });
             const editMessage = vi.fn().mockRejectedValue(failure);
-            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage } });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn() } });
             await loadChannel(result);
 
             await act(async () => {
@@ -542,6 +542,73 @@ describe('useRealtimeController', () => {
             expect(result.current.value.state.byChannel[CHANNEL]?.[0]).toMatchObject({
                 content: 'corregido offline', editedAt: '2026-11-09T15:30:00Z',
             });
+        });
+    });
+
+    describe('deleting messages', () => {
+        const stored = (messageId: string, minute: number) => ({
+            messageId, clientMessageId: `c-${messageId}`, channelId: CHANNEL, serverId: 's1', authorId: 'u1',
+            content: messageId, createdAt: `2026-11-10T12:0${minute}:00Z`, editedAt: null,
+        });
+        const loadChannel = async (result: ReturnType<typeof render>['result']) => {
+            fake.emit('stateChange', 'open');
+            await act(async () => {
+                result.current.value.loadHistory(CHANNEL);
+                await Promise.resolve();
+            });
+        };
+        const ids = (result: ReturnType<typeof render>['result']) =>
+            result.current.value.state.byChannel[CHANNEL]?.map((m) => m.messageId);
+
+        it('removes the message when the message.deleted frame arrives', async () => {
+            const { result } = render({ api: { get: vi.fn().mockResolvedValue({ data: { data: [stored('m1', 1), stored('m2', 2)], hasMore: false } }) } });
+            await loadChannel(result);
+
+            fake.emit('messageDeleted', { type: 'message.deleted', messageId: 'm1', channelId: CHANNEL, serverId: 's1', deletedAt: '2026-11-10T13:00:00Z' });
+
+            expect(ids(result)).toEqual(['m2']);
+        });
+
+        it('deleteMessage calls the service and removes the message without waiting for the frame', async () => {
+            const deleteMessage = vi.fn().mockResolvedValue(undefined);
+            const { result } = render({
+                api: { get: vi.fn().mockResolvedValue({ data: { data: [stored('m1', 1), stored('m2', 2)], hasMore: false } }) },
+                messagesService: { editMessage: vi.fn(), deleteMessage },
+            });
+            await loadChannel(result);
+
+            await act(async () => { await result.current.value.deleteMessage(CHANNEL, 'm1'); });
+
+            expect(deleteMessage).toHaveBeenCalledWith(CHANNEL, 'm1');
+            expect(ids(result)).toEqual(['m2']);
+        });
+
+        it('deleteMessage rejects with the server error and keeps the message', async () => {
+            const failure = Object.assign(new Error('forbidden'), { response: { status: 403 } });
+            const { result } = render({
+                api: { get: vi.fn().mockResolvedValue({ data: { data: [stored('m1', 1)], hasMore: false } }) },
+                messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn().mockRejectedValue(failure) },
+            });
+            await loadChannel(result);
+
+            await act(async () => {
+                await expect(result.current.value.deleteMessage(CHANNEL, 'm1')).rejects.toBe(failure);
+            });
+
+            expect(ids(result)).toEqual(['m1']);
+        });
+
+        it('drops what was deleted while offline when the socket comes back', async () => {
+            const apiGet = vi.fn()
+                .mockResolvedValueOnce({ data: { data: [stored('m1', 1), stored('m2', 2), stored('m3', 3)], hasMore: false } })
+                .mockResolvedValueOnce({ data: { data: [], hasMore: false } }) // ?after: nothing new
+                .mockResolvedValueOnce({ data: { data: [stored('m1', 1), stored('m3', 3)], hasMore: false } }); // last page
+            const { result } = render({ api: { get: apiGet } });
+            await loadChannel(result);
+
+            fake.emit('stateChange', 'reconnecting');
+            fake.emit('stateChange', 'open');
+            await waitFor(() => expect(ids(result)).toEqual(['m1', 'm3']));
         });
     });
 });

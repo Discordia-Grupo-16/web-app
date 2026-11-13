@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, FlatList, View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
-import { authorView, ERROR_TEXTS, isRetryable, usePublicProfiles } from '@discordia/core';
+import { authorView, deleteErrorText, ERROR_TEXTS, isRetryable, usePublicProfiles } from '@discordia/core';
 import { MessageItem } from './MessageItem';
 
 interface MessageListProps {
@@ -26,17 +26,37 @@ interface MessageListProps {
   canEditOwn: boolean;
   /** The user chose "Editar" in the menu of one of their own messages. */
   onStartEdit: (messageId: string) => void;
+  /** MANAGE_MESSAGES: the user may delete messages of others. Their own they can always delete. */
+  canManageMessages: boolean;
+  /** Rejects with the HTTP error if the server refuses. */
+  onDelete: (messageId: string) => Promise<void>;
 }
 
 // There is no tooltip on mobile: the correlationId (for searching the logs) is shown on long-press.
 const showErrorDetails = (errorCode: string | undefined, correlationId: string | undefined) =>
   Alert.alert('Detalle del error', `Código: ${errorCode ?? 'desconocido'}\ncorrelationId: ${correlationId ?? 'sin dato'}`);
 
-// The long-press menu of an own message. "Editar" is the only action for now.
-const showMessageMenu = (onEdit: () => void) =>
-  Alert.alert('Mensaje', undefined, [
-    { text: 'Editar', onPress: onEdit },
+// Deleting cannot be undone, so it asks first. A refusal from the server is told in another alert.
+const confirmDelete = (onDelete: () => Promise<void>) =>
+  Alert.alert('Eliminar mensaje', '¿Eliminar este mensaje? Va a dejar de verse para todos y no se puede deshacer.', [
     { text: 'Cancelar', style: 'cancel' },
+    {
+      text: 'Eliminar',
+      style: 'destructive',
+      onPress: () => {
+        onDelete().catch((err: unknown) => Alert.alert('No se pudo eliminar', deleteErrorText(err)));
+      },
+    },
+  ]);
+
+// The long-press menu of a message: only the actions the user can take on it.
+const showMessageMenu = (actions: { onEdit?: () => void; onDelete?: () => Promise<void> }) =>
+  Alert.alert('Mensaje', undefined, [
+    ...(actions.onEdit ? [{ text: 'Editar', onPress: actions.onEdit }] : []),
+    ...(actions.onDelete
+      ? [{ text: 'Eliminar', style: 'destructive' as const, onPress: () => confirmDelete(actions.onDelete!) }]
+      : []),
+    { text: 'Cancelar', style: 'cancel' as const },
   ]);
 
 type ListItem =
@@ -61,6 +81,8 @@ export const MessageList = ({
   onRetryLoadMore,
   canEditOwn,
   onStartEdit,
+  canManageMessages,
+  onDelete,
 }: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
   const pendingCountRef = useRef(pending.length);
@@ -147,7 +169,11 @@ export const MessageList = ({
           const author = authorView(authorId, currentUser, profiles.get(authorId));
           // Read from the props on every render, never kept: if SEND_MESSAGES is taken away with the
           // screen open the menu stops existing on the next render.
-          const canEdit = canEditOwn && currentUser !== null && authorId === currentUser.id;
+          const isOwn = currentUser !== null && authorId === currentUser.id;
+          const canEdit = canEditOwn && isOwn;
+          // The own message can always be deleted, even without SEND_MESSAGES.
+          const canDelete = isOwn || canManageMessages;
+          const messageId = item.message.messageId;
           return (
             <MessageItem
               authorId={authorId}
@@ -156,7 +182,15 @@ export const MessageList = ({
               content={item.message.content}
               createdAt={item.message.createdAt}
               editedAt={item.message.editedAt}
-              onLongPress={canEdit ? () => showMessageMenu(() => onStartEdit(item.message.messageId)) : undefined}
+              onLongPress={
+                canEdit || canDelete
+                  ? () =>
+                      showMessageMenu({
+                        onEdit: canEdit ? () => onStartEdit(messageId) : undefined,
+                        onDelete: canDelete ? () => onDelete(messageId) : undefined,
+                      })
+                  : undefined
+              }
               onSelectAuthor={() => router.push({ pathname: '/user/[userId]', params: { userId: authorId } })}
             />
           );

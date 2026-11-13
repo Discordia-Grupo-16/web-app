@@ -33,8 +33,8 @@ export interface RealtimeControllerOptions {
     newClientMessageId: () => string;
     /** Axios-compatible client for history and resync HTTP calls. */
     api: HttpClient;
-    /** Edits a message over HTTP (SCRUM-44). */
-    messagesService: Pick<MessagesService, 'editMessage'>;
+    /** Edits and deletes messages over HTTP (SCRUM-44 and SCRUM-45). */
+    messagesService: Pick<MessagesService, 'editMessage' | 'deleteMessage'>;
     /** Error reporter. Pass `console` from the platform provider. */
     logger: Logger;
 }
@@ -193,16 +193,16 @@ export const useRealtimeController = ({
                                 dispatch({ type: 'resyncLoaded', channelId, messages: resp.data });
                             }
                             if (!resp.hasMore || resp.data.length === 0) {
-                                // `after` brings what is new but not the edits of messages the session
-                                // already had, so once it is up to date the last page is read again and
-                                // only its edits are merged. An edit older than that page is not seen
-                                // until the user reloads that stretch.
+                                // `after` brings what is new but not the edits or deletes of messages the
+                                // session already had, so once it is up to date the last page is read
+                                // again to merge its edits and drop what was deleted. A change older than
+                                // that page is not seen until the user reloads that stretch.
                                 try {
                                     const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
                                     if (abort.signal.aborted) return;
-                                    dispatch({ type: 'editsRefreshed', channelId, messages: data.data });
+                                    dispatch({ type: 'lastPageRefreshed', channelId, messages: data.data });
                                 } catch (err) {
-                                    logger.error('refresh edits failed', channelId, err);
+                                    logger.error('refresh last page failed', channelId, err);
                                 }
                                 return;
                             }
@@ -229,6 +229,9 @@ export const useRealtimeController = ({
                 content: frame.content,
                 editedAt: frame.editedAt,
             });
+        });
+        const offDeleted = client.on('messageDeleted', (frame) => {
+            dispatch({ type: 'deleted', channelId: frame.channelId, messageId: frame.messageId });
         });
         const offError = client.on('errorFrame', (frame) => {
             const head = stateRef.current.awaitingResponse[0];
@@ -257,6 +260,7 @@ export const useRealtimeController = ({
             offAck();
             offCreated();
             offUpdated();
+            offDeleted();
             offError();
             syncAbortRef.current?.abort();
         };
@@ -353,6 +357,16 @@ export const useRealtimeController = ({
         [messagesService],
     );
 
+    // Removed from the list as soon as the server confirms, without waiting for the frame, which then
+    // finds nothing to remove. The error goes to the caller.
+    const deleteMessage = useCallback<RealtimeContextValue['deleteMessage']>(
+        async (channelId, messageId) => {
+            await messagesService.deleteMessage(channelId, messageId);
+            dispatch({ type: 'deleted', channelId, messageId });
+        },
+        [messagesService],
+    );
+
     const loadHistory = useCallback(async (channelId: string) => {
         if (stateRef.current.historyByChannel[channelId]?.loaded) return;
         if (historyFetching.current.has(channelId)) return;
@@ -433,12 +447,12 @@ export const useRealtimeController = ({
 
     const value = useMemo<RealtimeContextValue>(
         () => ({
-            status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage,
+            status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage,
             loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
             onVoiceParticipants, onReconnect,
         }),
         [
-            status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage,
+            status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage,
             loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
             onVoiceParticipants, onReconnect,
         ],

@@ -15,6 +15,11 @@ interface MessageItemProps {
     onStartEdit?: () => void;
     onSaveEdit?: (content: string) => Promise<void>;
     onCancelEdit?: () => void;
+    /** The user may delete this message: it is theirs, or they have MANAGE_MESSAGES. */
+    canDelete?: boolean;
+    onRequestDelete?: () => void;
+    /** Why the last delete of this message failed. */
+    deleteError?: string | null;
     sending?: boolean;
     failed?: boolean;
     errorText?: string;
@@ -52,6 +57,9 @@ export const MessageItem = ({
     onStartEdit,
     onSaveEdit,
     onCancelEdit,
+    canDelete = false,
+    onRequestDelete,
+    deleteError = null,
     sending = false,
     failed = false,
     errorText,
@@ -111,16 +119,31 @@ export const MessageItem = ({
                     {createdAt && (
                         <span className="text-xs" style={{ color: '#72767d' }}>{formatTime(createdAt)}</span>
                     )}
-                    {canEdit && !editing && onStartEdit && (
-                        <button
-                            type="button"
-                            onClick={onStartEdit}
-                            aria-label="Editar mensaje"
-                            className="ml-auto text-xs font-semibold opacity-0 group-hover:opacity-100 focus:opacity-100 hover:underline"
-                            style={{ color: '#99aab5' }}
-                        >
-                            Editar
-                        </button>
+                    {!editing && ((canEdit && onStartEdit) || (canDelete && onRequestDelete)) && (
+                        <span className="ml-auto flex gap-3">
+                            {canEdit && onStartEdit && (
+                                <button
+                                    type="button"
+                                    onClick={onStartEdit}
+                                    aria-label="Editar mensaje"
+                                    className="text-xs font-semibold opacity-0 group-hover:opacity-100 focus:opacity-100 hover:underline"
+                                    style={{ color: '#99aab5' }}
+                                >
+                                    Editar
+                                </button>
+                            )}
+                            {canDelete && onRequestDelete && (
+                                <button
+                                    type="button"
+                                    onClick={onRequestDelete}
+                                    aria-label="Eliminar mensaje"
+                                    className="text-xs font-semibold opacity-0 group-hover:opacity-100 focus:opacity-100 hover:underline"
+                                    style={{ color: '#ed4245' }}
+                                >
+                                    Eliminar
+                                </button>
+                            )}
+                        </span>
                     )}
                 </div>
                 {editing && onSaveEdit && onCancelEdit ? (
@@ -140,6 +163,9 @@ export const MessageItem = ({
                             </span>
                         )}
                     </p>
+                )}
+                {deleteError && (
+                    <p role="alert" className="text-xs mt-1" style={{ color: '#ed4245' }}>{deleteError}</p>
                 )}
                 {failed && (
                     <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: '#ed4245' }}>

@@ -353,6 +353,30 @@ describe('receiving', () => {
         expect(onUpdated).not.toHaveBeenCalled();
     });
 
+    it('emits messageDeleted with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onDeleted = vi.fn();
+        client.on('messageDeleted', onDeleted);
+
+        const frame = { type: 'message.deleted', messageId: 'm1', channelId: 'c1', serverId: 's1', deletedAt: '2026-11-10T15:30:00Z' };
+        socket.message(frame);
+
+        expect(onDeleted).toHaveBeenCalledWith(frame);
+    });
+
+    it.each([
+        ['messageId', { channelId: 'c1' }],
+        ['channelId', { messageId: 'm1' }],
+    ])('drops a message.deleted without %s: there is nothing to remove', async (_field, rest) => {
+        const { client, socket } = await openClient();
+        const onDeleted = vi.fn();
+        client.on('messageDeleted', onDeleted);
+
+        expect(() => socket.message({ type: 'message.deleted', serverId: 's1', deletedAt: '2026-11-10T15:30:00Z', ...rest })).not.toThrow();
+
+        expect(onDeleted).not.toHaveBeenCalled();
+    });
+
     it('emits readStateUpdated with the parsed frame', async () => {
         const { client, socket } = await openClient();
         const onReadState = vi.fn();

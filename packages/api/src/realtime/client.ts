@@ -4,6 +4,7 @@ import type {
     MessageAckFrame,
     MessageCreatedFrame,
     MessageUpdatedFrame,
+    MessageDeletedFrame,
     ReadStateUpdatedFrame,
     ServerFrame,
     VoiceParticipantsUpdatedFrame,
@@ -68,6 +69,7 @@ export interface RealtimeEventMap {
     ack: (frame: MessageAckFrame) => void;
     messageCreated: (frame: MessageCreatedFrame) => void;
     messageUpdated: (frame: MessageUpdatedFrame) => void;
+    messageDeleted: (frame: MessageDeletedFrame) => void;
     invalidate: (frame: InvalidateFrame) => void;
     voiceParticipants: (frame: VoiceParticipantsUpdatedFrame) => void;
     readStateUpdated: (frame: ReadStateUpdatedFrame) => void;
@@ -129,6 +131,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         ack: new Set(),
         messageCreated: new Set(),
         messageUpdated: new Set(),
+        messageDeleted: new Set(),
         invalidate: new Set(),
         voiceParticipants: new Set(),
         readStateUpdated: new Set(),
@@ -203,6 +206,12 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
                         typeof frame.editedAt === 'string'
                     ) {
                         emit('messageUpdated', frame);
+                    }
+                    break;
+                case 'message.deleted':
+                    // Without these there is nothing to remove.
+                    if (typeof frame.messageId === 'string' && typeof frame.channelId === 'string') {
+                        emit('messageDeleted', frame);
                     }
                     break;
                 case 'invalidate':

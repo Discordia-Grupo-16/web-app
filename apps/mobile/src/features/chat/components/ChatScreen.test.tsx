@@ -23,6 +23,7 @@ jest.mock('@discordia/core', () => ({
     retry: jest.fn(),
     discard: jest.fn(),
     editMessage: mockEditMessage,
+    deleteMessage: jest.fn(),
     historyLoaded: true,
     historyError: false,
     retryHistory: jest.fn(),
@@ -47,7 +48,7 @@ const own = (messageId: string, authorId = 'me'): ChatMessage =>
   ({ messageId, authorId, channelId: 'c1', content: `texto ${messageId}`, createdAt: '2026-11-09T12:00:00Z' }) as ChatMessage;
 
 const tree = (canSendMessages: boolean) => (
-  <ChatScreen channelId="c1" channelName="general" canSendMessages={canSendMessages} />
+  <ChatScreen channelId="c1" channelName="general" canSendMessages={canSendMessages} canManageMessages={false} />
 );
 
 describe('ChatScreen editing', () => {

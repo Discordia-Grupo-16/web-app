@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     ADMINISTRATOR,
     BAN_MEMBERS,
+    MANAGE_MESSAGES,
     MANAGE_ROLES,
     PERMISSION_BY_NAME,
     PERMISSION_HINT,
@@ -27,6 +28,7 @@ describe('the permission table', () => {
         expect(VIEW_CHANNEL).toBe(1);
         expect(SEND_MESSAGES).toBe(2);
         expect(ADMINISTRATOR).toBe(256);
+        expect(MANAGE_MESSAGES).toBe(512);
     });
 
     it('has a label, a hint and a position for every permission', () => {
