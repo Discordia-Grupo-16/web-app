@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { consumeLoginNotice, setLoginNotice } from './loginNotice';
+import { consumeLoginNotice, consumeLoginNoticeWithTone, setLoginNotice } from './loginNotice';
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -7,6 +7,15 @@ afterEach(() => {
 });
 
 describe('loginNotice', () => {
+    it('keeps the success tone and defaults to error', () => {
+        setLoginNotice('listo', 'success');
+        expect(consumeLoginNoticeWithTone()).toEqual({ message: 'listo', tone: 'success' });
+
+        setLoginNotice('mal');
+        expect(consumeLoginNoticeWithTone()).toEqual({ message: 'mal', tone: 'error' });
+        expect(consumeLoginNoticeWithTone()).toBeNull();
+    });
+
     it('stores a notice and consumes it once', () => {
         setLoginNotice('hola');
 
