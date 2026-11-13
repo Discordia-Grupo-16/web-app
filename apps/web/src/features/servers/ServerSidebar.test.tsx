@@ -118,7 +118,7 @@ describe('ServerSidebar unread marks', () => {
         error.mockRestore();
     });
 
-    it('leaves the selected server when it is removed from the server list', async () => {
+    it('shows an in-app dialog when the selected server disappears, then returns home', async () => {
         const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
         const handlers = new Set<(frame: InvalidateFrame) => void>();
         const realtime = {
@@ -153,9 +153,16 @@ describe('ServerSidebar unread marks', () => {
             vi.useRealTimers();
         }
 
+        expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+            'El servidor en el que estabas fue eliminado o suspendido.',
+        );
+        expect(screen.getByTestId('route')).toHaveTextContent('server');
+        expect(alert).not.toHaveBeenCalled();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Entendido' }));
+
         expect(await screen.findByTestId('route')).toHaveTextContent('home');
         expect(screen.queryByTitle('Alfa')).not.toBeInTheDocument();
-        expect(alert).toHaveBeenCalledWith('El servidor en el que estabas fue eliminado o suspendido.');
         alert.mockRestore();
     });
 });

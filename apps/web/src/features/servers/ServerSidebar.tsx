@@ -39,6 +39,7 @@ export const ServerSidebar = () => {
     const { anyUnread, markAllRead } = useMarkAllRead();
     const [servers, setServers] = useState<Server[]>([]);
     const [showCreate, setShowCreate] = useState(false);
+    const [showGoneNotice, setShowGoneNotice] = useState(false);
     const { serverId } = useParams();
     const navigate = useNavigate();
 
@@ -64,8 +65,7 @@ export const ServerSidebar = () => {
                     reportedGoneRef.current !== serverId
                 ) {
                     reportedGoneRef.current = serverId;
-                    window.alert('El servidor en el que estabas fue eliminado o suspendido.');
-                    navigate('/');
+                    setShowGoneNotice(true);
                 }
             })
             .catch(console.error);
@@ -165,6 +165,39 @@ export const ServerSidebar = () => {
 
             {showCreate && (
                 <CreateServerModal onClose={() => setShowCreate(false)} onCreated={handleCreated} />
+            )}
+            {showGoneNotice && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
+                    <div
+                        role="alertdialog"
+                        aria-modal="true"
+                        aria-labelledby="server-gone-title"
+                        aria-describedby="server-gone-description"
+                        className="w-full max-w-md rounded-2xl p-6 shadow-2xl"
+                        style={{ background: '#36393f' }}
+                    >
+                        <h2 id="server-gone-title" className="text-lg font-bold text-white">
+                            Servidor no disponible
+                        </h2>
+                        <p id="server-gone-description" className="mt-2 text-sm" style={{ color: '#b9bbbe' }}>
+                            El servidor en el que estabas fue eliminado o suspendido.
+                        </p>
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                type="button"
+                                autoFocus
+                                onClick={() => {
+                                    setShowGoneNotice(false);
+                                    navigate('/');
+                                }}
+                                className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors"
+                                style={{ background: '#5865f2' }}
+                            >
+                                Entendido
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </>
     );
