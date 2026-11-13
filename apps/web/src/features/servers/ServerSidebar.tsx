@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { CheckCheck, Plus } from 'lucide-react';
 import { serversService } from '@/shared/api';
 import type { Server } from '@discordia/api';
@@ -40,8 +40,17 @@ export const ServerSidebar = () => {
     const [servers, setServers] = useState<Server[]>([]);
     const [showCreate, setShowCreate] = useState(false);
     const [showGoneNotice, setShowGoneNotice] = useState(false);
+    const location = useLocation();
     const { serverId } = useParams();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const state = location.state;
+        if (state && typeof state === 'object' && 'serverGone' in state && state.serverGone === true) {
+            setShowGoneNotice(true);
+            navigate(location.pathname, { replace: true, state: null });
+        }
+    }, [location.pathname, location.state, navigate]);
 
     // A response from before a local change (e.g. creating a server) would drop it again.
     const localChangeRef = useRef(0);
@@ -69,7 +78,7 @@ export const ServerSidebar = () => {
                 }
             })
             .catch(console.error);
-    }, [navigate, serverId]);
+    }, [serverId]);
 
     // Reload on every server change too: leaving or losing a server navigates away from it.
     useEffect(() => {

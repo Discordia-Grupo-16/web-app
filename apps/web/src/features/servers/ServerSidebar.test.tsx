@@ -165,4 +165,23 @@ describe('ServerSidebar unread marks', () => {
         expect(screen.queryByTitle('Alfa')).not.toBeInTheDocument();
         alert.mockRestore();
     });
+
+    it('shows the dialog when the current server route reports that the server is gone', async () => {
+        render(
+            <UnreadContext.Provider value={{ state: { byChannel: {} }, setActiveChannel: vi.fn(), markAllRead }}>
+                <MemoryRouter initialEntries={[{ pathname: '/', state: { serverGone: true } }]}>
+                    <Routes>
+                        <Route path="/" element={<HomeRoute />} />
+                    </Routes>
+                </MemoryRouter>
+            </UnreadContext.Provider>,
+        );
+
+        expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+            'El servidor en el que estabas fue eliminado o suspendido.',
+        );
+        expect(screen.getByTestId('route')).toHaveTextContent('home');
+        await userEvent.click(screen.getByRole('button', { name: 'Entendido' }));
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
 });

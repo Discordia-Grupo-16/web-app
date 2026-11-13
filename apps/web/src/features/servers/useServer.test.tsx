@@ -46,11 +46,11 @@ describe('useServer', () => {
         expect(navigate).not.toHaveBeenCalled();
     });
 
-    it.each([404, 403])('goes home when the server answers %i', async (status) => {
+    it.each([404, 403])('shows the unavailable-server notice when the server answers %i', async (status) => {
         vi.mocked(serversService.getServer).mockRejectedValue({ response: { status } });
         renderHook(() => useServer('srv', undefined), { wrapper });
 
-        await waitFor(() => expect(navigate).toHaveBeenCalledWith('/'));
+        await waitFor(() => expect(navigate).toHaveBeenCalledWith('/', { state: { serverGone: true } }));
     });
 
     it('falls back to the server view when the open channel no longer exists', async () => {
