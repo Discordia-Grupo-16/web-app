@@ -102,8 +102,7 @@ export const ChannelGroup = ({ label, channels, activeId, serverId, canManage, o
                         onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move'; setDragOverId(ch.id); }}
                         onDragLeave={() => setDragOverId(null)}
                         onDrop={e => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                            e.preventDefault(); e.stopPropagation();
                             const fromId = e.dataTransfer.getData('channelId');
                             if (fromId && fromId !== ch.id) onReorder?.(fromId, ch.id);
                             setDragOverId(null);

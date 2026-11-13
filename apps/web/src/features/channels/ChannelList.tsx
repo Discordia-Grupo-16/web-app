@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderPlus, Pencil, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, FolderPlus, Pencil, Trash2 } from 'lucide-react';
 import type { Category, Channel } from '@discordia/api';
 import { categoriesService, channelsService } from '@/shared/api';
 import { ConfirmModal } from '@/shared/ui/ConfirmModal';
@@ -144,11 +144,12 @@ export const ChannelList = ({
     };
 
     const handleCategoryReorder = async (fromId: string, toId: string) => {
-        const fromIndex = categories.findIndex(c => c.id === fromId);
-        const toIndex = categories.findIndex(c => c.id === toId);
+        const sorted = [...categories].sort((a, b) => a.position - b.position);
+        const fromIndex = sorted.findIndex(c => c.id === fromId);
+        const toIndex = sorted.findIndex(c => c.id === toId);
         if (fromIndex === -1 || toIndex === -1) return;
 
-        const reordered = [...categories];
+        const reordered = [...sorted];
         const [item] = reordered.splice(fromIndex, 1);
         reordered.splice(toIndex, 0, item);
 
@@ -191,24 +192,10 @@ export const ChannelList = ({
                 </div>
             )}
 
-            {categories.map(cat => {
+            {[...categories].sort((a, b) => a.position - b.position).map((cat, idx, sorted) => {
                 const catChannels = channels.filter(c => c.category_id === cat.id).sort((a, b) => a.position - b.position);
                 return (
-                    <div
-                        key={cat.id}
-                        draggable={canManage}
-                        onDragStart={e => { e.dataTransfer.setData('categoryId', cat.id); e.dataTransfer.effectAllowed = 'move'; }}
-                        onDragOver={e => {
-                            if (e.dataTransfer.types.includes('categoryid')) {
-                                e.preventDefault();
-                                e.dataTransfer.dropEffect = 'move';
-                            }
-                        }}
-                        onDrop={e => {
-                            const fromId = e.dataTransfer.getData('categoryId');
-                            if (fromId && fromId !== cat.id) handleCategoryReorder(fromId, cat.id);
-                        }}
-                    >
+                    <div key={cat.id}>
                         <ChannelGroup
                             label={cat.name}
                             channels={catChannels}
@@ -216,6 +203,28 @@ export const ChannelList = ({
                             onChannelDrop={canManage ? (channelId) => handleAssignChannelToCategory(channelId, cat.id) : undefined}
                             headerActions={canManage ? (
                                 <>
+                                    <button
+                                        onClick={() => handleCategoryReorder(cat.id, sorted[idx - 1].id)}
+                                        disabled={idx === 0}
+                                        className="p-0.5 rounded disabled:opacity-30"
+                                        style={{ color: '#8e9297' }}
+                                        title="Subir categoría"
+                                        onMouseEnter={e => { if (idx !== 0) e.currentTarget.style.color = '#dcddde'; }}
+                                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                    >
+                                        <ChevronUp size={12} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleCategoryReorder(cat.id, sorted[idx + 1].id)}
+                                        disabled={idx === sorted.length - 1}
+                                        className="p-0.5 rounded disabled:opacity-30"
+                                        style={{ color: '#8e9297' }}
+                                        title="Bajar categoría"
+                                        onMouseEnter={e => { if (idx !== sorted.length - 1) e.currentTarget.style.color = '#dcddde'; }}
+                                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                    >
+                                        <ChevronDown size={12} />
+                                    </button>
                                     <button
                                         onClick={() => setCategoryForm({ mode: 'rename', category: cat, value: cat.name, loading: false, error: null })}
                                         className="p-0.5 rounded"
