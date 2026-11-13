@@ -38,6 +38,13 @@
           "photosPermission": "Discordia necesita acceso a tu galería para que puedas cambiar tu avatar."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "51577c14-cf8a-4c8e-a7f7-638b62de9cda"
+      }
+    },
+    "owner": "brunoc23"
   }
 }
