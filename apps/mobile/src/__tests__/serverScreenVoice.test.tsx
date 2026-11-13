@@ -19,11 +19,15 @@ import ServerScreen from '@/app/(app)/server/[serverId]';
 
 let mockParams: Record<string, string> = {};
 
-jest.mock('expo-router', () => ({ useLocalSearchParams: () => mockParams }));
+jest.mock('expo-router', () => ({
+  useLocalSearchParams: () => mockParams,
+  // useLiveRefresh follows the focus with it; this screen is never unfocused here.
+  useFocusEffect: () => undefined,
+}));
 jest.mock('react-native-safe-area-context', () => ({
   SafeAreaView: ({ children }: { children: React.ReactNode }) => children,
 }));
-jest.mock('@/shared/api', () => ({ voiceService: { getServerVoiceParticipants: jest.fn() } }));
+jest.mock('@/shared/api', () => ({ voiceService: { getServerVoiceParticipants: jest.fn() }, ownershipSource: {} }));
 jest.mock('@/features/channels', () => ({
   // Each channel in a box of its own, with whatever the screen draws below it.
   ChannelSection: ({
@@ -63,6 +67,8 @@ jest.mock('@discordia/core', () => {
     ...actual,
     useAuth: () => ({ user: { id: 'me', name: 'Milton' } }),
     useVoice: jest.fn(),
+    // The ownership transfer of the screen has its own tests (serverScreen.test.tsx).
+    useOutgoingOwnershipTransfer: () => ({ view: { kind: 'none' }, busy: null, error: null, reload: jest.fn() }),
     useVoiceCallParticipants: (participants: { userId: string }[]) =>
       participants.map((p) => ({ userId: p.userId, name: `Nombre ${p.userId}`, loading: false, muted: false })),
     // The real hook, spied: it is the one that decides when to ask. Its names have tests in core.

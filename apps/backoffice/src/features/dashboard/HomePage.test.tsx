@@ -20,14 +20,14 @@ describe('HomePage', () => {
         expect(screen.getByText('Buscar y filtrar usuarios de la plataforma.')).toBeInTheDocument();
     });
 
-    it('keeps Servidores as upcoming', () => {
+    it('links to the servers list', () => {
         render(
             <MemoryRouter>
                 <HomePage />
             </MemoryRouter>,
         );
 
-        expect(screen.getByText(/SCRUM-83/)).toBeInTheDocument();
-        expect(screen.getByText('Próximamente.')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /Servidores/ })).toHaveAttribute('href', '/servers');
+        expect(screen.getByText('Buscar y filtrar servidores de la plataforma.')).toBeInTheDocument();
     });
 });

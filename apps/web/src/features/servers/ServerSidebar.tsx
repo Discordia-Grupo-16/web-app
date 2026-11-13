@@ -1,12 +1,42 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { CheckCheck, Plus } from 'lucide-react';
 import { serversService } from '@/shared/api';
 import type { Server } from '@discordia/api';
+import { useMarkAllRead, useServerUnread } from '@discordia/core';
 import { CreateServerModal } from './CreateServerModal';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
+// What is unread in a server, over its icon. The one open is skipped: the channel list already says it.
+const ServerUnreadMarks = ({ server, isCurrent }: { server: Server; isCurrent: boolean }) => {
+    const { unread, mentionCount } = useServerUnread(server.id);
+    if (!unread) return null;
+    return (
+        <>
+            {!isCurrent && (
+                <span
+                    role="img"
+                    aria-label={`Mensajes sin leer en el servidor ${server.name}`}
+                    className="absolute w-1 h-2 rounded-r-full"
+                    style={{ background: '#fff', left: -4, top: '50%', transform: 'translateY(-50%)' }}
+                />
+            )}
+            {mentionCount > 0 && (
+                <span
+                    role="img"
+                    aria-label={`${mentionCount} ${mentionCount === 1 ? 'mención sin leer' : 'menciones sin leer'} en el servidor ${server.name}`}
+                    className="absolute rounded-full px-1 text-xs font-bold text-white"
+                    style={{ background: '#ed4245', right: -4, bottom: -4, minWidth: 18, textAlign: 'center' }}
+                >
+                    {mentionCount}
+                </span>
+            )}
+        </>
+    );
+};
+
 export const ServerSidebar = () => {
+    const { anyUnread, markAllRead } = useMarkAllRead();
     const [servers, setServers] = useState<Server[]>([]);
     const [showCreate, setShowCreate] = useState(false);
     const { serverId } = useParams();
@@ -73,6 +103,7 @@ export const ServerSidebar = () => {
                             ? <img src={server.avatar_url} alt={server.name} className="w-full h-full object-cover rounded-[inherit]" />
                             : server.name[0].toUpperCase()
                         }
+                        <ServerUnreadMarks server={server} isCurrent={server.id === serverId} />
                         {server.id === serverId && (
                             <span
                                 className="absolute w-1 h-8 rounded-r-full"
@@ -83,6 +114,17 @@ export const ServerSidebar = () => {
                 ))}
 
                 <div className="w-8 h-px my-1" style={{ background: '#36393f' }} />
+
+                <button
+                    onClick={() => markAllRead().catch(console.error)}
+                    disabled={!anyUnread}
+                    title="Marcar todo como leído"
+                    aria-label="Marcar todo como leído"
+                    className="flex items-center justify-center w-12 h-12 transition-all duration-200 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{ background: '#36393f', color: '#b9bbbe', borderRadius: '50%' }}
+                >
+                    <CheckCheck size={22} />
+                </button>
 
                 <button
                     onClick={() => setShowCreate(true)}

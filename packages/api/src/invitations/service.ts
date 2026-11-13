@@ -6,15 +6,15 @@ export const createInvitationsService = (apiClient: AxiosInstance) => ({
         const form = new FormData();
         if (expiresInHours !== undefined) form.append('expires_in_hours', String(expiresInHours));
         if (maxUses !== undefined) form.append('max_uses', String(maxUses));
-        return apiClient.post<Invitation>(`/api/v1/servers/${serverId}/invitations/`, form).then(r => r.data);
+        return apiClient.post<{ data: Invitation }>(`/api/v1/servers/${serverId}/invitations/`, form).then(r => r.data.data);
     },
 
     listInvitations: (serverId: string): Promise<Invitation[]> =>
-        apiClient.get<Invitation[]>(`/api/v1/servers/${serverId}/invitations/`).then(r => r.data),
+        apiClient.get<{ data: Invitation[] }>(`/api/v1/servers/${serverId}/invitations/`).then(r => r.data.data),
 
     revokeInvitation: (serverId: string, code: string): Promise<void> =>
         apiClient.delete(`/api/v1/servers/${serverId}/invitations/${code}`).then(() => undefined),
 
     joinServer: (code: string): Promise<Member> =>
-        apiClient.post<Member>(`/api/v1/invites/${code}/accept`).then(r => r.data),
+        apiClient.post<{ data: Member }>(`/api/v1/invites/${code}/accept`).then(r => r.data.data),
 });

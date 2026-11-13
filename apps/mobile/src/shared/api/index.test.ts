@@ -1,4 +1,4 @@
-import { userService } from '@/shared/api';
+import { ownershipSource, userService } from '@/shared/api';
 import { sessionExpiry } from '@/shared/session/sessionExpiry';
 
 describe('shared api wiring', () => {
@@ -8,5 +8,20 @@ describe('shared api wiring', () => {
     sessionExpiry.notify();
 
     expect(clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands the ownership hooks every method they read', () => {
+    const methods = [
+      'getServerTransfer',
+      'proposeTransfer',
+      'cancelTransfer',
+      'acceptTransfer',
+      'rejectTransfer',
+      'listMyTransfers',
+      'getServer',
+      'getServers',
+    ] as const;
+
+    for (const method of methods) expect(typeof ownershipSource[method]).toBe('function');
   });
 });
