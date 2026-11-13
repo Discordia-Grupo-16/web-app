@@ -19,6 +19,14 @@ describe('VoiceParticipantList', () => {
     ]);
   });
 
+  it('renders the participant avatar image instead of displaying its URL', async () => {
+    const avatarUrl = 'https://cdn.example.com/ana.png';
+    await render(<VoiceParticipantList participants={[{ ...participants[0], userAvatar: avatarUrl }]} />);
+
+    expect(screen.getByTestId('voice-avatar-u1').props.source).toEqual({ uri: avatarUrl });
+    expect(screen.queryByText(avatarUrl)).toBeNull();
+  });
+
   it('is labelled for the channel, not only for the call: it also lists who is in a channel I am not in', async () => {
     await render(<VoiceParticipantList participants={participants} />);
 

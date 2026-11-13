@@ -37,13 +37,17 @@ const ParticipantRow = memo(({ participant: p, roomy, speaking, locallyMuted, on
         >
             <span
                 aria-hidden
-                className={`shrink-0 rounded-full flex items-center justify-center font-display font-bold text-white transition-shadow duration-150 ${roomy ? 'w-8 h-8 text-sm' : 'w-5 h-5 text-[10px]'}`}
+                className={`relative shrink-0 rounded-full overflow-hidden flex items-center justify-center font-display font-bold text-white transition-shadow duration-150 ${roomy ? 'w-8 h-8 text-sm' : 'w-5 h-5 text-xs'}`}
                 style={{
-                    background: p.loading ? '#4f545c' : '#5b6eae',
+                    background: p.loading ? '#4f545c' : p.userAvatar ? 'transparent' : '#5b6eae',
                     boxShadow: speaking ? '0 0 0 2px ' + (locallyMuted ? '#72767d' : '#3ba55d') : undefined,
                 }}
             >
-                {p.loading ? '' : initial(p.name)}
+                {p.loading ? '' : p.userAvatar ? (
+                    <img src={p.userAvatar} alt="" className="absolute inset-0 block w-full h-full object-cover" />
+                ) : (
+                    initial(p.name)
+                )}
             </span>
             <span
                 className={`truncate ${roomy ? 'text-sm' : 'text-xs'} ${p.loading ? 'italic' : ''}`}

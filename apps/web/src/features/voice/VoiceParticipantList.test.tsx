@@ -23,6 +23,14 @@ describe('VoiceParticipantList', () => {
         expect(items[0]).toContainElement(screen.getByLabelText('Silenciado'));
     });
 
+    it('renders the participant avatar image instead of displaying its URL', () => {
+        const avatarUrl = 'https://cdn.example.com/ana.png';
+        render(<VoiceParticipantList participants={[{ ...participants[0], userAvatar: avatarUrl }]} />);
+
+        expect(screen.getByRole('listitem').querySelector('img')).toHaveAttribute('src', avatarUrl);
+        expect(screen.getByRole('listitem')).not.toHaveTextContent(avatarUrl);
+    });
+
     describe('who is speaking (SCRUM-56, Indicador de quién está hablando)', () => {
         const speakingItems = () => screen.getAllByRole('listitem').filter(i => i.hasAttribute('data-speaking'));
 

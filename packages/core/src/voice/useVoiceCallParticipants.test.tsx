@@ -33,7 +33,9 @@ const setup = (getPublicProfiles: PublicProfileSource['getPublicProfiles']) => {
 
 describe('useVoiceCallParticipants', () => {
     beforeEach(() => {
-        vi.mocked(useAuth).mockReturnValue({ user: { id: ME_ID, name: 'Milton' } as User } as ReturnType<typeof useAuth>);
+        vi.mocked(useAuth).mockReturnValue({
+            user: { id: ME_ID, name: 'Milton', avatarUrl: 'milton.png' } as User,
+        } as ReturnType<typeof useAuth>);
     });
 
     it('names everyone, with the own name from the session and the unavailable name for a missing profile', async () => {
@@ -50,9 +52,9 @@ describe('useVoiceCallParticipants', () => {
 
         await waitFor(() => expect(result.current[1].loading).toBe(false));
         expect(result.current).toEqual([
-            { userId: ME_ID, name: 'Milton', loading: false, muted: false, isSelf: true },
-            { userId: ANA_ID, name: 'Ana', loading: false, muted: true, isSelf: false },
-            { userId: GONE_ID, name: UNAVAILABLE_USER_NAME, loading: false, muted: false, isSelf: false },
+            { userId: ME_ID, name: 'Milton', userAvatar: 'milton.png', loading: false, muted: false, isSelf: true },
+            { userId: ANA_ID, name: 'Ana', userAvatar: '', loading: false, muted: true, isSelf: false },
+            { userId: GONE_ID, name: UNAVAILABLE_USER_NAME, userAvatar: '', loading: false, muted: false, isSelf: false },
         ]);
         expect(source.getPublicProfiles).toHaveBeenCalledWith([ANA_ID, GONE_ID]);
     });
@@ -63,7 +65,7 @@ describe('useVoiceCallParticipants', () => {
         const { result } = renderHook(() => useVoiceCallParticipants([participant(ANA_ID)]), { wrapper });
 
         expect(result.current).toEqual([
-            { userId: ANA_ID, name: VOICE_NAME_PLACEHOLDER, loading: true, muted: false, isSelf: false },
+            { userId: ANA_ID, name: VOICE_NAME_PLACEHOLDER, userAvatar: '', loading: true, muted: false, isSelf: false },
         ]);
         result.current.forEach((view) => expect(view.name).not.toContain(view.userId.slice(0, 8)));
     });

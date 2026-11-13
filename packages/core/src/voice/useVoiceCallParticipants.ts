@@ -7,6 +7,7 @@ import type { VoiceParticipant } from './types';
 export interface ChannelParticipantView {
     userId: string;
     name: string; // name, UNAVAILABLE_USER_NAME or the neutral placeholder
+    userAvatar: string;
     loading: boolean; // true while the name is the placeholder
     muted?: boolean; // absent when the list has no mute icon
     isSelf?: boolean; // true only for the own row
@@ -32,15 +33,16 @@ export const useVoiceCallParticipants = (participants: readonly NamedParticipant
         () =>
             participants.map((p) => {
                 if (user && p.userId === user.id) {
-                    return { userId: p.userId, name: user.name || 'Vos', loading: false, muted: p.muted, isSelf: true };
+                    return { userId: p.userId, name: user.name || 'Vos', userAvatar: user.avatarUrl ?? '', loading: false, muted: p.muted, isSelf: true };
                 }
                 const profile = profiles.get(p.userId);
                 if (profile === undefined) {
-                    return { userId: p.userId, name: VOICE_NAME_PLACEHOLDER, loading: true, muted: p.muted, isSelf: false };
+                    return { userId: p.userId, name: VOICE_NAME_PLACEHOLDER, userAvatar: '', loading: true, muted: p.muted, isSelf: false };
                 }
                 return {
                     userId: p.userId,
                     name: profile?.name ?? UNAVAILABLE_USER_NAME,
+                    userAvatar: profile?.avatarUrl ?? '',
                     loading: false,
                     muted: p.muted,
                     isSelf: false,
