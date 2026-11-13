@@ -60,10 +60,27 @@ export const useServerDetails = (serverId: string | undefined) => {
         if (!isGoneError(err) || goneRef.current) return;
         goneRef.current = true;
         Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o ya no sos miembro.');
-        router.back();
+        if (router.canDismiss()) router.dismissAll();
+        else router.back();
       });
   };
   useLiveRefresh({ resources: ['server', 'channels', 'permissions'], serverId, refresh });
+  useLiveRefresh({
+    resources: ['servers'],
+    serverId,
+    refresh: () => {
+      if (!serverId || goneRef.current) return;
+      serversService.getServers()
+        .then(servers => {
+          if (goneRef.current || servers.some(candidate => candidate.id === serverId)) return;
+          goneRef.current = true;
+          Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o suspendido.');
+          if (router.canDismiss()) router.dismissAll();
+          else router.back();
+        })
+        .catch(console.error);
+    },
+  });
 
   const updateChannels = useCallback((update: (channels: Channel[]) => Channel[]) => {
     setServer(prev => prev ? { ...prev, channels: update(prev.channels) } : prev);
