@@ -19,6 +19,7 @@ const server: Server = {
   my_permissions: 7,
   my_permission_names: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'CONNECT'],
   channels: [],
+  categories: [],
 };
 
 const pressAlertButton = async (text: string) => {

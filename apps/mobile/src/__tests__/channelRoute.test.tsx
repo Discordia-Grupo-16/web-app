@@ -38,6 +38,7 @@ const channel = (id: string, name: string, type: Channel['type']): Channel => ({
   name,
   type,
   topic: null,
+  category_id: null,
   position: 0,
   created_at: '2026-10-01T00:00:00Z',
 });
@@ -52,6 +53,7 @@ const server = (myPermissions: number): Server => ({
   my_permissions: myPermissions,
   my_permission_names: [],
   channels: [channel('c1', 'general', 'text'), channel('c2', 'lobby', 'voice')],
+  categories: [],
 });
 
 describe('la ruta del canal de voz (CA2 de SCRUM-51, Unirse a canal de voz de servidor)', () => {

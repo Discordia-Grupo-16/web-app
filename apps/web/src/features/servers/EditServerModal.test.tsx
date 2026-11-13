@@ -20,6 +20,7 @@ const server: Server = {
     my_permissions: 0,
     my_permission_names: [],
     channels: [],
+    categories: [],
 };
 
 describe('EditServerModal', () => {

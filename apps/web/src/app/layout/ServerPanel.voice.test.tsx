@@ -38,6 +38,7 @@ const channel = (id: string, name: string, serverId: string, type: Channel['type
     name,
     type,
     topic: null,
+    category_id: null,
     position: 0,
     created_at: '2026-10-01T00:00:00Z',
 });

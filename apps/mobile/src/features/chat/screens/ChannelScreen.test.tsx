@@ -22,6 +22,7 @@ const channel: Channel = {
   name: 'general',
   type: 'text',
   topic: null,
+  category_id: null,
   position: 0,
   created_at: '2026-10-01T00:00:00Z',
 };
@@ -32,10 +33,12 @@ const server: Server = {
   description: null,
   owner_id: 'owner',
   avatar_url: null,
+  banner_url: null,
   created_at: '2026-10-01T00:00:00Z',
   my_permissions: VIEW_CHANNEL | SEND_MESSAGES,
   my_permission_names: [],
   channels: [channel],
+  categories: [],
 };
 
 const setActiveChannel = jest.fn();

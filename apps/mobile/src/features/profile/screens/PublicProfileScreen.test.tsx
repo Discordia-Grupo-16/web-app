@@ -27,6 +27,7 @@ const server = (id: string, name: string): Server => ({
   my_permissions: 7,
   my_permission_names: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'CONNECT'],
   channels: [],
+  categories: [],
 });
 
 const found = (...users: PublicUser[]) => async (): Promise<PublicProfiles> => new Map(users.map((u) => [u.id, u]));

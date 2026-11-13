@@ -25,8 +25,9 @@ const server: Server = {
     my_permissions: 7,
     my_permission_names: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'CONNECT'],
     channels: [
-        { id: 'c1', server_id: 'srv', name: 'general', type: 'text', topic: null, position: 0, created_at: '2026-10-01T00:00:00Z' },
+        { id: 'c1', server_id: 'srv', name: 'general', type: 'text', topic: null, category_id: null, position: 0, created_at: '2026-10-01T00:00:00Z' },
     ],
+    categories: [],
 };
 
 const wrapper = ({ children }: { children: ReactNode }) => <MemoryRouter>{children}</MemoryRouter>;
