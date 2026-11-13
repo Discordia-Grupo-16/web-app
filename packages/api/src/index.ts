@@ -41,6 +41,7 @@ export * from './ownership/service';
 export type * from './ownership/types';
 
 export * from './realtime/client';
+export * from './realtime/ticket';
 export type * from './realtime/protocol';
 
 export * from './voice/service';

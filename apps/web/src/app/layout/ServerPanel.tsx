@@ -74,8 +74,8 @@ export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
     const { server, loading: loadingServer, updateChannels, updateCategories, updateServer } = useCurrentServer();
-    const [showSettings, setShowSettings] = useState(false);
     const navigate = useNavigate();
+    const [showSettings, setShowSettings] = useState(false);
     const {
         roles,
         loading: loadingRoles,
