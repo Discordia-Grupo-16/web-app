@@ -135,7 +135,7 @@ export function LoginScreen() {
             {/* Campo Email */}
             <View className="mb-4">
               <Text className="text-xs font-semibold uppercase tracking-wider text-[#99aab5] mb-2">
-                Correo electrónico o teléfono
+                Correo electrónico
               </Text>
               <TextInput
                 className="w-full px-4 py-3 rounded-lg bg-[#23272a] text-white text-sm border border-transparent"
