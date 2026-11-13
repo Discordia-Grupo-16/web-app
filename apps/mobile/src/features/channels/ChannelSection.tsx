@@ -186,6 +186,27 @@ export function ChannelSection({
     }
   };
 
+  const moveChannelInGroup = async (ch: Channel, groupChannels: Channel[], direction: 'up' | 'down') => {
+    const sorted = [...groupChannels].sort((a, b) => a.position - b.position);
+    const idx = sorted.findIndex(c => c.id === ch.id);
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= sorted.length) return;
+    [sorted[idx], sorted[targetIdx]] = [sorted[targetIdx], sorted[idx]];
+
+    const groupIds = new Set(groupChannels.map(c => c.id));
+    const globalSorted = [...channels].sort((a, b) => a.position - b.position);
+    let reorderedIdx = 0;
+    const newGlobalOrder = globalSorted.map(c => groupIds.has(c.id) ? sorted[reorderedIdx++] : c);
+
+    const newPositions = new Map(newGlobalOrder.map((c, i) => [c.id, i]));
+    onChannelsChange(prev => prev.map(c => ({ ...c, position: newPositions.get(c.id) ?? c.position })));
+    try {
+      await channelsService.reorderChannels(serverId, newGlobalOrder.map(c => c.id));
+    } catch (err) {
+      Alert.alert('Error', getErrorDetail(err) || 'No se pudo reordenar.');
+    }
+  };
+
   const handleChannelCreated = (ch: Channel) => {
     onChannelsChange(prev => [...prev, ch]);
     setCreateChannelType(null);
@@ -211,7 +232,7 @@ export function ChannelSection({
         <View className="flex-row justify-between items-center mb-2">
           <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider">Canales</Text>
           <View className="flex-row gap-2">
-            {sortedCategories.length > 1 && (
+            {sortedCategories.length >= 1 && (
               <TouchableOpacity
                 onPress={() => setReordering(r => !r)}
                 className="px-2 py-1 rounded bg-[#2c2f33]"
@@ -282,7 +303,42 @@ export function ChannelSection({
             {catChannels.length === 0 && (
               <Text className="text-[#72767d] text-xs px-1">Sin canales.</Text>
             )}
-            {renderChannels(catChannels)}
+            {catChannels.map((ch, chIdx) => (
+              <Fragment key={ch.id}>
+                <View className="flex-row items-center">
+                  {reordering && catChannels.length > 1 && (
+                    <View className="flex-row mr-1">
+                      <TouchableOpacity
+                        onPress={() => moveChannelInGroup(ch, catChannels, 'up')}
+                        disabled={chIdx === 0}
+                        className="w-6 h-6 items-center justify-center"
+                        style={{ opacity: chIdx === 0 ? 0.3 : 1 }}
+                      >
+                        <Text className="text-[#99aab5] text-xs">↑</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => moveChannelInGroup(ch, catChannels, 'down')}
+                        disabled={chIdx === catChannels.length - 1}
+                        className="w-6 h-6 items-center justify-center"
+                        style={{ opacity: chIdx === catChannels.length - 1 ? 0.3 : 1 }}
+                      >
+                        <Text className="text-[#99aab5] text-xs">↓</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  <View className="flex-1">
+                    <ChannelItem
+                      channel={ch}
+                      canManage={canManage}
+                      onDelete={handleDeleteChannel}
+                      onEdit={setEditingChannel}
+                      onOpen={handleOpenChannel}
+                    />
+                  </View>
+                </View>
+                {renderBelowChannel?.(ch)}
+              </Fragment>
+            ))}
           </View>
         );
       })}
