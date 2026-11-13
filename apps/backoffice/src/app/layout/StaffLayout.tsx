@@ -3,8 +3,7 @@ import { DiscordiaMark } from '@discordia/ui';
 import { useAuth } from '@discordia/core';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `block rounded-lg px-3 py-2 text-sm font-semibold ${
-        isActive ? 'bg-blurple text-white' : 'text-discord-muted hover:text-white'
+    `block rounded-lg px-3 py-2 text-sm font-semibold ${isActive ? 'bg-blurple text-white' : 'text-discord-muted hover:text-white'
     }`;
 
 export const StaffLayout = () => {
@@ -29,6 +28,9 @@ export const StaffLayout = () => {
                     </NavLink>
                     <NavLink to="/users" className={navLinkClass}>
                         Usuarios
+                    </NavLink>
+                    <NavLink to="/servers" className={navLinkClass}>
+                        Servidores
                     </NavLink>
                 </nav>
             </aside>

@@ -133,6 +133,25 @@ describe('useServer', () => {
             expect(serversService.getServer).toHaveBeenCalledTimes(1);
         });
 
+        it('picks up a new owner and a new name when the server notice arrives', async () => {
+            vi.mocked(serversService.getServer).mockResolvedValue(server);
+            const { notice, wrapper: realtimeWrapper } = withNotices();
+            const { result } = renderHook(() => useServer('srv', 'c1'), { wrapper: realtimeWrapper });
+            await waitFor(() => expect(result.current.server).not.toBeNull());
+            vi.mocked(serversService.getServer).mockResolvedValue({ ...server, owner_id: 'beto', name: 'Grupo 16' });
+            vi.useFakeTimers();
+
+            try {
+                notice({ serverId: 'srv', resources: ['server'] });
+                await act(() => vi.advanceTimersByTimeAsync(1400));
+            } finally {
+                vi.useRealTimers();
+            }
+
+            await waitFor(() => expect(result.current.server?.owner_id).toBe('beto'));
+            expect(result.current.server?.name).toBe('Grupo 16');
+        });
+
         it('ignores a notice about another server', async () => {
             vi.mocked(serversService.getServer).mockResolvedValue(server);
             const { notice, wrapper: realtimeWrapper } = withNotices();

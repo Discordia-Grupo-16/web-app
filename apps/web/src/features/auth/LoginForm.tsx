@@ -8,12 +8,15 @@ import { useReturnTo } from './returnTo';
 
 interface LoginFormProps {
     onSwitch: () => void
+    onForgotPassword?: () => void
     // Message shown above the form errors (e.g. "account suspended"); hidden once the user submits.
     notice?: string | null
+    // "success" renders the notice in green (e.g. password updated); anything else is an error.
+    noticeTone?: 'error' | 'success'
     onSubmitAttempt?: () => void
 }
 
-export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps) => {
+export const LoginForm = ({ onSwitch, onForgotPassword, notice, noticeTone, onSubmitAttempt }: LoginFormProps) => {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
@@ -81,8 +84,12 @@ export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps)
 
                 {notice && (
                     <div
-                        role="alert"
-                        className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium"
+                        role={noticeTone === 'success' ? 'status' : 'alert'}
+                        className={
+                            noticeTone === 'success'
+                                ? 'mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-xs font-medium'
+                                : 'mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium'
+                        }
                     >
                         {notice}
                     </div>
@@ -136,6 +143,7 @@ export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps)
                             </label>
                             <button
                                 type="button"
+                                onClick={onForgotPassword}
                                 className="text-xs font-medium transition-colors hover:underline"
                                 style={{ fontFamily: 'Open Sans, sans-serif', color: '#7289da' }}
                             >

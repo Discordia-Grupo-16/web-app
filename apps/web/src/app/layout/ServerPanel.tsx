@@ -1,15 +1,21 @@
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import type { Channel } from '@discordia/api';
+import { ArrowRightLeft } from 'lucide-react';
+import type { Channel, ServerMember } from '@discordia/api';
 import {
     BAN_MEMBERS,
     KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
     NONE,
+    OWNERSHIP_TEXTS,
     PERMISSION_COPY,
     VIEW_CHANNEL,
     hasPermission,
     useAuth,
+    useOutgoingOwnershipTransfer,
+    usePublicProfiles,
+    UNAVAILABLE_USER_NAME,
     useVoice,
     useServerVoiceRoster,
     useVoiceCallParticipants,
@@ -20,11 +26,45 @@ import { voiceService } from '@/shared/api';
 import { ChannelList } from '@/features/channels';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
+import { dismissedRejections, OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
 import { RolesSection, useRoles } from '@/features/roles';
 import { LeaveServerButton, ServerHeader, useCurrentServer } from '@/features/servers';
 import { VoiceCallParticipantList, VoiceParticipantList } from '@/features/voice';
+import { ownershipSource } from '@/shared/api';
+import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
+
+interface ProposeDialogProps {
+    toUserId: string;
+    serverName: string;
+    transfer: ReturnType<typeof useOutgoingOwnershipTransfer>;
+    onClose: () => void;
+}
+
+// Mounted only while proposing, so the recipient's profile is asked for only then.
+const ProposeDialog = ({ toUserId, serverName, transfer, onClose }: ProposeDialogProps) => {
+    const profile = usePublicProfiles([toUserId]).get(toUserId);
+    const toName =
+        profile === undefined ? OWNERSHIP_TEXTS.loadingName : (profile?.name ?? UNAVAILABLE_USER_NAME);
+
+    return (
+        <TransferOwnershipDialog
+            toName={toName}
+            serverName={serverName}
+            busy={transfer.busy === 'proposing'}
+            error={transfer.error}
+            onConfirm={async () => {
+                if (await transfer.propose(toUserId)) onClose();
+            }}
+            onRetry={transfer.retry}
+            onClose={() => {
+                transfer.dismissError();
+                onClose();
+            }}
+        />
+    );
+};
 
 // Second column of the layout: the selected server with its channels and roles.
 export const ServerPanel = () => {
@@ -32,7 +72,13 @@ export const ServerPanel = () => {
     const { user } = useAuth();
     const { server, loading: loadingServer, updateChannels } = useCurrentServer();
     const { roles, loading: loadingRoles, addRole, updateRole } = useRoles(serverId);
-    const { members, loading: loadingMembers, setMemberRoles, removeMember } = useMembers(serverId);
+    const {
+        members,
+        loading: loadingMembers,
+        setMemberRoles,
+        removeMember,
+        reload: reloadMembers,
+    } = useMembers(serverId);
 
     // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
     // showing a button that then disappears is worse than showing it one render late.
@@ -71,8 +117,42 @@ export const ServerPanel = () => {
     } = useBans(serverId, canBan);
 
     // Leaving is not a permission but a condition: the owner cannot leave their own server, they
-    // delete it. That is why this is still an ownership check and not a bit.
+    // transfer it or delete it first. That is why this is still an ownership check and not a bit.
     const isOwner = !!user && server?.owner_id === user.id;
+
+    // Only the owner transfers the ownership, whatever its permissions (SCRUM-35).
+    const transfer = useOutgoingOwnershipTransfer({
+        source: ownershipSource,
+        dismissedRejections,
+        serverId,
+        isOwner,
+    });
+    useLiveRefresh({ resources: ['ownershipTransfers'], serverId, refresh: transfer.reload, enabled: isOwner });
+    const [proposingTo, setProposingTo] = useState<string | null>(null);
+    const membersRef = useRef<HTMLDivElement>(null);
+
+    // The recipient left between opening the list and confirming: the list is out of date.
+    const transferError = transfer.error?.kind;
+    useEffect(() => {
+        if (transferError === 'not-member') reloadMembers();
+    }, [transferError, reloadMembers]);
+
+    const pending = transfer.view.kind === 'pending';
+    const renderMemberActions = isOwner
+        ? (member: ServerMember) =>
+              member.user_id === user?.id ? null : (
+                  <button
+                      onClick={() => setProposingTo(member.user_id)}
+                      disabled={pending}
+                      className="opacity-0 group-hover/member:opacity-100 transition-opacity p-1 rounded shrink-0"
+                      style={{ color: '#8e9297', cursor: pending ? 'not-allowed' : 'pointer' }}
+                      title={OWNERSHIP_TEXTS.transfer}
+                      aria-label={OWNERSHIP_TEXTS.transfer}
+                  >
+                      <ArrowRightLeft size={13} />
+                  </button>
+              )
+        : undefined;
 
     return (
         <aside
@@ -117,22 +197,31 @@ export const ServerPanel = () => {
                             onRoleCreated={addRole}
                             onRoleUpdated={updateRole}
                         />
-                        <MembersSection
-                            serverId={serverId}
-                            members={members}
-                            roles={roles}
-                            ownerId={server?.owner_id}
-                            canManage={hasPermission(permissions, MANAGE_ROLES)}
-                            canKick={hasPermission(permissions, KICK_MEMBERS)}
-                            canBan={canBan}
-                            onRolesChange={setMemberRoles}
-                            onMemberKicked={removeMember}
-                            onMemberBanned={userId => {
-                                removeMember(userId);
-                                // Without this the new ban would only show up with the next poll.
-                                reloadBans();
-                            }}
-                        />
+                        <div ref={membersRef}>
+                            <OutgoingTransferNotice
+                                view={transfer.view}
+                                busy={transfer.busy === 'cancelling'}
+                                onCancel={() => void transfer.cancel()}
+                                onDismissRejection={transfer.dismissRejection}
+                            />
+                            <MembersSection
+                                serverId={serverId}
+                                members={members}
+                                roles={roles}
+                                ownerId={server?.owner_id}
+                                canManage={hasPermission(permissions, MANAGE_ROLES)}
+                                canKick={hasPermission(permissions, KICK_MEMBERS)}
+                                canBan={canBan}
+                                onRolesChange={setMemberRoles}
+                                onMemberKicked={removeMember}
+                                onMemberBanned={userId => {
+                                    removeMember(userId);
+                                    // Without this the new ban would only show up with the next poll.
+                                    reloadBans();
+                                }}
+                                renderMemberActions={renderMemberActions}
+                            />
+                        </div>
                         {/* Not part of the panel's `loading`: the bans only start loading once the
                             server says the caller has the bit, and hiding every section a second
                             time would blink the panel. The section waits on its own instead. */}
@@ -148,7 +237,23 @@ export const ServerPanel = () => {
                 )}
             </div>
 
-            {serverId && !isOwner && <LeaveServerButton serverId={serverId} />}
+            {serverId && (
+                <LeaveServerButton
+                    serverId={serverId}
+                    isOwner={isOwner}
+                    pendingTransferTo={transfer.view.kind === 'pending' ? transfer.view.toName : null}
+                    onTransferRequested={() => membersRef.current?.scrollIntoView?.({ behavior: 'smooth' })}
+                />
+            )}
+
+            {serverId && proposingTo && (
+                <ProposeDialog
+                    toUserId={proposingTo}
+                    serverName={server?.name ?? ''}
+                    transfer={transfer}
+                    onClose={() => setProposingTo(null)}
+                />
+            )}
         </aside>
     );
 };

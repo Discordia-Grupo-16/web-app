@@ -51,10 +51,14 @@ export const useServerDetails = (serverId: string | undefined) => {
         // away a channel the user just created but this answer has not seen yet.
         setServer(prev => prev && prev.id === srv.id ? {
           ...prev,
+          // The owner and the name change with an ownership transfer and a server edit.
+          owner_id: srv.owner_id,
+          name: srv.name,
           channels: srv.channels,
           my_permissions: srv.my_permissions,
           my_permission_names: srv.my_permission_names,
         } : prev);
+        navigation.setOptions({ title: srv.name });
       })
       .catch(err => {
         if (!isGoneError(err) || goneRef.current) return;

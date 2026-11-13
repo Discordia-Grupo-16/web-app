@@ -4,11 +4,14 @@ import {
     createChannelsService,
     createInvitationsService,
     createMembersService,
+    createReadStatesService,
+    createOwnershipService,
     createRolesService,
     createServersService,
     createUserService,
     createVoiceService,
 } from '@discordia/api';
+import type { OwnershipTransferSource } from '@discordia/core';
 import { API_BASE_URL, API_TIMEOUT_MS } from '@/shared/config/env';
 import { webAuthStorage } from '@/shared/session/authStorage';
 import { sessionExpiry } from '@/shared/session/sessionExpiry';
@@ -29,3 +32,13 @@ export const rolesService = createRolesService(api);
 export const membersService = createMembersService(api);
 export const invitationsService = createInvitationsService(api);
 export const voiceService = createVoiceService(api);
+export const readStatesService = createReadStatesService(api);
+export const ownershipService = createOwnershipService(api);
+
+// What the ownership hooks of core need: the transfer endpoints plus the servers, to tell a deleted
+// server apart and to drop the banners of servers the user is no longer in.
+export const ownershipSource: OwnershipTransferSource = {
+    ...ownershipService,
+    getServer: serversService.getServer,
+    getServers: () => serversService.getServers(),
+};
