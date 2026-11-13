@@ -1,3 +1,5 @@
+import type { VoiceRosterParticipant } from '../voice/types';
+
 export interface MessageSendFrame {
     type: 'message.send';
     channelId: string;
@@ -51,6 +53,19 @@ export interface InvalidateFrame {
     userId?: string;
 }
 
+/**
+ * Who is connected to a voice channel changed (SCRUM-54, ADR-0017). Unlike `invalidate` it carries
+ * the data, because it is `chat`'s own: the whole list, not a delta. An empty `participants` means
+ * the channel is empty. Apply it only if `syncedAt` is newer than the one already held for the channel.
+ */
+export interface VoiceParticipantsUpdatedFrame {
+    type: 'voice-participants.updated';
+    serverId: string;
+    channelId: string;
+    participants: VoiceRosterParticipant[];
+    syncedAt: string;
+}
+
 export interface ReadStateEntry {
     channelId: string;
     serverId: string;
@@ -86,4 +101,10 @@ export interface ErrorFrame {
     };
 }
 
-export type ServerFrame = MessageAckFrame | MessageCreatedFrame | InvalidateFrame | ReadStateUpdatedFrame | ErrorFrame;
+export type ServerFrame =
+    | MessageAckFrame
+    | MessageCreatedFrame
+    | InvalidateFrame
+    | ReadStateUpdatedFrame
+    | VoiceParticipantsUpdatedFrame
+    | ErrorFrame;

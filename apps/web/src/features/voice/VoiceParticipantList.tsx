@@ -12,7 +12,7 @@ const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?';
 export const VoiceParticipantList = ({ participants, variant = 'compact' }: VoiceParticipantListProps) => {
     const roomy = variant === 'roomy';
     return (
-        <ul aria-label="Participantes de la llamada" className={roomy ? 'flex flex-col gap-1' : 'flex flex-col pl-7 pr-2 pb-1'}>
+        <ul aria-label="Participantes del canal" className={roomy ? 'flex flex-col gap-1' : 'flex flex-col pl-7 pr-2 pb-1'}>
             {participants.map(p => (
                 <li
                     key={p.userId}

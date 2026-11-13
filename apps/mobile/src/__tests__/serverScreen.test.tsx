@@ -31,12 +31,16 @@ jest.mock('@/shared/api', () => ({
     getServer: jest.fn(),
     getServers: jest.fn(),
   },
+  voiceService: { getServerVoiceParticipants: jest.fn() },
 }));
 jest.mock('@discordia/core', () => ({
   ...jest.requireActual('@discordia/core'),
   useAuth: () => ({ user: { id: ME, name: 'Yo', avatarUrl: null } }),
   useVoice: () => ({ call: { status: 'idle' } }),
   useVoiceCallParticipants: () => [],
+  // The voice roster under the channels has its own tests (serverScreenVoice.test.tsx).
+  useServerVoiceRoster: () => new Map(),
+  useVoiceRosterViews: () => new Map(),
 }));
 // The other sections have their own tests: here only the members, the transfer and the leave matter.
 jest.mock('@/features/channels', () => ({ ChannelSection: () => null }));

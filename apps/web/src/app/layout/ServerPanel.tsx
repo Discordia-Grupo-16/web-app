@@ -17,9 +17,12 @@ import {
     usePublicProfiles,
     UNAVAILABLE_USER_NAME,
     useVoice,
+    useServerVoiceRoster,
     useVoiceCallParticipants,
+    useVoiceRosterViews,
     type VoiceParticipant,
 } from '@discordia/core';
+import { voiceService } from '@/shared/api';
 import { ChannelList } from '@/features/channels';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
@@ -77,18 +80,29 @@ export const ServerPanel = () => {
         reload: reloadMembers,
     } = useMembers(serverId);
 
-    const { call } = useVoice();
-    const callChannelId = call.status === 'connected' ? call.channel.id : null;
-    const callParticipants = useVoiceCallParticipants(call.status === 'connected' ? call.participants : NO_PARTICIPANTS);
-    // Only the channel of the call shows who is in it. Another server does not list that channel.
-    const renderBelowChannel = (channel: Channel) =>
-        channel.id === callChannelId ? <VoiceParticipantList participants={callParticipants} /> : null;
-
-    const loading = loadingServer || loadingRoles || loadingMembers;
-
     // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
     // showing a button that then disappears is worse than showing it one render late.
     const permissions = server?.my_permissions ?? NONE;
+
+    const { call } = useVoice();
+    const callChannelId = call.status === 'connected' ? call.channel.id : null;
+    const callParticipants = useVoiceCallParticipants(call.status === 'connected' ? call.participants : NO_PARTICIPANTS);
+    // Who is in the other voice channels, without being in the call (SCRUM-54). Without VIEW_CHANNEL
+    // the backend answers 403, so the hook gets no server and does not ask.
+    const roster = useServerVoiceRoster(
+        hasPermission(permissions, VIEW_CHANNEL) ? serverId : undefined,
+        voiceService.getServerVoiceParticipants,
+    );
+    const rosterViews = useVoiceRosterViews(roster);
+    // The channel of the call shows LiveKit's list: it is instant and has the mute (W14). The rest
+    // show the roster of `chat`, only when someone is in it. Another server does not list the call's channel.
+    const renderBelowChannel = (channel: Channel) => {
+        if (channel.id === callChannelId) return <VoiceParticipantList participants={callParticipants} />;
+        const connected = rosterViews.get(channel.id);
+        return connected?.length ? <VoiceParticipantList participants={connected} /> : null;
+    };
+
+    const loading = loadingServer || loadingRoles || loadingMembers;
 
     // The same bit bans and revokes (ADR-0011). Without it the hook does not even ask: the list of
     // bans is moderation data and the backend answers 403.
