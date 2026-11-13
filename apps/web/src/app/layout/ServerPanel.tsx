@@ -132,6 +132,10 @@ export const ServerPanel = () => {
     // Leaving is not a permission but a condition: the owner cannot leave their own server, they
     // transfer it or delete it first. That is why this is still an ownership check and not a bit.
     const isOwner = !!user && server?.owner_id === user.id;
+    // The owner who is the only member has nobody to transfer the server to, so "Abandonar" would
+    // be a dead end (CA2 of "Abandonar servidor": transfer or delete first). Hidden while the
+    // members load, so it does not flash.
+    const offerLeave = !isOwner || (!loadingMembers && members.length > 1);
     const canManageServer = hasPermission(permissions, MANAGE_SERVER);
 
     // Only the owner transfers the ownership, whatever its permissions (SCRUM-35).
@@ -296,7 +300,7 @@ export const ServerPanel = () => {
                 )}
             </div>
 
-            {serverId && (
+            {serverId && offerLeave && (
                 <LeaveServerButton
                     serverId={serverId}
                     isOwner={isOwner}
