@@ -119,6 +119,7 @@ describe('ServerSidebar unread marks', () => {
     });
 
     it('leaves the selected server when it is removed from the server list', async () => {
+        const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
         const handlers = new Set<(frame: InvalidateFrame) => void>();
         const realtime = {
             status: 'open',
@@ -154,5 +155,7 @@ describe('ServerSidebar unread marks', () => {
 
         expect(await screen.findByTestId('route')).toHaveTextContent('home');
         expect(screen.queryByTitle('Alfa')).not.toBeInTheDocument();
+        expect(alert).toHaveBeenCalledWith('El servidor en el que estabas fue eliminado o suspendido.');
+        alert.mockRestore();
     });
 });

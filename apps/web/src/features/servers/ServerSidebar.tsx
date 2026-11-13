@@ -45,8 +45,10 @@ export const ServerSidebar = () => {
     // A response from before a local change (e.g. creating a server) would drop it again.
     const localChangeRef = useRef(0);
     const currentServerIdRef = useRef(serverId);
+    const reportedGoneRef = useRef<string | null>(null);
     useEffect(() => {
         currentServerIdRef.current = serverId;
+        if (reportedGoneRef.current !== serverId) reportedGoneRef.current = null;
     }, [serverId]);
 
     const refreshServers = useCallback(() => {
@@ -58,8 +60,11 @@ export const ServerSidebar = () => {
                 if (
                     serverId &&
                     currentServerIdRef.current === serverId &&
-                    !list.some(server => server.id === serverId)
+                    !list.some(server => server.id === serverId) &&
+                    reportedGoneRef.current !== serverId
                 ) {
+                    reportedGoneRef.current = serverId;
+                    window.alert('El servidor en el que estabas fue eliminado o suspendido.');
                     navigate('/');
                 }
             })
