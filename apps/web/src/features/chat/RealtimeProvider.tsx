@@ -10,7 +10,7 @@ import {
 import { TOKEN_KEY, webAuthStorage } from '@/shared/session/authStorage';
 import { setLoginNotice } from '@/shared/session/loginNotice';
 import { WS_URL } from '@/shared/config/env';
-import { api } from '@/shared/api';
+import { api, messagesService } from '@/shared/api';
 import { newClientMessageId } from './clientMessageId';
 
 export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
@@ -23,7 +23,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
         return createRealtimeClient({ url: WS_URL, getToken: webAuthStorage.getToken });
     });
 
-    const { value } = useRealtimeController({ client, token, newClientMessageId, api, logger: console });
+    const { value } = useRealtimeController({ client, token, newClientMessageId, api, messagesService, logger: console });
     useSuspensionSignOut(client, () => setLoginNotice(ACCOUNT_SUSPENDED_NOTICE));
 
 

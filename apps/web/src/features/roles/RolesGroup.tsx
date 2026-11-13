@@ -1,5 +1,5 @@
-import { Pencil, Plus, Shield, Users } from 'lucide-react';
-import { PERMISSION_COPY } from '@discordia/core';
+import { Pencil, Plus, Shield, Trash2, Users } from 'lucide-react';
+import { PERMISSION_COPY, ROLE_DELETION_TEXTS } from '@discordia/core';
 import type { Role } from '@discordia/api';
 
 interface RolesGroupProps {
@@ -8,6 +8,9 @@ interface RolesGroupProps {
     onAdd: () => void;
     onEdit: (role: Role) => void;
     onViewMembers: (role: Role) => void;
+    /** Whether "Eliminar" is offered on the role (SCRUM-64). */
+    canDelete: (role: Role) => boolean;
+    onDelete: (role: Role) => void;
 }
 
 export const RolesGroup = ({
@@ -16,6 +19,8 @@ export const RolesGroup = ({
     onAdd,
     onEdit,
     onViewMembers,
+    canDelete,
+    onDelete,
 }: RolesGroupProps) => (
     <div className="mb-4">
         <div className="flex items-center justify-between px-2 py-1 group">
@@ -80,6 +85,20 @@ export const RolesGroup = ({
                         onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
                     >
                         <Pencil size={13} />
+                    </button>
+                )}
+
+                {canDelete(role) && (
+                    <button
+                        onClick={() => onDelete(role)}
+                        className="opacity-0 group-hover/role:opacity-100 transition-opacity p-1 rounded shrink-0"
+                        style={{ color: '#8e9297' }}
+                        title={ROLE_DELETION_TEXTS.actionLabel(role.name)}
+                        aria-label={ROLE_DELETION_TEXTS.actionLabel(role.name)}
+                        onMouseEnter={e => (e.currentTarget.style.color = '#ed4245')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                    >
+                        <Trash2 size={13} />
                     </button>
                 )}
             </div>

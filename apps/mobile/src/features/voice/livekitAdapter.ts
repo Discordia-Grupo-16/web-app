@@ -10,10 +10,17 @@ import {
   TrackEvent,
   type LocalTrack,
   type LocalTrackPublication,
+  type Participant,
+  type RemoteParticipant,
+  type RemoteTrack,
+  type RemoteTrackPublication,
 } from 'livekit-client';
 import {
   buildParticipantSnapshot,
+  NO_SPEAKERS,
   readServerReason,
+  sameIds,
+  speakerIds,
   type EnableMicrophoneOptions,
   type MicLossCause,
   type MicResult,
@@ -86,10 +93,14 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
   const participantListeners = new Set<(snapshot: VoiceParticipant[]) => void>();
   const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
   const micLostListeners = new Set<(cause: MicLossCause) => void>();
+  const speakerListeners = new Set<(userIds: ReadonlySet<string>) => void>();
   // A mute asked by the user is not a lost microphone.
   let muteRequested = false;
   let unwatchMicrophone: (() => void) | null = null;
   let room: Room | null = null;
+  // Remote participants muted only on this device, by identity. It outlives the room: the controller
+  // sends the whole set again before every connect.
+  let locallyMuted: ReadonlySet<string> = new Set();
   let audioStarted = false;
   let pendingAudioStop: ReturnType<typeof setTimeout> | null = null;
   let lastAudioStopAt = 0;
@@ -170,7 +181,26 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
       const snapshot = buildParticipantSnapshot(next, seen);
       participantListeners.forEach((l) => l(snapshot));
     };
+    // Who is speaking in this room. LiveKit repeats the event when only the loudness order changes,
+    // so the listeners hear only real changes of the set.
+    let speaking: ReadonlySet<string> = NO_SPEAKERS;
+    const emitSpeakers = (ids: ReadonlySet<string>) => {
+      if (sameIds(speaking, ids)) return;
+      speaking = ids;
+      speakerListeners.forEach((l) => l(ids));
+    };
+    next.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+      if (room === next) emitSpeakers(speakerIds(speakers));
+    });
     SNAPSHOT_EVENTS.forEach((event) => next.on(event, emitSnapshot));
+    // The native module plays remote audio as soon as the track arrives, so the volume goes down right
+    // there. Covers a new track, a participant that came back as a new object and the ones already in the room.
+    next.on(
+      RoomEvent.TrackSubscribed,
+      (track: RemoteTrack, _publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+        if (track.kind === Track.Kind.Audio && locallyMuted.has(participant.identity)) participant.setVolume(0);
+      },
+    );
     // Only the current room counts: a room already left keeps no listener in the call.
     const emitReconnecting = (reconnecting: boolean) => {
       if (room === next) reconnectingListeners.forEach((l) => l(reconnecting));
@@ -197,6 +227,7 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
         serverReason: readServerReason(next.localParticipant.attributes),
       };
       participantListeners.forEach((l) => l([]));
+      emitSpeakers(NO_SPEAKERS);
       disconnectedListeners.forEach((l) => l(info));
     });
     return next;
@@ -259,6 +290,7 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
 
     onDisconnected: subscribe(disconnectedListeners),
     onParticipantsChanged: subscribe(participantListeners),
+    onActiveSpeakersChanged: subscribe(speakerListeners),
     onReconnectingChanged: subscribe(reconnectingListeners),
     onMicrophoneLost: subscribe(micLostListeners),
 
@@ -271,6 +303,16 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
       } finally {
         muteRequested = false;
       }
+    },
+
+    setLocallyMuted(userIds) {
+      const previous = locallyMuted;
+      locallyMuted = userIds;
+      // Only the ones whose state changed: the others keep their volume.
+      room?.remoteParticipants.forEach((participant) => {
+        const muted = userIds.has(participant.identity);
+        if (muted !== previous.has(participant.identity)) participant.setVolume(muted ? 0 : 1);
+      });
     },
   };
 };

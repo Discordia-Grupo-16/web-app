@@ -6,6 +6,8 @@ interface MessageItemProps {
   authorAvatarUrl?: string | null;
   content: string;
   createdAt?: string;
+  /** Last edit, or null/absent if the message was never edited. */
+  editedAt?: string | null;
   sending?: boolean;
   failed?: boolean;
   errorText?: string;
@@ -36,6 +38,7 @@ export const MessageItem = ({
   authorAvatarUrl = null,
   content,
   createdAt,
+  editedAt = null,
   sending = false,
   failed = false,
   errorText,
@@ -79,7 +82,10 @@ export const MessageItem = ({
         {createdAt && <Text className="text-xs text-[#72767d]">{formatTime(createdAt)}</Text>}
       </View>
       {/* Content comes from other users: always rendered as plain text. Not selectable when failed so the long-press reaches the row. */}
-      <Text selectable={!failed} className="text-sm text-[#dcddde]">{content}</Text>
+      <Text selectable={!failed} className="text-sm text-[#dcddde]">
+        {content}
+        {editedAt && <Text className="text-xs text-[#72767d]"> (editado)</Text>}
+      </Text>
       {failed && (
         <View className="flex-row flex-wrap items-center mt-1">
           {errorText && <Text className="text-xs mr-3 text-[#ed4245]">{errorText}</Text>}

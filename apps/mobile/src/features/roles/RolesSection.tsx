@@ -1,9 +1,18 @@
 import { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import { PERMISSION_COPY } from '@discordia/core';
+import {
+  NONE,
+  PERMISSION_COPY,
+  ROLE_DELETION_TEXTS,
+  canOfferRoleDeletion,
+  useRoleDeletion,
+  type RoleDeletionActor,
+} from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
+import { rolesService } from '@/shared/api';
 import { SectionHeader } from '@/shared/ui/SectionHeader';
 import { CreateRoleModal } from './CreateRoleModal';
+import { DeleteRoleDialog } from './DeleteRoleDialog';
 import { EditRolePermissionsModal } from './EditRolePermissionsModal';
 import { RoleMembersModal } from './RoleMembersModal';
 
@@ -15,7 +24,15 @@ interface RolesSectionProps {
   canManage: boolean;
   onRoleCreated: (role: Role) => void;
   onRoleUpdated: (role: Role) => void;
+  /** Who deletes. Without it nothing offers "Eliminar". */
+  actor?: RoleDeletionActor;
+  onRoleDeleted?: (roleId: string) => void;
+  onRolesReloaded?: (roles: Role[]) => void;
+  onServerGone?: () => void;
 }
+
+const NOBODY: RoleDeletionActor = { isOwner: false, permissions: NONE, roles: [] };
+const ignore = () => {};
 
 export function RolesSection({
   serverId,
@@ -25,10 +42,30 @@ export function RolesSection({
   canManage,
   onRoleCreated,
   onRoleUpdated,
+  actor = NOBODY,
+  onRoleDeleted = ignore,
+  onRolesReloaded = ignore,
+  onServerGone = ignore,
 }: RolesSectionProps) {
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [viewingMembers, setViewingMembers] = useState<Role | null>(null);
+  const deletion = useRoleDeletion({
+    source: rolesService,
+    serverId,
+    actor,
+    roles,
+    onDeleted: onRoleDeleted,
+    onRolesReloaded,
+    onServerGone,
+  });
+  // A modal open on a role that someone else deleted says so instead of acting on it.
+  const isGone = (role: Role) => !roles.some(r => r.id === role.id);
+  // A 404 from the role modal: the list is out of date. A server that is gone is handled by
+  // whoever loads the server.
+  const rereadRoles = () => {
+    rolesService.listRoles(serverId).then(onRolesReloaded).catch(console.error);
+  };
 
   return (
     <>
@@ -70,6 +107,16 @@ export function RolesSection({
               <Text className="text-[#72767d] text-xs">Permisos ›</Text>
             </TouchableOpacity>
           )}
+
+          {canOfferRoleDeletion(role, actor) && (
+            <TouchableOpacity
+              onPress={() => deletion.request(role)}
+              accessibilityLabel={ROLE_DELETION_TEXTS.actionLabel(role.name)}
+              className="pl-3"
+            >
+              <Text className="text-[#ed4245] text-xs">{ROLE_DELETION_TEXTS.action} ›</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ))}
 
@@ -87,6 +134,8 @@ export function RolesSection({
           role={editingRole}
           onClose={() => setEditingRole(null)}
           onUpdated={role => { onRoleUpdated(role); setEditingRole(null); }}
+          roleGone={isGone(editingRole)}
+          onRoleGone={rereadRoles}
         />
       )}
 
@@ -97,6 +146,16 @@ export function RolesSection({
           members={members}
           ownerId={ownerId}
           onClose={() => setViewingMembers(null)}
+          roleGone={isGone(viewingMembers)}
+        />
+      )}
+
+      {deletion.state.stage !== 'idle' && (
+        <DeleteRoleDialog
+          state={deletion.state}
+          onConfirm={() => void deletion.confirm()}
+          onRetry={deletion.retry}
+          onClose={deletion.close}
         />
       )}
     </>

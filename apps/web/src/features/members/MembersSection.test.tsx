@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
@@ -47,6 +48,7 @@ interface Options {
     canManage?: boolean;
     canKick?: boolean;
     canBan?: boolean;
+    renderMemberActions?: (member: ServerMember) => ReactNode;
 }
 
 const renderSection = ({
@@ -55,10 +57,12 @@ const renderSection = ({
     canManage = true,
     canKick = false,
     canBan = false,
+    renderMemberActions,
 }: Options = {}) => {
     const onRolesChange = vi.fn();
     const onMemberKicked = vi.fn();
     const onMemberBanned = vi.fn();
+    const onStale = vi.fn();
     const openProfile = vi.fn();
     const source: PublicProfileSource = {
         getPublicProfiles: async () => profiles,
@@ -78,11 +82,13 @@ const renderSection = ({
                     onRolesChange={onRolesChange}
                     onMemberKicked={onMemberKicked}
                     onMemberBanned={onMemberBanned}
+                    renderMemberActions={renderMemberActions}
+                    onStale={onStale}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
     );
-    return { onRolesChange, onMemberKicked, onMemberBanned, openProfile, user: userEvent.setup() };
+    return { onRolesChange, onMemberKicked, onMemberBanned, onStale, openProfile, user: userEvent.setup() };
 };
 
 describe('MembersSection', () => {
@@ -353,11 +359,55 @@ describe('MembersSection', () => {
         expect(onMemberBanned).not.toHaveBeenCalled();
     });
 
+    it('draws the extra actions of each row', async () => {
+        renderSection({
+            members: [member('milton'), member('owner')],
+            renderMemberActions: (m) => <button>Acción de {m.user_id}</button>,
+        });
+
+        expect(await screen.findByRole('button', { name: 'Acción de milton' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Acción de owner' })).toBeInTheDocument();
+    });
+
     it('opens the public profile of the member that was clicked', async () => {
         const { user, openProfile } = renderSection();
 
         await user.click(await screen.findByText('Milton'));
 
         expect(openProfile).toHaveBeenCalledWith('milton');
+    });
+});
+
+describe('MembersSection with a deleted role', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('says the role no longer exists and asks for the lists to be read again', async () => {
+        vi.mocked(rolesService.assignRole).mockRejectedValue({
+            response: { status: 404, data: { detail: 'Ese rol ya no existe' } },
+        });
+        const { user, onStale } = renderSection();
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Editar roles de Milton'));
+        await user.click(screen.getByRole('checkbox', { name: 'Moderador' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Ese rol ya no existe');
+        expect(onStale).toHaveBeenCalled();
+    });
+
+    it('does not ask for the lists again on a 403', async () => {
+        vi.mocked(rolesService.assignRole).mockRejectedValue({
+            response: { status: 403, data: { detail: 'No podés gestionar un rol que está en tu misma posición o por encima' } },
+        });
+        const { user, onStale } = renderSection();
+        await screen.findByText('Milton');
+
+        await user.click(screen.getByTitle('Editar roles de Milton'));
+        await user.click(screen.getByRole('checkbox', { name: 'Admin' }));
+
+        await screen.findByRole('alert');
+        expect(onStale).not.toHaveBeenCalled();
     });
 });

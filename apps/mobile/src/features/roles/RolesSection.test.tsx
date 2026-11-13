@@ -1,11 +1,24 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
-import { PERMISSION_COPY, PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
+import {
+  MANAGE_ROLES,
+  PERMISSION_COPY,
+  PublicProfilesProvider,
+  type PublicProfileSource,
+  type RoleDeletionActor,
+} from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
+import { rolesService } from '@/shared/api';
 import { RolesSection } from './RolesSection';
 
 jest.useFakeTimers();
 jest.mock('@/shared/api', () => ({
-  rolesService: { createRole: jest.fn(), updateRolePermissions: jest.fn(), setDefaultRole: jest.fn() },
+  rolesService: {
+    createRole: jest.fn(),
+    updateRolePermissions: jest.fn(),
+    setDefaultRole: jest.fn(),
+    deleteRole: jest.fn(),
+    listRoles: jest.fn(),
+  },
 }));
 jest.mock('@discordia/core', () => ({
   ...jest.requireActual('@discordia/core'),
@@ -41,13 +54,16 @@ interface Options {
   roles?: Role[];
   members?: ServerMember[];
   canManage?: boolean;
+  actor?: RoleDeletionActor;
 }
 
 const renderSection = async ({
   roles = [MODERADOR],
   members = [],
   canManage = true,
+  actor,
 }: Options = {}) => {
+  const onRoleDeleted = jest.fn();
   const source: PublicProfileSource = {
     getPublicProfiles: async () => profiles,
     peekPublicProfile: () => undefined,
@@ -63,10 +79,12 @@ const renderSection = async ({
         canManage={canManage}
         onRoleCreated={jest.fn()}
         onRoleUpdated={jest.fn()}
+        actor={actor}
+        onRoleDeleted={onRoleDeleted}
       />
     </PublicProfilesProvider>,
   );
-  return { user };
+  return { user, onRoleDeleted };
 };
 
 const openMembersOf = (roleName: string) =>
@@ -132,5 +150,64 @@ describe('RolesSection: ver quién tiene un rol (SCRUM-67)', () => {
 
     expect(screen.getByText(PERMISSION_COPY.roleMembersTitle)).toBeOnTheScreen();
     expect(screen.queryByText(PERMISSION_COPY.rolePermissionsTitle)).toBeNull();
+  });
+});
+
+describe('RolesSection: eliminar un rol (SCRUM-64)', () => {
+  const mine = { ...role('mine', 'Admin'), position: 5 };
+  const below = { ...role('x', 'Moderador'), position: 2 };
+  const everyone = { ...role('everyone', 'everyone'), is_default: true };
+  const manager: RoleDeletionActor = { isOwner: false, permissions: MANAGE_ROLES, roles: [mine] };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('no lo ofrece sin MANAGE_ROLES', async () => {
+    await renderSection({ roles: [mine, below], actor: { ...manager, permissions: 0 } });
+
+    expect(screen.queryByLabelText('Eliminar el rol Moderador')).not.toBeOnTheScreen();
+  });
+
+  it('no lo ofrece en un rol a la altura de quien elimina', async () => {
+    await renderSection({ roles: [mine, below], actor: manager });
+
+    expect(screen.queryByLabelText('Eliminar el rol Admin')).not.toBeOnTheScreen();
+    expect(screen.getByLabelText('Eliminar el rol Moderador')).toBeOnTheScreen();
+  });
+
+  it('explica el rol por defecto sin pedir confirmación', async () => {
+    const { user } = await renderSection({ roles: [mine, everyone], actor: manager });
+
+    await user.press(screen.getByLabelText('Eliminar el rol everyone'));
+
+    expect(
+      screen.getByText('Es el rol por defecto. Elegí otro rol por defecto antes de eliminarlo'),
+    ).toBeOnTheScreen();
+    expect(rolesService.deleteRole).not.toHaveBeenCalled();
+  });
+
+  it('elimina el rol después de confirmar y le avisa a la app', async () => {
+    jest.mocked(rolesService.deleteRole).mockResolvedValue(undefined);
+    const { user, onRoleDeleted } = await renderSection({ roles: [mine, below], actor: manager });
+
+    await user.press(screen.getByLabelText('Eliminar el rol Moderador'));
+    expect(screen.getByText('¿Eliminar el rol Moderador? Esta acción no se puede deshacer.')).toBeOnTheScreen();
+    await user.press(screen.getByText('Eliminar'));
+
+    expect(rolesService.deleteRole).toHaveBeenCalledWith('srv', 'x');
+    expect(onRoleDeleted).toHaveBeenCalledWith('x');
+  });
+
+  it('ofrece reintentar cuando se corta la conexión', async () => {
+    jest.mocked(rolesService.deleteRole).mockRejectedValue({ isAxiosError: true, response: undefined });
+    jest.mocked(rolesService.listRoles).mockRejectedValue({ isAxiosError: true, response: undefined });
+    const { user } = await renderSection({ roles: [mine, below], actor: manager });
+
+    await user.press(screen.getByLabelText('Eliminar el rol Moderador'));
+    await user.press(screen.getByText('Eliminar'));
+
+    expect(await screen.findByText('Reintentar')).toBeOnTheScreen();
+    expect(screen.getByText('No hay conexión.')).toBeOnTheScreen();
   });
 });

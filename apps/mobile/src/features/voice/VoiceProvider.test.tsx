@@ -1,7 +1,7 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
 import { AppState, Pressable, Text, type AppStateStatus } from 'react-native';
 import type { VoiceToken } from '@discordia/api';
-import { useVoice, type VoiceRoomAdapter } from '@discordia/core';
+import { useVoice, useVoiceSpeakers, type VoiceParticipant, type VoiceRoomAdapter } from '@discordia/core';
 import { voiceService } from '@/shared/api';
 import { loadVoice } from './loadVoice';
 import { VoiceProvider } from './VoiceProvider';
@@ -16,6 +16,11 @@ jest.mock('./loadVoice', () => ({ loadVoice: jest.fn() }));
 let appStateListeners: ((state: AppStateStatus) => void)[] = [];
 const changeAppState = (state: AppStateStatus) => act(() => appStateListeners.forEach((l) => l(state)));
 
+// The listener the controller gives the adapter, so a test can say who is speaking.
+let emitSpeakers: (ids: ReadonlySet<string>) => void = () => undefined;
+// Same for the participants of the call, so a test can put someone in it.
+let emitParticipants: (snapshot: VoiceParticipant[]) => void = () => undefined;
+
 const makeAdapter = () =>
   ({
     connect: jest.fn(async () => undefined),
@@ -24,9 +29,17 @@ const makeAdapter = () =>
       async () => 'ok',
     ),
     onDisconnected: () => () => undefined,
-    onParticipantsChanged: () => () => undefined,
+    onParticipantsChanged: (listener: (snapshot: VoiceParticipant[]) => void) => {
+      emitParticipants = listener;
+      return () => undefined;
+    },
+    onActiveSpeakersChanged: (listener: (ids: ReadonlySet<string>) => void) => {
+      emitSpeakers = listener;
+      return () => undefined;
+    },
     onReconnectingChanged: () => () => undefined,
     muteMicrophone: jest.fn(async () => undefined),
+    setLocallyMuted: jest.fn<void, [ReadonlySet<string>]>(),
     onMicrophoneLost: () => () => undefined,
   }) satisfies VoiceRoomAdapter;
 
@@ -50,10 +63,13 @@ const Status = () => {
   );
 };
 
+const Speakers = () => <Text testID="speakers">{[...useVoiceSpeakers()].join(',')}</Text>;
+
 const renderProvider = () =>
   render(
     <VoiceProvider>
       <Status />
+      <Speakers />
     </VoiceProvider>,
   );
 
@@ -157,5 +173,48 @@ describe('VoiceProvider', () => {
 
     expect(await screen.findByText('c2 connected')).toBeTruthy();
     expect(adapter.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the speakers context who is speaking once connected (SCRUM-56)', async () => {
+    jest.mocked(loadVoice).mockReturnValue(makeAdapter());
+    await renderProvider();
+    expect(screen.getByTestId('speakers')).toHaveTextContent('');
+    await userEvent.setup().press(screen.getByText('Unirse'));
+    expect(await screen.findByText('c1 connected')).toBeTruthy();
+
+    await act(async () => emitSpeakers(new Set(['me'])));
+
+    expect(screen.getByTestId('speakers')).toHaveTextContent('me');
+  });
+
+  it('sends the adapter who the user muted locally (SCRUM-57)', async () => {
+    const adapter = makeAdapter();
+    jest.mocked(loadVoice).mockReturnValue(adapter);
+    const LocalMute = () => {
+      const { toggleLocalMute, locallyMuted } = useVoice();
+      return (
+        <>
+          <Text testID="muted">{[...locallyMuted].join(',')}</Text>
+          <Pressable onPress={() => toggleLocalMute('ana')}>
+            <Text>Silenciar a Ana</Text>
+          </Pressable>
+        </>
+      );
+    };
+    await render(
+      <VoiceProvider>
+        <Status />
+        <LocalMute />
+      </VoiceProvider>,
+    );
+    const user = userEvent.setup();
+    await user.press(screen.getByText('Unirse'));
+    expect(await screen.findByText('c1 connected')).toBeTruthy();
+    await act(async () => emitParticipants([{ userId: 'ana', isLocal: false, muted: false, joinedAt: 1, seenOrder: 0 }]));
+
+    await user.press(screen.getByText('Silenciar a Ana'));
+
+    expect(adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set(['ana']));
+    expect(screen.getByTestId('muted')).toHaveTextContent('ana');
   });
 });

@@ -20,19 +20,23 @@ const role = (permissions: number, is_default = false): Role => ({
   created_at: '2026-10-01T00:00:00Z',
 });
 
-const renderModal = async (permissions: number, isDefault = false) => {
+const renderModal = async (permissions: number, isDefault = false, roleGone = false) => {
   const onUpdated = jest.fn();
+  const onClose = jest.fn();
+  const onRoleGone = jest.fn();
   const user = userEvent.setup();
   await render(
     <EditRolePermissionsModal
       visible
       serverId="srv"
       role={role(permissions, isDefault)}
-      onClose={jest.fn()}
+      onClose={onClose}
       onUpdated={onUpdated}
+      roleGone={roleGone}
+      onRoleGone={onRoleGone}
     />,
   );
-  return { user, onUpdated };
+  return { user, onUpdated, onClose, onRoleGone };
 };
 
 const save = () => screen.getByLabelText(PERMISSION_COPY.save);
@@ -201,5 +205,35 @@ describe('el rol por defecto (SCRUM-63)', () => {
     expect(onUpdated).toHaveBeenCalledWith(
       expect.objectContaining({ permissions: VIEW_CHANNEL, is_default: true }),
     );
+  });
+});
+
+describe('EditRolePermissionsModal with a deleted role', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('only says the role no longer exists and lets close', async () => {
+    const { user, onClose } = await renderModal(VIEW_CHANNEL, false, true);
+
+    expect(screen.getByText('Ese rol ya no existe')).toBeOnTheScreen();
+    expect(screen.queryByLabelText(PERMISSION_COPY.save)).not.toBeOnTheScreen();
+
+    await user.press(screen.getByText('Cerrar'));
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows the 404 of saving and asks for the list to be read again', async () => {
+    jest.mocked(rolesService.updateRolePermissions).mockRejectedValue({
+      response: { status: 404, data: { detail: 'Ese rol ya no existe' } },
+    });
+    const { user, onRoleGone } = await renderModal(VIEW_CHANNEL);
+
+    await toggle('Enviar mensajes', true);
+    await user.press(save());
+
+    expect(await screen.findByText('Ese rol ya no existe')).toBeOnTheScreen();
+    expect(onRoleGone).toHaveBeenCalled();
   });
 });

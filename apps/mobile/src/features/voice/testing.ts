@@ -9,6 +9,8 @@ export const voiceValue = (overrides: Partial<VoiceContextValue> = {}): VoiceCon
   rejoin: jest.fn(),
   leave: jest.fn(),
   toggleMute: jest.fn(),
+  locallyMuted: new Set(),
+  toggleLocalMute: jest.fn(),
   retry: jest.fn(),
   dismiss: jest.fn(),
   startAudio: jest.fn(),
