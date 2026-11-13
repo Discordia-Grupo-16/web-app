@@ -232,7 +232,7 @@ export function ChannelSection({
         <View className="flex-row justify-between items-center mb-2">
           <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider">Canales</Text>
           <View className="flex-row gap-2">
-            {sortedCategories.length > 1 && (
+            {sortedCategories.length >= 1 && (
               <TouchableOpacity
                 onPress={() => setReordering(r => !r)}
                 className="px-2 py-1 rounded bg-[#2c2f33]"
