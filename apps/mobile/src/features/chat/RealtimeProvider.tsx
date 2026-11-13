@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
-import { createRealtimeClient } from '@discordia/api';
+import { createRealtimeClient, createWsTicketGetter } from '@discordia/api';
 import {
   ACCOUNT_SUSPENDED_NOTICE,
   RealtimeContext,
@@ -9,7 +9,6 @@ import {
   useSuspensionSignOut,
 } from '@discordia/core';
 import { WS_URL } from '@/shared/config/env';
-import { mobileAuthStorage } from '@/shared/session/authStorage';
 import { setLoginNotice } from '@/shared/session/loginNotice';
 import { api, messagesService } from '@/shared/api';
 import { newClientMessageId } from './clientMessageId';
@@ -21,7 +20,7 @@ export const RealtimeProvider = ({ children }: { children: ReactNode }) => {
       console.warn('EXPO_PUBLIC_WS_URL is not set: realtime chat is disabled.');
       return null;
     }
-    return createRealtimeClient({ url: WS_URL, getToken: mobileAuthStorage.getToken });
+    return createRealtimeClient({ url: WS_URL, getTicket: createWsTicketGetter(api) });
   });
 
   const { value, suspend } = useRealtimeController({ client, token, newClientMessageId, api, messagesService, logger: console });
