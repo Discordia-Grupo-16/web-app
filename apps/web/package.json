@@ -19,6 +19,7 @@
     "axios": "^1.20.0",
     "livekit-client": "2.22.4",
     "lucide-react": "^1.44.0",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.87.0",

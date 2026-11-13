@@ -19,7 +19,12 @@ sessionExpiry.subscribe(() => userService.clearPublicProfiles());
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider storage={webAuthStorage} onSignOut={signOut} sessionExpiry={sessionExpiry}>
+    <AuthProvider
+      storage={webAuthStorage}
+      onSignOut={signOut}
+      onVerifyMfa={authService.verifyMfa}
+      sessionExpiry={sessionExpiry}
+    >
       <PublicProfilesProvider source={userService}>
         <RouterProvider router={router} />
       </PublicProfilesProvider>

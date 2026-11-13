@@ -4,6 +4,7 @@ export * from './http/sessionExpiry';
 export type { AuthStorageStrategy } from './http/storage';
 
 export * from './auth/service';
+export * from './auth/mfaService';
 export type * from './auth/types';
 
 export * from './users/service';

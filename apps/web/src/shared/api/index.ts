@@ -3,6 +3,7 @@ import {
     createAuthService,
     createChannelsService,
     createInvitationsService,
+    createMfaService,
     createMembersService,
     createMessagesService,
     createReadStatesService,
@@ -26,6 +27,7 @@ export const api = createApiClient({
 });
 
 export const authService = createAuthService(api);
+export const mfaService = createMfaService(api);
 export const userService = createUserService(api);
 export const serversService = createServersService(api);
 export const channelsService = createChannelsService(api);

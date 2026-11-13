@@ -89,3 +89,61 @@ describe('AuthProvider session expiry', () => {
         expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('AuthProvider two-step login', () => {
+    const setupMfa = () => {
+        const base = setup();
+        const onVerifyMfa = vi.fn(async () => ({ token: 'new', user: felipe, refreshToken: 'ref', recoveryCodesRemaining: 3 }));
+        const wrapper = ({ children }: { children: ReactNode }) => (
+            <AuthProvider storage={base.storage} onVerifyMfa={onVerifyMfa}>
+                {children}
+            </AuthProvider>
+        );
+        return { ...base, onVerifyMfa, wrapper };
+    };
+
+    it('keeps the mfaToken pending in memory until the second step is done', async () => {
+        const { storage, onVerifyMfa, wrapper } = setupMfa();
+        const { result } = renderHook(() => useAuth(), { wrapper });
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+        act(() => result.current.beginMfa('mfa-1'));
+        expect(result.current.pendingMfa).toBe(true);
+        expect(storage.clearSession).not.toHaveBeenCalled();
+
+        let outcome: { recoveryCodesRemaining?: number } = {};
+        await act(async () => {
+            outcome = await result.current.completeMfa({ recoveryCode: 'abcd-2345' });
+        });
+
+        expect(onVerifyMfa).toHaveBeenCalledWith({ mfaToken: 'mfa-1', recoveryCode: 'abcd-2345' });
+        expect(outcome.recoveryCodesRemaining).toBe(3);
+        expect(result.current.pendingMfa).toBe(false);
+        expect(result.current.token).toBe('new');
+    });
+
+    it('stays pending when the code is wrong, so the user can retry', async () => {
+        const { onVerifyMfa, wrapper } = setupMfa();
+        onVerifyMfa.mockRejectedValueOnce(new Error('bad code'));
+        const { result } = renderHook(() => useAuth(), { wrapper });
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+        act(() => result.current.beginMfa('mfa-1'));
+
+        await act(async () => {
+            await expect(result.current.completeMfa({ code: '000000' })).rejects.toThrow('bad code');
+        });
+
+        expect(result.current.pendingMfa).toBe(true);
+    });
+
+    it('drops the pending step on cancel', async () => {
+        const { wrapper } = setupMfa();
+        const { result } = renderHook(() => useAuth(), { wrapper });
+        await waitFor(() => expect(result.current.isLoading).toBe(false));
+        act(() => result.current.beginMfa('mfa-1'));
+
+        act(() => result.current.cancelMfa());
+
+        expect(result.current.pendingMfa).toBe(false);
+    });
+});
