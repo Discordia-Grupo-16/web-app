@@ -43,8 +43,19 @@ export type OutgoingTransferView =
     | { kind: 'pending'; toUserId: string; toName: string; toNameLoading: boolean; createdAt: string }
     | { kind: 'rejected'; toUserId: string; toName: string; toNameLoading: boolean; createdAt: string };
 
+/**
+ * Where each platform remembers, per server, the rejection the owner closed on this device:
+ * localStorage on web, AsyncStorage on mobile. A later rejection has another createdAt, so it shows.
+ */
+export interface DismissedRejectionStore {
+    /** The createdAt of the rejection closed on this device, or null if none was. */
+    get: (serverId: string) => Promise<string | null>;
+    set: (serverId: string, createdAt: string) => Promise<void>;
+}
+
 export interface UseOutgoingOwnershipTransferOptions {
     source: OwnershipTransferSource;
+    dismissedRejections: DismissedRejectionStore;
     /** undefined outside a server: the hook asks for nothing. */
     serverId: string | undefined;
     /** Only the owner asks for its transfer: for anyone else the endpoint answers 403. */
@@ -63,7 +74,7 @@ export interface OutgoingOwnershipTransfer {
     /** Repeats the last action that failed. */
     retry: () => void;
     dismissError: () => void;
-    /** Hides "<name> rechazó la transferencia" only in this session. */
+    /** Hides "<name> rechazó la transferencia" on this device, also after a reload. */
     dismissRejection: () => void;
 }
 

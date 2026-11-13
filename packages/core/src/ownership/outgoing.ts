@@ -5,7 +5,7 @@ export type OutgoingViewBase = Pick<OutgoingTransferView, 'kind'> & Partial<{ to
 
 /**
  * What the owner sees about the last transfer of the server. A rejection stays
- * until the owner proposes again or closes it in this session; an accepted or
+ * until the owner proposes again or closes it on this device; an accepted or
  * cancelled transfer shows nothing.
  */
 export const toOutgoingView = (

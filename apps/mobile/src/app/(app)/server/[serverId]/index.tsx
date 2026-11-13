@@ -19,17 +19,20 @@ import {
   useOutgoingOwnershipTransfer,
   usePublicProfiles,
   useVoice,
+  useServerVoiceRoster,
   useVoiceCallParticipants,
+  useVoiceRosterViews,
   type RoleDeletionActor,
   type VoiceParticipant,
 } from '@discordia/core';
+import { voiceService } from '@/shared/api';
 import { ChannelSection } from '@/features/channels';
 import { InvitationsSection } from '@/features/invitations';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
-import { OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
+import { dismissedRejections, OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
 import { RolesSection, useRoles } from '@/features/roles';
 import { ServerActions, useServerDetails } from '@/features/servers';
-import { VoiceParticipantList } from '@/features/voice';
+import { VoiceCallParticipantList, VoiceParticipantList } from '@/features/voice';
 import { ownershipSource } from '@/shared/api';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 
@@ -94,7 +97,12 @@ export default function ServerScreen() {
   const isOwner = !!user && server?.owner_id === user.id;
 
   // Only the owner transfers the ownership, whatever its permissions (SCRUM-35).
-  const transfer = useOutgoingOwnershipTransfer({ source: ownershipSource, serverId, isOwner });
+  const transfer = useOutgoingOwnershipTransfer({
+    source: ownershipSource,
+    dismissedRejections,
+    serverId,
+    isOwner,
+  });
   useLiveRefresh({ resources: ['ownershipTransfers'], serverId, refresh: transfer.reload });
   const [proposingTo, setProposingTo] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -127,9 +135,23 @@ export default function ServerScreen() {
   const { call } = useVoice();
   const callChannelId = call.status === 'connected' ? call.channel.id : null;
   const callParticipants = useVoiceCallParticipants(call.status === 'connected' ? call.participants : NO_PARTICIPANTS);
-  // Only the channel of the call shows who is in it. Another server does not list that channel.
-  const renderBelowChannel = (channel: Channel) =>
-    channel.id === callChannelId ? <VoiceParticipantList participants={callParticipants} /> : null;
+  // Who is in the other voice channels, without being in the call (SCRUM-54). Without the server
+  // loaded or without VIEW_CHANNEL (the backend answers 403) the hook gets no server and does not
+  // ask. Coming back from the background needs nothing here: RealtimeProvider closes the socket
+  // and reopens it, and the hook asks again on that reconnection.
+  const roster = useServerVoiceRoster(
+    server && hasPermission(server.my_permissions ?? NONE, VIEW_CHANNEL) ? serverId : undefined,
+    voiceService.getServerVoiceParticipants,
+  );
+  const rosterViews = useVoiceRosterViews(roster);
+  // The channel of the call shows LiveKit's list: it is instant and has the mute and who is speaking
+  // (W14 and S7). The rest show the roster of `chat`, which does not know who is speaking, only when
+  // someone is in it. Another server does not list the call's channel.
+  const renderBelowChannel = (channel: Channel) => {
+    if (channel.id === callChannelId) return <VoiceCallParticipantList participants={callParticipants} />;
+    const connected = rosterViews.get(channel.id);
+    return connected?.length ? <VoiceParticipantList participants={connected} /> : null;
+  };
 
   if (loadingServer || loadingRoles || loadingMembers || !server) {
     return (

@@ -1,13 +1,24 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { Linking } from 'react-native';
-import { useVoice, VOICE_JOIN_ERROR_TEXTS, VOICE_TEXTS, type VoiceChannelRef, type VoiceJoinError } from '@discordia/core';
+import {
+  useVoice,
+  useVoiceCallParticipants,
+  VOICE_JOIN_ERROR_TEXTS,
+  VOICE_TEXTS,
+  VoiceSpeakersContext,
+  type VoiceChannelRef,
+  type VoiceJoinError,
+} from '@discordia/core';
 import { voiceValue } from './testing';
 import { VOICE_NEEDS_DEV_BUILD, VoiceChannelScreen } from './VoiceChannelScreen';
+
+// Named mock*: the factory of jest.mock is hoisted above the declarations and may read only these.
+const mockAnaOnly = [{ userId: 'u1', name: 'Ana', loading: false, muted: true }];
 
 jest.mock('@discordia/core', () => ({
   ...jest.requireActual('@discordia/core'),
   useVoice: jest.fn(),
-  useVoiceCallParticipants: jest.fn(() => [{ userId: 'u1', name: 'Ana', loading: false, muted: true }]),
+  useVoiceCallParticipants: jest.fn(() => mockAnaOnly),
 }));
 
 const general: VoiceChannelRef = { id: 'c1', serverId: 's1', name: 'General' };
@@ -25,7 +36,10 @@ const connectedTo = (channel: VoiceChannelRef, extra: { micAvailable?: boolean; 
 });
 
 describe('VoiceChannelScreen', () => {
-  beforeEach(() => jest.mocked(useVoice).mockReturnValue(voiceValue()));
+  beforeEach(() => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue());
+    jest.mocked(useVoiceCallParticipants).mockReturnValue(mockAnaOnly);
+  });
 
   it('offers to join without connecting on open', async () => {
     const value = voiceValue();
@@ -79,6 +93,40 @@ describe('VoiceChannelScreen', () => {
     expect(screen.getByText('Estás en la llamada')).toBeTruthy();
     expect(screen.getByText('Ana')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('highlights in the call who is speaking, and nobody who is muted (SCRUM-56)', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+    jest.mocked(useVoiceCallParticipants).mockReturnValue([
+      { userId: 'u1', name: 'Ana', loading: false, muted: false },
+      { userId: 'u2', name: 'Beto', loading: false, muted: true },
+      { userId: 'u3', name: 'Cora', loading: false, muted: false },
+    ]);
+    await render(
+      <VoiceSpeakersContext.Provider value={new Set(['u1', 'u2'])}>
+        <VoiceChannelScreen channel={general} canJoin />
+      </VoiceSpeakersContext.Provider>,
+    );
+
+    expect(screen.getByTestId('voice-speaking-u1')).toBeTruthy();
+    expect(screen.queryByTestId('voice-speaking-u2')).toBeNull();
+    expect(screen.queryByTestId('voice-speaking-u3')).toBeNull();
+  });
+
+  it('mutes someone locally from the call list, with no button on the own row (SCRUM-57)', async () => {
+    const value = voiceValue({ call: connectedTo(general) });
+    jest.mocked(useVoice).mockReturnValue(value);
+    jest.mocked(useVoiceCallParticipants).mockReturnValue([
+      { userId: 'u1', name: 'Ana', loading: false, muted: false, isSelf: false },
+      { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
+    ]);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
+
+    expect(screen.queryByTestId('voice-local-mute-me')).toBeNull();
+    await userEvent.setup().press(screen.getByTestId('voice-local-mute-u1'));
+
+    expect(value.toggleLocalMute).toHaveBeenCalledTimes(1);
+    expect(value.toggleLocalMute).toHaveBeenCalledWith('u1');
   });
 
   it('warns about joining without a microphone', async () => {

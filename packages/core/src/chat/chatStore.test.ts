@@ -353,3 +353,111 @@ describe('chatReducer — historial', () => {
         expect(s.byChannel.ch1.map((m) => m.messageId)).toEqual(['m1', 'm2']);
     });
 });
+
+describe('chatReducer — edición de mensajes', () => {
+    const updated = (messageId: string, content: string, editedAt: string, channelId = 'ch1'): ChatAction => ({
+        type: 'updated',
+        channelId,
+        messageId,
+        content,
+        editedAt,
+    });
+    const loaded = () => run([historyLoaded([histMsg('m1'), histMsg('m2')])]);
+
+    it('applies an edit to the message and marks it as edited', () => {
+        const s = run([updated('m1', 'corregido', '2026-11-09T15:30:00.123Z')], loaded());
+
+        expect(s.byChannel.ch1[0]).toMatchObject({ content: 'corregido', editedAt: '2026-11-09T15:30:00.123Z' });
+        expect(s.byChannel.ch1[1].content).toBe('msg');
+    });
+
+    it('applies a newer edit over an older one', () => {
+        const s = run(
+            [updated('m1', 'uno', '2026-11-09T15:30:00Z'), updated('m1', 'dos', '2026-11-09T15:31:00Z')],
+            loaded(),
+        );
+
+        expect(s.byChannel.ch1[0]).toMatchObject({ content: 'dos', editedAt: '2026-11-09T15:31:00Z' });
+    });
+
+    it('ignores an older edit that arrives after a newer one (crossed frames)', () => {
+        const base = run([updated('m1', 'nuevo', '2026-11-09T15:31:00Z')], loaded());
+
+        const s = run([updated('m1', 'viejo', '2026-11-09T15:30:00Z')], base);
+
+        expect(s).toBe(base);
+        expect(s.byChannel.ch1[0].content).toBe('nuevo');
+    });
+
+    it('ignores a repeated edit', () => {
+        const base = run([updated('m1', 'uno', '2026-11-09T15:30:00Z')], loaded());
+
+        expect(run([updated('m1', 'uno', '2026-11-09T15:30:00Z')], base)).toBe(base);
+    });
+
+    it('compares the dates as instants and not as text: .5 is later than .45 although it sorts before', () => {
+        const base = run([updated('m1', 'a', '2026-11-09T15:30:00.45Z')], loaded());
+
+        const s = run([updated('m1', 'b', '2026-11-09T15:30:00.5Z')], base);
+
+        expect(s.byChannel.ch1[0].content).toBe('b');
+    });
+
+    it('ignores an edit with an unreadable date', () => {
+        const base = loaded();
+
+        expect(run([updated('m1', 'x', 'ayer')], base)).toBe(base);
+    });
+
+    it('ignores an edit of a message that is not loaded, or of a channel that is not', () => {
+        const base = loaded();
+
+        expect(run([updated('desconocido', 'x', '2026-11-09T15:30:00Z')], base)).toBe(base);
+        expect(run([updated('m1', 'x', '2026-11-09T15:30:00Z', 'otro-canal')], base)).toBe(base);
+    });
+
+    it('a message that arrives as new starts without an edit', () => {
+        const s = run([created('m9')]);
+
+        expect(s.byChannel.ch1[0].editedAt).toBeNull();
+    });
+
+    describe('editsRefreshed (the last page after a reconnection)', () => {
+        const edited = (messageId: string, content: string, editedAt: string): ChatMessage => ({
+            ...histMsg(messageId),
+            content,
+            editedAt,
+        });
+
+        it('brings the edits the session missed while it was offline', () => {
+            const s = run(
+                [{ type: 'editsRefreshed', channelId: 'ch1', messages: [edited('m1', 'corregido', '2026-11-09T15:30:00Z')] }],
+                loaded(),
+            );
+
+            expect(s.byChannel.ch1[0]).toMatchObject({ content: 'corregido', editedAt: '2026-11-09T15:30:00Z' });
+        });
+
+        it('does not take back an edit that already arrived by the socket', () => {
+            const base = run([updated('m1', 'nuevo', '2026-11-09T15:31:00Z')], loaded());
+
+            const s = run(
+                [{ type: 'editsRefreshed', channelId: 'ch1', messages: [edited('m1', 'viejo', '2026-11-09T15:30:00Z')] }],
+                base,
+            );
+
+            expect(s).toBe(base);
+        });
+
+        it('does not add messages the store does not have, and ignores the ones never edited', () => {
+            const base = loaded();
+
+            const s = run(
+                [{ type: 'editsRefreshed', channelId: 'ch1', messages: [histMsg('m1', 'ch1', 'otro'), edited('m7', 'x', '2026-11-09T15:30:00Z')] }],
+                base,
+            );
+
+            expect(s).toBe(base);
+        });
+    });
+});

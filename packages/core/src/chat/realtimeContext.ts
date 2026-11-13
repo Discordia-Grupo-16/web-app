@@ -5,6 +5,7 @@ import type {
     InvalidateFrame,
     MessageCreatedFrame,
     ReadStateUpdatedFrame,
+    VoiceParticipantsUpdatedFrame,
 } from '@discordia/api';
 
 export type RealtimeStatus = ConnectionState | 'disabled';
@@ -25,6 +26,11 @@ export interface RealtimeContextValue {
     discard: (clientMessageId: string) => void;
     lastRejected: RejectedMessage | null;
     clearRejected: () => void;
+    /**
+     * Edits one of the user's own messages (SCRUM-44). Resolves when it is saved and already applied
+     * to the list; rejects with the HTTP error, which `editErrorText` turns into text.
+     */
+    editMessage: (channelId: string, messageId: string, content: string) => Promise<void>;
     loadHistory: (channelId: string) => void;
     retryHistory: (channelId: string) => void;
     loadMoreHistory: (channelId: string, beforeId: string) => void;
@@ -33,6 +39,12 @@ export interface RealtimeContextValue {
      * go through here so none of them touches the RealtimeClient. Returns the unsubscribe function.
      */
     onInvalidate: (handler: (frame: InvalidateFrame) => void) => () => void;
+    /**
+     * Subscribes to the frames that say who is connected to a voice channel (SCRUM-54). They carry
+     * the data, unlike the notices above. A frame of any server arrives: the subscriber filters by
+     * server and by `syncedAt`. Returns the unsubscribe function.
+     */
+    onVoiceParticipants: (handler: (frame: VoiceParticipantsUpdatedFrame) => void) => () => void;
     /**
      * Subscribes to the messages other sessions and users send, for what is not the message list
      * itself (the unread indicators). Returns the unsubscribe function.

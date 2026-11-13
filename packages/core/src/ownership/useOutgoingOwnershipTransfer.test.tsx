@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { OwnershipTransfer, PublicProfiles } from '@discordia/api';
 import { PublicProfilesProvider, type PublicProfileSource } from '../profiles/PublicProfilesProvider';
-import type { OwnershipTransferSource } from './types';
+import type { DismissedRejectionStore, OwnershipTransferSource } from './types';
 import { useOutgoingOwnershipTransfer } from './useOutgoingOwnershipTransfer';
 
 const SERVER = 'srv';
@@ -37,6 +37,17 @@ const fakeSource = (overrides: Partial<OwnershipTransferSource> = {}): Ownership
     ...overrides,
 });
 
+// In memory, like localStorage or AsyncStorage would keep it between renders of the hook.
+const fakeStore = (initial: Record<string, string> = {}): DismissedRejectionStore => {
+    const saved = new Map(Object.entries(initial));
+    return {
+        get: vi.fn(async (serverId: string) => saved.get(serverId) ?? null),
+        set: vi.fn(async (serverId: string, createdAt: string) => {
+            saved.set(serverId, createdAt);
+        }),
+    };
+};
+
 const profiles: PublicProfileSource = {
     getPublicProfiles: async (ids): Promise<PublicProfiles> =>
         new Map(
@@ -49,11 +60,12 @@ const wrapper = ({ children }: { children: ReactNode }) => (
     <PublicProfilesProvider source={profiles}>{children}</PublicProfilesProvider>
 );
 
-const render = (source: OwnershipTransferSource, isOwner = true) =>
-    renderHook((props: { isOwner: boolean }) => useOutgoingOwnershipTransfer({ source, serverId: SERVER, isOwner: props.isOwner }), {
-        wrapper,
-        initialProps: { isOwner },
-    });
+const render = (source: OwnershipTransferSource, isOwner = true, dismissedRejections = fakeStore()) =>
+    renderHook(
+        (props: { isOwner: boolean }) =>
+            useOutgoingOwnershipTransfer({ source, dismissedRejections, serverId: SERVER, isOwner: props.isOwner }),
+        { wrapper, initialProps: { isOwner } },
+    );
 
 describe('useOutgoingOwnershipTransfer', () => {
     it('shows the proposed transfer with the recipient name, without reading it again', async () => {
@@ -223,6 +235,68 @@ describe('useOutgoingOwnershipTransfer', () => {
         await act(async () => {
             result.current.reload();
         });
+        expect(result.current.view).toEqual({ kind: 'none' });
+    });
+
+    it('does not show a rejection already closed on this device, not even while it loads', async () => {
+        const source = fakeSource({ getServerTransfer: vi.fn(async () => transfer({ status: 'rejected' })) });
+        const shown: string[] = [];
+        const { result } = render(source, true, fakeStore({ [SERVER]: '2026-11-05T10:00:00Z' }));
+        shown.push(result.current.view.kind);
+
+        await waitFor(() => expect(result.current.loading).toBe(false));
+        shown.push(result.current.view.kind);
+
+        expect(shown).not.toContain('rejected');
+        expect(result.current.view).toEqual({ kind: 'none' });
+    });
+
+    it('remembers on this device the rejection the owner closed', async () => {
+        const store = fakeStore();
+        const source = fakeSource({ getServerTransfer: vi.fn(async () => transfer({ status: 'rejected' })) });
+        const { result } = render(source, true, store);
+        await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'rejected' }));
+
+        act(() => {
+            result.current.dismissRejection();
+        });
+
+        expect(store.set).toHaveBeenCalledWith(SERVER, '2026-11-05T10:00:00Z');
+    });
+
+    it('shows a later rejection although an earlier one was closed on this device', async () => {
+        const source = fakeSource({
+            getServerTransfer: vi.fn(async () => transfer({ status: 'rejected', created_at: '2026-11-06T09:00:00Z' })),
+        });
+        const { result } = render(source, true, fakeStore({ [SERVER]: '2026-11-05T10:00:00Z' }));
+
+        await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'rejected', toName: 'Beto' }));
+    });
+
+    it('shows the rejection when the device cannot read what was closed', async () => {
+        const store: DismissedRejectionStore = {
+            get: vi.fn(async () => Promise.reject(new Error('storage unavailable'))),
+            set: vi.fn(async () => undefined),
+        };
+        const source = fakeSource({ getServerTransfer: vi.fn(async () => transfer({ status: 'rejected' })) });
+        const { result } = render(source, true, store);
+
+        await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'rejected' }));
+    });
+
+    it('still hides the rejection in this session when the device cannot save it', async () => {
+        const store: DismissedRejectionStore = {
+            get: vi.fn(async () => null),
+            set: vi.fn(async () => Promise.reject(new Error('quota exceeded'))),
+        };
+        const source = fakeSource({ getServerTransfer: vi.fn(async () => transfer({ status: 'rejected' })) });
+        const { result } = render(source, true, store);
+        await waitFor(() => expect(result.current.view).toMatchObject({ kind: 'rejected' }));
+
+        act(() => {
+            result.current.dismissRejection();
+        });
+
         expect(result.current.view).toEqual({ kind: 'none' });
     });
 });

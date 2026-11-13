@@ -10,6 +10,8 @@ export const voiceValue = (overrides: Partial<VoiceContextValue> = {}): VoiceCon
     rejoin: vi.fn(),
     leave: vi.fn(),
     toggleMute: vi.fn(),
+    locallyMuted: new Set(),
+    toggleLocalMute: vi.fn(),
     retry: vi.fn(),
     dismiss: vi.fn(),
     startAudio: vi.fn(),

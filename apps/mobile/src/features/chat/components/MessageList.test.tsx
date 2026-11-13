@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { act, render, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { PublicProfilesProvider, type ChatMessage, type PublicProfileSource } from '@discordia/core';
 import type { PublicUser, User } from '@discordia/api';
@@ -24,6 +25,7 @@ const renderList = async (
   messages: ChatMessage[],
   profiles: Record<string, PublicUser | null>,
   getPublicProfiles?: PublicProfileSource['getPublicProfiles'],
+  edit: { canEditOwn?: boolean; onStartEdit?: (messageId: string) => void } = {},
 ) => {
   const source: PublicProfileSource = {
     getPublicProfiles:
@@ -49,6 +51,8 @@ const renderList = async (
         loadMoreError={false}
         onLoadMore={jest.fn()}
         onRetryLoadMore={jest.fn()}
+        canEditOwn={edit.canEditOwn ?? true}
+        onStartEdit={edit.onStartEdit ?? jest.fn()}
       />
     </PublicProfilesProvider>,
   );
@@ -118,5 +122,59 @@ describe('MessageList authors', () => {
 
     expect(mockPush).toHaveBeenCalledTimes(2);
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/user/[userId]', params: { userId: 'milton' } });
+  });
+});
+
+describe('MessageList editing', () => {
+  beforeEach(() => jest.restoreAllMocks());
+
+  const edited = (messageId: string, authorId: string, editedAt: string | null): ChatMessage => ({
+    ...message(messageId, authorId),
+    editedAt,
+  });
+
+  // The buttons of the last Alert.alert, so a test can press "Editar" as the user would.
+  const alertSpy = () => jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+  const pressMenuButton = (spy: jest.SpyInstance, text: string) => {
+    const buttons = spy.mock.calls[spy.mock.calls.length - 1][2] as { text: string; onPress?: () => void }[];
+    buttons.find((button) => button.text === text)?.onPress?.();
+  };
+
+  it('opens a menu with "Editar" on the long press of an own message and starts the edit of that message', async () => {
+    const spy = alertSpy();
+    const onStartEdit = jest.fn();
+    const { user } = await renderList([message('mine', 'me')], {}, undefined, { onStartEdit });
+
+    await user.longPress(await screen.findByText('texto mine'));
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    pressMenuButton(spy, 'Editar');
+    expect(onStartEdit).toHaveBeenCalledWith('mine');
+  });
+
+  it('opens no menu on the long press of someone else\'s message', async () => {
+    const spy = alertSpy();
+    const onStartEdit = jest.fn();
+    const { user } = await renderList([message('theirs', 'milton')], { milton }, undefined, { onStartEdit });
+
+    await user.longPress(await screen.findByText('texto theirs'));
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(onStartEdit).not.toHaveBeenCalled();
+  });
+
+  it('opens no menu without SEND_MESSAGES', async () => {
+    const spy = alertSpy();
+    const { user } = await renderList([message('mine', 'me')], {}, undefined, { canEditOwn: false });
+
+    await user.longPress(await screen.findByText('texto mine'));
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('marks an edited message and not the others', async () => {
+    await renderList([edited('a', 'me', '2026-11-09T15:30:00Z'), edited('b', 'me', null)], {});
+
+    expect(await screen.findAllByText(/\(editado\)/)).toHaveLength(1);
   });
 });

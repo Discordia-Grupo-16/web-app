@@ -1,9 +1,20 @@
+import { MessageEditor } from './MessageEditor';
+
 interface MessageItemProps {
     authorId: string;
     authorName: string;
     authorAvatarUrl?: string | null;
     content: string;
     createdAt?: string;
+    /** Last edit, or null/absent if the message was never edited. */
+    editedAt?: string | null;
+    /** The user may edit this message: it is theirs and they can still write in the channel. */
+    canEdit?: boolean;
+    editing?: boolean;
+    maxLength?: number;
+    onStartEdit?: () => void;
+    onSaveEdit?: (content: string) => Promise<void>;
+    onCancelEdit?: () => void;
     sending?: boolean;
     failed?: boolean;
     errorText?: string;
@@ -25,12 +36,22 @@ const avatarColor = (authorId: string): string => {
 const formatTime = (createdAt: string): string =>
     new Date(createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 
+const formatFullDate = (date: string): string =>
+    new Date(date).toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' });
+
 export const MessageItem = ({
     authorId,
     authorName,
     authorAvatarUrl = null,
     content,
     createdAt,
+    editedAt = null,
+    canEdit = false,
+    editing = false,
+    maxLength = 2000,
+    onStartEdit,
+    onSaveEdit,
+    onCancelEdit,
     sending = false,
     failed = false,
     errorText,
@@ -55,7 +76,7 @@ export const MessageItem = ({
 
     return (
         <div
-            className="flex gap-4 px-4 py-1 hover:bg-black/5"
+            className="group flex gap-4 px-4 py-1 hover:bg-black/5"
             style={{
                 opacity: sending ? 0.5 : 1,
                 borderLeft: failed ? '2px solid #ed4245' : '2px solid transparent',
@@ -90,9 +111,36 @@ export const MessageItem = ({
                     {createdAt && (
                         <span className="text-xs" style={{ color: '#72767d' }}>{formatTime(createdAt)}</span>
                     )}
+                    {canEdit && !editing && onStartEdit && (
+                        <button
+                            type="button"
+                            onClick={onStartEdit}
+                            aria-label="Editar mensaje"
+                            className="ml-auto text-xs font-semibold opacity-0 group-hover:opacity-100 focus:opacity-100 hover:underline"
+                            style={{ color: '#99aab5' }}
+                        >
+                            Editar
+                        </button>
+                    )}
                 </div>
-                {/* Content comes from other users: always rendered as text, never as HTML. */}
-                <p className="text-sm whitespace-pre-wrap break-words" style={{ color: '#dcddde' }}>{content}</p>
+                {editing && onSaveEdit && onCancelEdit ? (
+                    <MessageEditor
+                        initialContent={content}
+                        maxLength={maxLength}
+                        onSave={onSaveEdit}
+                        onCancel={onCancelEdit}
+                    />
+                ) : (
+                    /* Content comes from other users: always rendered as text, never as HTML. */
+                    <p className="text-sm whitespace-pre-wrap break-words" style={{ color: '#dcddde' }}>
+                        {content}
+                        {editedAt && (
+                            <span className="ml-1 text-xs" style={{ color: '#72767d' }} title={formatFullDate(editedAt)}>
+                                (editado)
+                            </span>
+                        )}
+                    </p>
+                )}
                 {failed && (
                     <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: '#ed4245' }}>
                         {errorText && <span>{errorText}</span>}

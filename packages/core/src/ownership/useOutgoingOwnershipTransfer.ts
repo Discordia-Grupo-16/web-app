@@ -6,6 +6,7 @@ import { classifyOwnershipError } from './errors';
 import { toOutgoingView } from './outgoing';
 import { OWNERSHIP_TEXTS } from './texts';
 import type {
+    DismissedRejectionStore,
     OutgoingOwnershipTransfer,
     OutgoingTransferView,
     OwnershipError,
@@ -40,12 +41,23 @@ const readLatest = async (source: OwnershipTransferSource, serverId: string): Pr
     }
 };
 
+// The rejection closed on this device, or null when the device cannot say: then it shows again,
+// which is better than hiding one the owner never saw.
+const readDismissed = async (store: DismissedRejectionStore, serverId: string): Promise<string | null> => {
+    try {
+        return await store.get(serverId);
+    } catch {
+        return null;
+    }
+};
+
 /**
  * The owner's transfer of the open server (SCRUM-35). Only the owner asks: for anyone else the view
  * is `none` and nothing is requested.
  */
 export const useOutgoingOwnershipTransfer = ({
     source,
+    dismissedRejections,
     serverId,
     isOwner,
 }: UseOutgoingOwnershipTransferOptions): OutgoingOwnershipTransfer => {
@@ -79,15 +91,19 @@ export const useOutgoingOwnershipTransfer = ({
             return;
         }
         setLoading(true);
-        void readLatest(source, serverId).then((current) => {
-            if (cancelled) return;
-            setLatest(current);
-            setLoading(false);
-        });
+        // Both before showing anything, so a rejection already closed here never flashes.
+        void Promise.all([readLatest(source, serverId), readDismissed(dismissedRejections, serverId)]).then(
+            ([current, dismissed]) => {
+                if (cancelled) return;
+                setDismissedRejectionAt(dismissed);
+                setLatest(current);
+                setLoading(false);
+            },
+        );
         return () => {
             cancelled = true;
         };
-    }, [source, serverId, isOwner]);
+    }, [source, dismissedRejections, serverId, isOwner]);
 
     const propose = useCallback(
         async (toUserId: string): Promise<boolean> => {
@@ -155,8 +171,11 @@ export const useOutgoingOwnershipTransfer = ({
     const dismissError = useCallback(() => setError(null), []);
 
     const dismissRejection = useCallback(() => {
-        if (latest?.status === 'rejected') setDismissedRejectionAt(latest.created_at);
-    }, [latest]);
+        if (!serverId || latest?.status !== 'rejected') return;
+        setDismissedRejectionAt(latest.created_at);
+        // If the device cannot save it, it stays closed only until the next reload.
+        void dismissedRejections.set(serverId, latest.created_at).catch(() => undefined);
+    }, [dismissedRejections, serverId, latest]);
 
     const base = active ? toOutgoingView(latest, dismissedRejectionAt) : { kind: 'none' as const };
     const named = [base.toUserId, error?.kind === 'already-pending' ? error.toUserId : undefined].filter(

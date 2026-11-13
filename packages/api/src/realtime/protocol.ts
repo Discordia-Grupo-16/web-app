@@ -1,3 +1,5 @@
+import type { VoiceRosterParticipant } from '../voice/types';
+
 export interface MessageSendFrame {
     type: 'message.send';
     channelId: string;
@@ -21,6 +23,21 @@ export interface MessageCreatedFrame {
     content: string;
     createdAt: string;
     clientMessageId: string;
+}
+
+/**
+ * A message was edited (SCRUM-44). It carries the data, not just a notice: the message belongs to
+ * `chat`, so there is no other service to ask. The client applies it only if `editedAt` is newer
+ * than the one it has, so a repeated or crossed frame never takes an edit back.
+ */
+export interface MessageUpdatedFrame {
+    type: 'message.updated';
+    messageId: string;
+    channelId: string;
+    serverId: string;
+    authorId: string;
+    content: string;
+    editedAt: string;
 }
 
 /**
@@ -50,6 +67,19 @@ export interface InvalidateFrame {
     resources: string[];
     /** Whose profile changed. Present only when a profile is the cause. */
     userId?: string;
+}
+
+/**
+ * Who is connected to a voice channel changed (SCRUM-54, ADR-0017). Unlike `invalidate` it carries
+ * the data, because it is `chat`'s own: the whole list, not a delta. An empty `participants` means
+ * the channel is empty. Apply it only if `syncedAt` is newer than the one already held for the channel.
+ */
+export interface VoiceParticipantsUpdatedFrame {
+    type: 'voice-participants.updated';
+    serverId: string;
+    channelId: string;
+    participants: VoiceRosterParticipant[];
+    syncedAt: string;
 }
 
 export interface ReadStateEntry {
@@ -87,4 +117,11 @@ export interface ErrorFrame {
     };
 }
 
-export type ServerFrame = MessageAckFrame | MessageCreatedFrame | InvalidateFrame | ReadStateUpdatedFrame | ErrorFrame;
+export type ServerFrame =
+    | MessageAckFrame
+    | MessageCreatedFrame
+    | MessageUpdatedFrame
+    | InvalidateFrame
+    | ReadStateUpdatedFrame
+    | VoiceParticipantsUpdatedFrame
+    | ErrorFrame;

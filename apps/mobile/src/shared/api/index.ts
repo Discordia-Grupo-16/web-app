@@ -4,6 +4,7 @@ import {
   createChannelsService,
   createInvitationsService,
   createMembersService,
+  createMessagesService,
   createReadStatesService,
   createOwnershipService,
   createRolesService,
@@ -33,6 +34,7 @@ export const membersService = createMembersService(api);
 export const invitationsService = createInvitationsService(api);
 export const voiceService = createVoiceService(api);
 export const readStatesService = createReadStatesService(api);
+export const messagesService = createMessagesService(api);
 export const ownershipService = createOwnershipService(api);
 
 // What the ownership hooks of core need: the transfer endpoints plus the servers, to tell a deleted
