@@ -75,6 +75,21 @@ describe('DeleteRoleDialog', () => {
         expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
     });
 
+    it('only lets close after a rejection, which deleting again would repeat', async () => {
+        const { onClose, user } = renderDialog({
+            stage: 'confirming',
+            role,
+            deleting: false,
+            error: { kind: 'rejected', message: 'No podés eliminar un rol que está a tu altura o por encima en la jerarquía' },
+        });
+
+        expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Cancelar' })).not.toBeInTheDocument();
+        await user.click(screen.getAllByRole('button', { name: 'Cerrar' }).at(-1)!);
+
+        expect(onClose).toHaveBeenCalled();
+    });
+
     it('only lets close once the server is gone', async () => {
         const { onClose, user } = renderDialog({ stage: 'confirming', role, deleting: false, error: { kind: 'server-gone' } });
 

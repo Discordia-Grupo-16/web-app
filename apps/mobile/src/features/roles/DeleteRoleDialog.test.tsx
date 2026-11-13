@@ -50,6 +50,21 @@ describe('DeleteRoleDialog', () => {
     expect(screen.queryByText('Eliminar')).not.toBeOnTheScreen();
   });
 
+  it('después de un rechazo solo deja cerrar, porque eliminar de nuevo da lo mismo', async () => {
+    const { onClose, user } = await renderDialog({
+      stage: 'confirming',
+      role,
+      deleting: false,
+      error: { kind: 'rejected', message: 'No podés eliminar un rol que está a tu altura o por encima en la jerarquía' },
+    });
+
+    expect(screen.getByText('No podés eliminar un rol que está a tu altura o por encima en la jerarquía')).toBeOnTheScreen();
+    expect(screen.queryByText('Eliminar')).not.toBeOnTheScreen();
+    await user.press(screen.getByText('Cerrar'));
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it('ofrece reintentar cuando falla el servicio', async () => {
     const { onRetry, user } = await renderDialog({ stage: 'confirming', role, deleting: false, error: { kind: 'service' } });
 
