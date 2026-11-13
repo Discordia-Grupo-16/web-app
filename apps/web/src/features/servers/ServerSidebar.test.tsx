@@ -1,9 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Server } from '@discordia/api';
-import { UnreadContext, type ChannelUnreadEntry, type UnreadState } from '@discordia/core';
+import type { InvalidateFrame, Server } from '@discordia/api';
+import { RealtimeContext, UnreadContext, type ChannelUnreadEntry, type RealtimeContextValue, type UnreadState } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import { ServerSidebar } from './ServerSidebar';
 
@@ -36,13 +36,26 @@ const entry = (serverId: string, overrides: Partial<ChannelUnreadEntry> = {}): C
 
 const markAllRead = vi.fn();
 
+const ServerRoute = () => (
+    <>
+        <span data-testid="route">server</span>
+        <ServerSidebar />
+    </>
+);
+const HomeRoute = () => (
+    <>
+        <span data-testid="route">home</span>
+        <ServerSidebar />
+    </>
+);
+
 const renderSidebar = async (state: UnreadState, at = '/servers/s1') => {
     render(
         <UnreadContext.Provider value={{ state, setActiveChannel: vi.fn(), markAllRead }}>
             <MemoryRouter initialEntries={[at]}>
                 <Routes>
-                    <Route path="/servers/:serverId" element={<ServerSidebar />} />
-                    <Route path="/" element={<ServerSidebar />} />
+                    <Route path="/servers/:serverId" element={<ServerRoute />} />
+                    <Route path="/" element={<HomeRoute />} />
                 </Routes>
             </MemoryRouter>
         </UnreadContext.Provider>,
@@ -103,5 +116,43 @@ describe('ServerSidebar unread marks', () => {
         await waitFor(() => expect(error).toHaveBeenCalled());
         expect(screen.getByTitle('Beta')).toBeInTheDocument();
         error.mockRestore();
+    });
+
+    it('leaves the selected server when it is removed from the server list', async () => {
+        const handlers = new Set<(frame: InvalidateFrame) => void>();
+        const realtime = {
+            status: 'open',
+            onInvalidate: (handler: (frame: InvalidateFrame) => void) => {
+                handlers.add(handler);
+                return () => handlers.delete(handler);
+            },
+            onReconnect: () => () => {},
+        } as unknown as RealtimeContextValue;
+
+        render(
+            <RealtimeContext.Provider value={realtime}>
+                <UnreadContext.Provider value={{ state: { byChannel: {} }, setActiveChannel: vi.fn(), markAllRead }}>
+                    <MemoryRouter initialEntries={['/servers/s1']}>
+                        <Routes>
+                            <Route path="/servers/:serverId" element={<ServerRoute />} />
+                            <Route path="/" element={<HomeRoute />} />
+                        </Routes>
+                    </MemoryRouter>
+                </UnreadContext.Provider>
+            </RealtimeContext.Provider>,
+        );
+        await screen.findByTitle('Alfa');
+
+        vi.mocked(serversService.getServers).mockResolvedValue([server('s2', 'Beta')]);
+        vi.useFakeTimers();
+        try {
+            act(() => handlers.forEach(handler => handler({ type: 'invalidate', resources: ['servers'] })));
+            await act(() => vi.advanceTimersByTimeAsync(1400));
+        } finally {
+            vi.useRealTimers();
+        }
+
+        expect(await screen.findByTestId('route')).toHaveTextContent('home');
+        expect(screen.queryByTitle('Alfa')).not.toBeInTheDocument();
     });
 });

@@ -6,10 +6,14 @@ import { ServersPage } from './ServersPage';
 
 const listServers = vi.fn();
 const deleteServer = vi.fn();
+const suspendServer = vi.fn();
+const reactivateServer = vi.fn();
 vi.mock('@/shared/api', () => ({
     adminServerService: {
         listServers: (...args: unknown[]) => listServers(...args),
         deleteServer: (...args: unknown[]) => deleteServer(...args),
+        suspendServer: (...args: unknown[]) => suspendServer(...args),
+        reactivateServer: (...args: unknown[]) => reactivateServer(...args),
     },
 }));
 
@@ -18,6 +22,7 @@ const server = (id: string, overrides: Partial<AdminServer> = {}): AdminServer =
     name: `Server ${id}`,
     memberCount: 10,
     createdAt: '2026-10-01T10:00:00Z',
+    is_suspended: false,
     ...overrides,
 });
 
@@ -35,6 +40,8 @@ describe('ServersPage', () => {
     beforeEach(() => {
         listServers.mockReset();
         deleteServer.mockReset().mockResolvedValue(undefined);
+        suspendServer.mockReset().mockResolvedValue(server('alpha', { is_suspended: true }));
+        reactivateServer.mockReset().mockResolvedValue(server('alpha'));
         listServers.mockResolvedValue(page([server('alpha'), server('beta', { memberCount: 42 })]));
     });
 
@@ -196,6 +203,48 @@ describe('ServersPage', () => {
         expect(await within(dialog).findByRole('alert')).toHaveTextContent(
             'Tu cuenta ya no tiene permisos de staff. Volvé a iniciar sesión.',
         );
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+        expect(listServers).toHaveBeenCalledTimes(1);
+    });
+
+    it('confirms server suspension, reports success, and reloads the list', async () => {
+        render(<ServersPage />);
+        await screen.findByText('Server alpha');
+
+        await userEvent.click(screen.getByRole('button', { name: 'Suspender Server alpha' }));
+        const dialog = screen.getByRole('dialog', { name: '¿Suspender Server alpha?' });
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Suspender servidor' }));
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Servidor suspendido correctamente.');
+        expect(suspendServer).toHaveBeenCalledWith('alpha');
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        await waitFor(() => expect(listServers).toHaveBeenCalledTimes(2));
+    });
+
+    it('confirms server reactivation for suspended servers', async () => {
+        listServers.mockResolvedValue(page([server('alpha', { is_suspended: true })]));
+        render(<ServersPage />);
+        await screen.findByText('Server alpha');
+
+        await userEvent.click(screen.getByRole('button', { name: 'Reactivar Server alpha' }));
+        const dialog = screen.getByRole('dialog', { name: '¿Reactivar Server alpha?' });
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Reactivar servidor' }));
+
+        expect(await screen.findByRole('status')).toHaveTextContent('Servidor reactivado correctamente.');
+        expect(reactivateServer).toHaveBeenCalledWith('alpha');
+        await waitFor(() => expect(listServers).toHaveBeenCalledTimes(2));
+    });
+
+    it('keeps the status dialog open and shows an error when the action fails', async () => {
+        suspendServer.mockRejectedValueOnce(new Error('request failed'));
+        render(<ServersPage />);
+        await screen.findByText('Server alpha');
+
+        await userEvent.click(screen.getByRole('button', { name: 'Suspender Server alpha' }));
+        const dialog = screen.getByRole('dialog', { name: '¿Suspender Server alpha?' });
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Suspender servidor' }));
+
+        expect(await within(dialog).findByRole('alert')).toHaveTextContent('request failed');
         expect(screen.getByRole('dialog')).toBeInTheDocument();
         expect(listServers).toHaveBeenCalledTimes(1);
     });

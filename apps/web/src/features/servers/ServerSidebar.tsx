@@ -44,15 +44,27 @@ export const ServerSidebar = () => {
 
     // A response from before a local change (e.g. creating a server) would drop it again.
     const localChangeRef = useRef(0);
+    const currentServerIdRef = useRef(serverId);
+    useEffect(() => {
+        currentServerIdRef.current = serverId;
+    }, [serverId]);
 
     const refreshServers = useCallback(() => {
         const startedAt = localChangeRef.current;
         serversService.getServers()
             .then(list => {
-                if (localChangeRef.current === startedAt) setServers(list);
+                if (localChangeRef.current !== startedAt) return;
+                setServers(list);
+                if (
+                    serverId &&
+                    currentServerIdRef.current === serverId &&
+                    !list.some(server => server.id === serverId)
+                ) {
+                    navigate('/');
+                }
             })
             .catch(console.error);
-    }, []);
+    }, [navigate, serverId]);
 
     // Reload on every server change too: leaving or losing a server navigates away from it.
     useEffect(() => {

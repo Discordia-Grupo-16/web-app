@@ -1,5 +1,5 @@
 import type { AxiosInstance, GenericAbortSignal } from 'axios';
-import type { AdminUser, AdminUserListResponse, ListAdminUsersParams, AdminServerListResponse, AdminServerListQuery } from './types';
+import type { AdminUser, AdminUserListResponse, ListAdminUsersParams, AdminServer, AdminServerListResponse, AdminServerListQuery } from './types';
 
 // Drops what carries no filter: undefined keys and a blank search. The backend treats a blank
 // search as "no filter" too, but not sending it keeps the URL and the request log clean.
@@ -49,6 +49,14 @@ export const createAdminServerService = (apiClient: AxiosInstance) => ({
             params: cleanServerParams(params),
             signal,
         });
+        return data;
+    },
+    async suspendServer(serverId: string): Promise<AdminServer> {
+        const { data } = await apiClient.post<AdminServer>(`/api/v1/admin/servers/${serverId}/suspension`);
+        return data;
+    },
+    async reactivateServer(serverId: string): Promise<AdminServer> {
+        const { data } = await apiClient.delete<AdminServer>(`/api/v1/admin/servers/${serverId}/suspension`);
         return data;
     },
     async deleteServer(serverId: string): Promise<void> {

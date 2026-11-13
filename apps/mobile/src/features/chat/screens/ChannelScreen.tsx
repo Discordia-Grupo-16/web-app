@@ -16,6 +16,7 @@ export function ChannelScreen() {
   // null while unknown. The chat is not drawn until it is: a composer that appears usable and
   // then blocks itself looks broken, and the web does not do that either.
   const [permissions, setPermissions] = useState<number | null>(null);
+  const goneRef = useRef(false);
 
   useEffect(() => {
     if (channelName !== null) navigation.setOptions({ title: `#${channelName}` });
@@ -45,16 +46,15 @@ export function ChannelScreen() {
 
   // The channel (or its whole server) was deleted from another client: leave the chat. This also
   // refreshes the permissions, so losing SEND_MESSAGES blocks the composer without a reload.
-  const goneRef = useRef(false);
+  const leave = (message: string, toServerList: boolean) => {
+    if (goneRef.current) return;
+    goneRef.current = true;
+    Alert.alert(toServerList ? 'Servidor no disponible' : 'Canal no disponible', message);
+    if (toServerList && router.canDismiss()) router.dismissAll();
+    else router.back();
+  };
   const refresh = () => {
     if (goneRef.current) return;
-    const leave = (message: string, toServerList: boolean) => {
-      if (goneRef.current) return;
-      goneRef.current = true;
-      Alert.alert('Canal no disponible', message);
-      if (toServerList && router.canDismiss()) router.dismissAll();
-      else router.back();
-    };
     serversService.getServer(serverId)
       .then((server) => {
         if (!server.channels.some((ch) => ch.id === channelId)) {
@@ -68,6 +68,20 @@ export function ChannelScreen() {
       });
   };
   useLiveRefresh({ resources: ['server', 'channels', 'permissions'], serverId, refresh });
+  useLiveRefresh({
+    resources: ['servers'],
+    serverId,
+    refresh: () => {
+      if (goneRef.current) return;
+      serversService.getServers()
+        .then(servers => {
+          if (!goneRef.current && !servers.some(server => server.id === serverId)) {
+            leave('Este servidor fue eliminado o suspendido.', true);
+          }
+        })
+        .catch(console.error);
+    },
+  });
 
   // Reading is what the user does with a text channel in front of them. The mobile app only opens
   // text channels here, and a screen underneath another one, or the app in the background, does

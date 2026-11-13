@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import type { Channel } from '@discordia/api';
@@ -19,6 +19,7 @@ export default function ChannelRoute() {
   const [channel, setChannel] = useState<ChannelInfo | null>(name && type ? { name, type } : null);
   // The voice call needs the server permissions; null while unknown. The chat loads its own.
   const [permissions, setPermissions] = useState<number | null>(null);
+  const goneRef = useRef(false);
   const isText = channel?.type === 'text';
 
   useEffect(() => {
@@ -51,6 +52,22 @@ export default function ChannelRoute() {
       if (channel?.type !== 'voice') return;
       serversService.getServer(serverId)
         .then((server) => setPermissions(server.my_permissions ?? NONE))
+        .catch(console.error);
+    },
+  });
+  useLiveRefresh({
+    resources: ['servers'],
+    serverId,
+    refresh: () => {
+      if (goneRef.current) return;
+      serversService.getServers()
+        .then(servers => {
+          if (goneRef.current || servers.some(server => server.id === serverId)) return;
+          goneRef.current = true;
+          Alert.alert('Servidor no disponible', 'Este servidor fue eliminado o suspendido.');
+          if (router.canDismiss()) router.dismissAll();
+          else router.back();
+        })
         .catch(() => undefined);
     },
   });

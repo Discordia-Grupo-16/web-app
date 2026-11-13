@@ -1,17 +1,32 @@
 import { useState } from 'react';
-import {type AdminServer, getApiErrorMessage} from '@discordia/api';
+import { getApiErrorMessage, type AdminServer } from '@discordia/api';
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue';
 import { Pagination } from '@/shared/ui/Pagination';
 import { ServerFilters } from './ServerFilters';
 import { PAGE_SIZE, useAdminServers } from './useAdminServers';
 import { ServersTable } from './ServersTable';
-import { ConfirmDialog } from '@/shared/ui/ConfirmDialog'
-import {adminServerService} from "@/shared/api";
+import { ConfirmDialog } from '@/shared/ui/ConfirmDialog';
+import { adminServerService } from '@/shared/api';
 
 const FORBIDDEN_MESSAGE = 'Tu cuenta ya no tiene permisos de staff. Volvé a iniciar sesión.';
+type ServerStatusAction = 'suspend' | 'reactivate';
 
 const isForbidden = (err: unknown) => (err as { response?: { status?: number } })?.response?.status === 403;
 const isNotFound = (err: unknown) => (err as { response?: { status?: number } })?.response?.status === 404;
+
+const statusActionCopy = (server: AdminServer, kind: ServerStatusAction) => kind === 'suspend'
+    ? {
+        title: `¿Suspender ${server.name}?`,
+        description: 'Los miembros no podrán enviar mensajes ni usar los canales de voz de este servidor. Podés reactivarlo después.',
+        confirmLabel: 'Suspender servidor',
+        tone: 'danger' as const,
+    }
+    : {
+        title: `¿Reactivar ${server.name}?`,
+        description: 'Los miembros volverán a poder usar este servidor.',
+        confirmLabel: 'Reactivar servidor',
+        tone: 'default' as const,
+    };
 
 export const ServersPage = () => {
     const [searchInput, setSearchInput] = useState('');
@@ -21,6 +36,9 @@ export const ServersPage = () => {
     const [serverToDelete, setServerToDelete] = useState<AdminServer | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [statusAction, setStatusAction] = useState<{ server: AdminServer; kind: ServerStatusAction } | null>(null);
+    const [isStatusSubmitting, setIsStatusSubmitting] = useState(false);
+    const [statusError, setStatusError] = useState<string | null>(null);
 
     const search = useDebouncedValue(searchInput.trim(), 300);
 
@@ -61,6 +79,41 @@ export const ServersPage = () => {
         reload();
         setServerToDelete(null);
     };
+
+    const handleConfirmStatusAction = async () => {
+        if (!statusAction || isStatusSubmitting) return;
+
+        setIsStatusSubmitting(true);
+        setStatusError(null);
+        try {
+            if (statusAction.kind === 'suspend') {
+                await adminServerService.suspendServer(statusAction.server.id);
+            } else {
+                await adminServerService.reactivateServer(statusAction.server.id);
+            }
+            setFeedback({
+                tone: 'success',
+                message: statusAction.kind === 'suspend' ? 'Servidor suspendido correctamente.' : 'Servidor reactivado correctamente.',
+            });
+            setStatusAction(null);
+            reload();
+        } catch (err) {
+            setStatusError(getApiErrorMessage(
+                err,
+                statusAction.kind === 'suspend' ? 'No se pudo suspender el servidor.' : 'No se pudo reactivar el servidor.',
+            ));
+        } finally {
+            setIsStatusSubmitting(false);
+        }
+    };
+
+    const openStatusAction = (server: AdminServer, kind: ServerStatusAction) => {
+        setFeedback(null);
+        setStatusError(null);
+        setStatusAction({ server, kind });
+    };
+
+    const statusCopy = statusAction ? statusActionCopy(statusAction.server, statusAction.kind) : null;
 
     const renderResults = () => {
         if (isLoading) return <p className="text-sm text-discord-muted">Cargando servidores…</p>;
@@ -103,6 +156,8 @@ export const ServersPage = () => {
                     setFeedback(null);
                     setServerToDelete(server);
                 }}
+                onSuspend={(server) => openStatusAction(server, 'suspend')}
+                onReactivate={(server) => openStatusAction(server, 'reactivate')}
             />
         );
     };
@@ -153,6 +208,20 @@ export const ServersPage = () => {
                 onCancel={() => {
                     setServerToDelete(null);
                     setDeleteError(null);
+                }}
+            />
+            <ConfirmDialog
+                open={statusCopy !== null}
+                title={statusCopy?.title ?? ''}
+                description={statusCopy?.description ?? ''}
+                confirmLabel={statusCopy?.confirmLabel ?? ''}
+                tone={statusCopy?.tone ?? 'default'}
+                isSubmitting={isStatusSubmitting}
+                error={statusError}
+                onConfirm={handleConfirmStatusAction}
+                onCancel={() => {
+                    setStatusAction(null);
+                    setStatusError(null);
                 }}
             />
         </div>
