@@ -6,11 +6,12 @@ import { LoginForm } from './LoginForm';
 import { authService } from '@/shared/api';
 
 const signIn = vi.fn();
+const beginMfa = vi.fn();
 const navigate = vi.fn();
 
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
-    useAuth: () => ({ signIn }),
+    useAuth: () => ({ signIn, beginMfa, pendingMfa: false }),
 }));
 vi.mock('@/shared/api', () => ({ authService: { login: vi.fn() } }));
 vi.mock('react-router-dom', async (importOriginal) => ({
@@ -58,6 +59,17 @@ describe('LoginForm', () => {
         expect(login).toHaveBeenCalledWith({ email: 'milton@correo.com', password: 'secret123' });
         expect(signIn).toHaveBeenCalledWith('t', { id: '1', name: 'Milton' }, 'r');
         expect(navigate).toHaveBeenCalledWith('/', { replace: true });
+    });
+
+    it('starts the second step instead of signing in when the account has 2FA', async () => {
+        login.mockResolvedValue({ mfaRequired: true, mfaToken: 'mfa-1' });
+        renderForm();
+
+        await fillAndSubmit('milton@correo.com', 'secret123');
+
+        expect(beginMfa).toHaveBeenCalledWith('mfa-1');
+        expect(signIn).not.toHaveBeenCalled();
+        expect(navigate).not.toHaveBeenCalled();
     });
 
     it('shows the error message when the login fails', async () => {

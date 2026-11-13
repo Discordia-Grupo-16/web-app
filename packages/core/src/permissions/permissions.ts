@@ -22,6 +22,7 @@ export const KICK_MEMBERS = 1 << 5;
 export const BAN_MEMBERS = 1 << 6;
 export const MANAGE_SERVER = 1 << 7;
 export const ADMINISTRATOR = 1 << 8;
+export const MANAGE_MESSAGES = 1 << 9;
 
 /** The name of each permission, as the API sends and expects it. */
 export const PERMISSION_BY_NAME = {
@@ -34,6 +35,7 @@ export const PERMISSION_BY_NAME = {
     BAN_MEMBERS,
     MANAGE_SERVER,
     ADMINISTRATOR,
+    MANAGE_MESSAGES,
 } as const;
 
 export type PermissionName = keyof typeof PERMISSION_BY_NAME;
@@ -44,6 +46,7 @@ export const PERMISSION_ORDER: PermissionName[] = [
     'SEND_MESSAGES',
     'CONNECT',
     'MANAGE_CHANNELS',
+    'MANAGE_MESSAGES',
     'MANAGE_ROLES',
     'KICK_MEMBERS',
     'BAN_MEMBERS',
@@ -57,6 +60,7 @@ export const PERMISSION_LABEL: Record<PermissionName, string> = {
     SEND_MESSAGES: 'Enviar mensajes',
     CONNECT: 'Entrar a canales de voz',
     MANAGE_CHANNELS: 'Gestionar canales',
+    MANAGE_MESSAGES: 'Gestionar mensajes',
     MANAGE_ROLES: 'Gestionar roles',
     KICK_MEMBERS: 'Expulsar miembros',
     BAN_MEMBERS: 'Banear miembros',
@@ -70,6 +74,7 @@ export const PERMISSION_HINT: Record<PermissionName, string> = {
     SEND_MESSAGES: 'Escribir en los canales de texto.',
     CONNECT: 'Unirse a los canales de voz.',
     MANAGE_CHANNELS: 'Crear, editar y eliminar canales.',
+    MANAGE_MESSAGES: 'Eliminar mensajes de otros miembros.',
     MANAGE_ROLES: 'Crear roles, editar sus permisos y asignarlos.',
     KICK_MEMBERS: 'Expulsar miembros del servidor.',
     BAN_MEMBERS: 'Banear miembros e impedir que vuelvan a entrar.',

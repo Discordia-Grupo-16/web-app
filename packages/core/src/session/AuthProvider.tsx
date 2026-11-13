@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import type { AuthStorageStrategy, SessionExpirySignal, User } from '@discordia/api';
+import type {
+    AuthStorageStrategy,
+    MfaAuthResponse,
+    MfaLoginPayload,
+    SessionExpirySignal,
+    User,
+} from '@discordia/api';
+
+/** What the user types in the second login step: a TOTP code, or a recovery code. */
+export type MfaProof = { code: string } | { recoveryCode: string };
 
 interface AuthContextType {
     user: User | null;
@@ -11,6 +20,12 @@ interface AuthContextType {
      * expired or missing session, but not after this: the next person to log in must not inherit it.
      */
     signedOutByUser: boolean;
+    /** The password was right and the account asks for a second factor. The token itself stays private. */
+    pendingMfa: boolean;
+    beginMfa: (mfaToken: string) => void;
+    /** Finishes the login. Resolves with the unused recovery codes when one was spent. */
+    completeMfa: (proof: MfaProof) => Promise<{ recoveryCodesRemaining?: number }>;
+    cancelMfa: () => void;
     signIn: (token: string, user: User, refreshToken?: string) => Promise<void>;
     signOut: () => Promise<void>;
     updateUser: (updatedUser: User) => Promise<void>;
@@ -22,16 +37,20 @@ interface AuthProviderProps {
     children: React.ReactNode;
     storage: AuthStorageStrategy;
     onSignOut?: () => Promise<void>;
+    /** Exchanges the mfaToken and a proof for the session (`POST /sessions/mfa`). */
+    onVerifyMfa?: (payload: MfaLoginPayload) => Promise<MfaAuthResponse>;
     /** Fires when the server rejects the session for good: the local session is dropped, with no backend call. */
     sessionExpiry?: Pick<SessionExpirySignal, 'subscribe'>;
 }
 
-export function AuthProvider({ children, storage, onSignOut, sessionExpiry }: AuthProviderProps) {
+export function AuthProvider({ children, storage, onSignOut, onVerifyMfa, sessionExpiry }: AuthProviderProps) {
     const [user, setUser] = useState<User | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [refreshToken, setRefreshToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [signedOutByUser, setSignedOutByUser] = useState(false);
+    // Memory only, never in storage: a reload drops it and the user logs in again.
+    const [mfaToken, setMfaToken] = useState<string | null>(null);
 
     useEffect(() => {
         async function loadStoredSession() {
@@ -63,6 +82,7 @@ export function AuthProvider({ children, storage, onSignOut, sessionExpiry }: Au
             setToken(null);
             setRefreshToken(null);
             setUser(null);
+            setMfaToken(null);
         });
     }, [sessionExpiry, storage]);
 
@@ -76,6 +96,19 @@ export function AuthProvider({ children, storage, onSignOut, sessionExpiry }: Au
         setToken(newToken);
         setUser(newUser);
         setRefreshToken(newRefreshToken || null);
+    };
+
+    const beginMfa = useCallback((newMfaToken: string) => setMfaToken(newMfaToken), []);
+    const cancelMfa = useCallback(() => setMfaToken(null), []);
+
+    const completeMfa = async (proof: MfaProof) => {
+        if (!mfaToken || !onVerifyMfa) {
+            throw new Error('No hay una verificación en dos pasos pendiente.');
+        }
+        const session = await onVerifyMfa({ mfaToken, ...proof } as MfaLoginPayload);
+        await signIn(session.token, session.user, session.refreshToken);
+        setMfaToken(null);
+        return { recoveryCodesRemaining: session.recoveryCodesRemaining };
     };
 
     const signOut = async () => {
@@ -106,11 +139,15 @@ export function AuthProvider({ children, storage, onSignOut, sessionExpiry }: Au
             refreshToken,
             isLoading,
             signedOutByUser,
+            pendingMfa: mfaToken !== null,
+            beginMfa,
+            completeMfa,
+            cancelMfa,
             signIn,
             signOut,
             updateUser,
         }),
-        [user, token, refreshToken, isLoading, updateUser, signedOutByUser]
+        [user, token, refreshToken, isLoading, updateUser, signedOutByUser, mfaToken, beginMfa, cancelMfa]
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

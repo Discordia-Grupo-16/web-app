@@ -2,25 +2,31 @@ import { useState } from "react";
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from "@discordia/ui";
 import { useNavigate } from "react-router-dom";
 import { useAuth, validateLoginInput } from "@discordia/core";
-import { getApiErrorMessage } from "@discordia/api";
+import { getApiErrorMessage, isMfaChallenge } from "@discordia/api";
 import { authService } from '@/shared/api';
 import { useReturnTo } from './returnTo';
+import { MfaStep, RecoveryNotice } from './MfaStep';
 
 interface LoginFormProps {
     onSwitch: () => void
+    onForgotPassword?: () => void
     // Message shown above the form errors (e.g. "account suspended"); hidden once the user submits.
     notice?: string | null
+    // "success" renders the notice in green (e.g. password updated); anything else is an error.
+    noticeTone?: 'error' | 'success'
     onSubmitAttempt?: () => void
 }
 
-export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps) => {
+export const LoginForm = ({ onSwitch, onForgotPassword, notice, noticeTone, onSubmitAttempt }: LoginFormProps) => {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const { signIn } = useAuth()
+    const [recoveryRemaining, setRecoveryRemaining] = useState<number | null>(null)
+
+    const { signIn, pendingMfa, beginMfa } = useAuth()
     const navigate = useNavigate()
     const returnTo = useReturnTo()
 
@@ -38,17 +44,40 @@ export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps)
         setLoading(true)
 
         try {
-            const { token, user, refreshToken } = await authService.login({
+            const result = await authService.login({
                 email: email.trim(),
                 password,
             })
-            await signIn(token, user, refreshToken)
+            if (isMfaChallenge(result)) {
+                setPassword('')
+                beginMfa(result.mfaToken)
+                return
+            }
+            await signIn(result.token, result.user, result.refreshToken)
             navigate(returnTo, { replace: true })
         } catch (err: unknown) {
             setError(getApiErrorMessage(err, 'Credenciales inválidas o error al iniciar sesión.'))
         } finally {
             setLoading(false);
         }
+    }
+
+    if (recoveryRemaining !== null) {
+        return <RecoveryNotice remaining={recoveryRemaining} onContinue={() => navigate(returnTo, { replace: true })} />
+    }
+
+    if (pendingMfa) {
+        return (
+            <MfaStep
+                onVerified={(remaining) => {
+                    if (remaining !== undefined) {
+                        setRecoveryRemaining(remaining)
+                    } else {
+                        navigate(returnTo, { replace: true })
+                    }
+                }}
+            />
+        )
     }
 
     return (
@@ -81,8 +110,12 @@ export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps)
 
                 {notice && (
                     <div
-                        role="alert"
-                        className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium"
+                        role={noticeTone === 'success' ? 'status' : 'alert'}
+                        className={
+                            noticeTone === 'success'
+                                ? 'mb-4 p-3 rounded-lg bg-green-500/10 border border-green-500/30 text-green-400 text-xs font-medium'
+                                : 'mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium'
+                        }
                     >
                         {notice}
                     </div>
@@ -100,7 +133,7 @@ export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps)
                             className="block text-xs font-semibold uppercase tracking-wider mb-2"
                             style={{ fontFamily: 'Open Sans, sans-serif', color: '#99aab5' }}
                         >
-                            Correo electrónico o teléfono
+                            Correo electrónico
                         </label>
                         <input
                             type="email"
@@ -136,6 +169,7 @@ export const LoginForm = ({ onSwitch, notice, onSubmitAttempt }: LoginFormProps)
                             </label>
                             <button
                                 type="button"
+                                onClick={onForgotPassword}
                                 className="text-xs font-medium transition-colors hover:underline"
                                 style={{ fontFamily: 'Open Sans, sans-serif', color: '#7289da' }}
                             >

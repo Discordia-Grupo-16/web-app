@@ -1,5 +1,5 @@
 import type { AxiosInstance, GenericAbortSignal } from 'axios';
-import type { AdminUser, AdminUserListResponse, ListAdminUsersParams } from './types';
+import type { AdminUser, AdminUserListResponse, ListAdminUsersParams, AdminServerListResponse, AdminServerListQuery } from './types';
 
 // Drops what carries no filter: undefined keys and a blank search. The backend treats a blank
 // search as "no filter" too, but not sending it keeps the URL and the request log clean.
@@ -33,4 +33,25 @@ export const createAdminUserService = (apiClient: AxiosInstance) => ({
         const res = await apiClient.delete<{ data: AdminUser }>(`/api/v1/admin/users/${userId}/suspension`);
         return res.data.data;
     },
+});
+
+const cleanServerParams = (params: AdminServerListQuery): AdminServerListQuery => {
+    const cleaned: AdminServerListQuery = {};
+    if (params.search !== undefined && params.search.trim() !== '') cleaned.search = params.search;
+    if (params.limit !== undefined) cleaned.limit = params.limit;
+    if (params.offset !== undefined) cleaned.offset = params.offset;
+    return cleaned;
+};
+
+export const createAdminServerService = (apiClient: AxiosInstance) => ({
+    async listServers(params: AdminServerListQuery = {}, signal?: GenericAbortSignal): Promise<AdminServerListResponse> {
+        const { data } = await apiClient.get<AdminServerListResponse>('/api/v1/admin/servers', {
+            params: cleanServerParams(params),
+            signal,
+        });
+        return data;
+    },
+    async deleteServer(serverId: string): Promise<void> {
+        await apiClient.delete(`/api/v1/admin/servers/${serverId}`);
+    }
 });

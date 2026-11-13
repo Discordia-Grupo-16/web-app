@@ -17,6 +17,7 @@ jest.mock('@/features/chat', () => ({
   RealtimeProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock('@/features/profile', () => ({ ProfileButton: () => null }));
+jest.mock('@/features/ownership', () => ({ IncomingTransferBanner: () => null }));
 jest.mock('@/features/voice', () => ({
   VoiceProvider: ({ children }: { children: React.ReactNode }) => children,
   VoiceBar: () => null,

@@ -25,6 +25,10 @@ const renderList = (
         loadMoreError?: boolean;
         onLoadMore?: () => void;
         onRetryLoadMore?: () => void;
+        canEditOwn?: boolean;
+        onEdit?: (messageId: string, content: string) => Promise<void>;
+        canManageMessages?: boolean;
+        onDelete?: (messageId: string) => Promise<void>;
     } = {},
 ) => {
     const openProfile = vi.fn();
@@ -54,6 +58,11 @@ const renderList = (
                     loadMoreError={overrides.loadMoreError ?? false}
                     onLoadMore={overrides.onLoadMore ?? vi.fn()}
                     onRetryLoadMore={overrides.onRetryLoadMore ?? vi.fn()}
+                    canEditOwn={overrides.canEditOwn ?? true}
+                    maxLength={2000}
+                    onEdit={overrides.onEdit ?? vi.fn(async () => {})}
+                    canManageMessages={overrides.canManageMessages ?? false}
+                    onDelete={overrides.onDelete ?? vi.fn(async () => {})}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
@@ -192,6 +201,11 @@ describe('MessageList scroll behavior', () => {
                     loadMoreError={props.loadMoreError ?? false}
                     onLoadMore={props.onLoadMore ?? vi.fn()}
                     onRetryLoadMore={vi.fn()}
+                    canEditOwn
+                    maxLength={2000}
+                    onEdit={vi.fn(async () => {})}
+                    canManageMessages={false}
+                    onDelete={vi.fn(async () => {})}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>
@@ -242,5 +256,326 @@ describe('MessageList scroll behavior', () => {
 
         // useLayoutEffect: scrollTop += 500 - 300 = 200 → 40 + 200 = 240
         expect(el.scrollTop).toBe(240);
+    });
+});
+
+describe('MessageList editing', () => {
+    beforeAll(() => {
+        Object.defineProperty(HTMLElement.prototype, 'scrollHeight', { configurable: true, value: 0 });
+    });
+
+    const withEdit = (messageId: string, authorId: string, editedAt: string | null = null): ChatMessage => ({
+        ...message(messageId, authorId),
+        editedAt,
+    });
+
+    // The same tree as renderList, but rerenderable with another permission: the permission is a prop
+    // that changes while the screen stays open, which is the case that matters.
+    const tree = (messages: ChatMessage[], canEditOwn: boolean, onEdit: (id: string, content: string) => Promise<void>) => (
+        <PublicProfilesProvider source={{ getPublicProfiles: vi.fn(async () => new Map()), peekPublicProfile: () => undefined }}>
+            <ProfileViewerContext.Provider value={{ openProfile: vi.fn() }}>
+                <MessageList
+                    channelName="general"
+                    topic={null}
+                    messages={messages}
+                    pending={[]}
+                    currentUser={me}
+                    canRetry
+                    onRetry={vi.fn()}
+                    onDiscard={vi.fn()}
+                    historyLoaded
+                    historyError={false}
+                    onRetryHistory={vi.fn()}
+                    hasMore={false}
+                    loadingMore={false}
+                    loadMoreError={false}
+                    onLoadMore={vi.fn()}
+                    onRetryLoadMore={vi.fn()}
+                    canEditOwn={canEditOwn}
+                    maxLength={2000}
+                    onEdit={onEdit}
+                    canManageMessages={false}
+                    onDelete={vi.fn(async () => {})}
+                />
+            </ProfileViewerContext.Provider>
+        </PublicProfilesProvider>
+    );
+
+    it('offers "Editar" on the own messages and on no one else\'s', async () => {
+        renderList([withEdit('mine', 'me'), withEdit('theirs', 'milton')], { milton });
+
+        await screen.findByText('Milton');
+        expect(screen.getAllByRole('button', { name: 'Editar mensaje' })).toHaveLength(1);
+    });
+
+    it('never offers "Editar" on a message of another user, whatever the permission', async () => {
+        renderList([withEdit('theirs', 'milton')], { milton }, undefined, { canEditOwn: true });
+
+        await screen.findByText('Milton');
+        expect(screen.queryByRole('button', { name: 'Editar mensaje' })).not.toBeInTheDocument();
+    });
+
+    it('does not offer "Editar" without SEND_MESSAGES', async () => {
+        renderList([withEdit('mine', 'me')], {}, undefined, { canEditOwn: false });
+
+        expect(await screen.findByText('texto mine')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Editar mensaje' })).not.toBeInTheDocument();
+    });
+
+    it('marks an edited message and shows when it was edited', async () => {
+        renderList([withEdit('mine', 'me', '2026-11-09T15:30:00Z'), withEdit('plain', 'me')], {});
+
+        const marks = await screen.findAllByText('(editado)');
+        expect(marks).toHaveLength(1);
+        expect(marks[0]).toHaveAttribute('title', expect.stringContaining('2026'));
+    });
+
+    it('saves with Enter, sends the new text for that message and closes the editor', async () => {
+        const user = userEvent.setup();
+        const onEdit = vi.fn(async () => {});
+        renderList([withEdit('mine', 'me')], {}, undefined, { onEdit });
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        const box = screen.getByRole('textbox', { name: 'Editar mensaje' });
+        await user.clear(box);
+        await user.type(box, 'corregido{Enter}');
+
+        await waitFor(() => expect(onEdit).toHaveBeenCalledWith('mine', 'corregido'));
+        await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Editar mensaje' })).not.toBeInTheDocument());
+    });
+
+    it('Shift+Enter breaks the line instead of saving', async () => {
+        const user = userEvent.setup();
+        const onEdit = vi.fn(async () => {});
+        renderList([withEdit('mine', 'me')], {}, undefined, { onEdit });
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        await user.type(screen.getByRole('textbox', { name: 'Editar mensaje' }), '{Shift>}{Enter}{/Shift}');
+
+        expect(onEdit).not.toHaveBeenCalled();
+        expect(screen.getByRole('textbox', { name: 'Editar mensaje' })).toHaveValue('texto mine\n');
+    });
+
+    it('Esc cancels without saving and leaves the text as it was', async () => {
+        const user = userEvent.setup();
+        const onEdit = vi.fn(async () => {});
+        renderList([withEdit('mine', 'me')], {}, undefined, { onEdit });
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        await user.type(screen.getByRole('textbox', { name: 'Editar mensaje' }), ' cambio{Escape}');
+
+        expect(onEdit).not.toHaveBeenCalled();
+        expect(screen.queryByRole('textbox', { name: 'Editar mensaje' })).not.toBeInTheDocument();
+        expect(screen.getByText('texto mine')).toBeInTheDocument();
+    });
+
+    it('saving without changes closes the editor without calling the server', async () => {
+        const user = userEvent.setup();
+        const onEdit = vi.fn(async () => {});
+        renderList([withEdit('mine', 'me')], {}, undefined, { onEdit });
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        await user.type(screen.getByRole('textbox', { name: 'Editar mensaje' }), '{Enter}');
+
+        expect(onEdit).not.toHaveBeenCalled();
+        expect(screen.queryByRole('textbox', { name: 'Editar mensaje' })).not.toBeInTheDocument();
+    });
+
+    it('does not save an empty text', async () => {
+        const user = userEvent.setup();
+        const onEdit = vi.fn(async () => {});
+        renderList([withEdit('mine', 'me')], {}, undefined, { onEdit });
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        await user.clear(screen.getByRole('textbox', { name: 'Editar mensaje' }));
+        await user.keyboard('{Enter}');
+
+        expect(onEdit).not.toHaveBeenCalled();
+        expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
+    });
+
+    it('keeps the editor open and says why when the server refuses', async () => {
+        const user = userEvent.setup();
+        const refused = Object.assign(new Error('forbidden'), { response: { status: 403 } });
+        const onEdit = vi.fn(async () => { throw refused; });
+        renderList([withEdit('mine', 'me')], {}, undefined, { onEdit });
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        await user.type(screen.getByRole('textbox', { name: 'Editar mensaje' }), '!{Enter}');
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('No tenés permiso para editar este mensaje.');
+        expect(screen.getByRole('textbox', { name: 'Editar mensaje' })).toHaveValue('texto mine!');
+    });
+
+    it.each([
+        ['an HTTP 500', Object.assign(new Error('boom'), { response: { status: 500 } })],
+        ['an HTTP 503', Object.assign(new Error('unavailable'), { response: { status: 503 } })],
+        ['no answer at all (network down)', new Error('Network Error')],
+    ])('on %s keeps the editor open with the generic error: it must never look as if it saved', async (_case, failure) => {
+        const user = userEvent.setup();
+        const onEdit = vi.fn(async () => { throw failure; });
+        renderList([withEdit('mine', 'me')], {}, undefined, { onEdit });
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        await user.type(screen.getByRole('textbox', { name: 'Editar mensaje' }), '!{Enter}');
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo editar el mensaje.');
+        expect(screen.getByRole('textbox', { name: 'Editar mensaje' })).toHaveValue('texto mine!');
+        expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled();
+    });
+
+    // Lesson of the unread bug: what depends on the access the user has is read from the current
+    // permissions and never kept, and it is tried by changing the access with the screen open.
+    it('removes "Editar" and closes an open editor when SEND_MESSAGES is taken away, and it comes back when it is given back', async () => {
+        const user = userEvent.setup();
+        const onEdit = vi.fn(async () => {});
+        const messages = [withEdit('mine', 'me')];
+        const { rerender } = render(tree(messages, true, onEdit));
+
+        await user.click(await screen.findByRole('button', { name: 'Editar mensaje' }));
+        expect(screen.getByRole('textbox', { name: 'Editar mensaje' })).toBeInTheDocument();
+
+        rerender(tree(messages, false, onEdit));
+
+        expect(screen.queryByRole('textbox', { name: 'Editar mensaje' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Editar mensaje' })).not.toBeInTheDocument();
+        expect(screen.getByText('texto mine')).toBeInTheDocument();
+
+        rerender(tree(messages, true, onEdit));
+
+        expect(screen.getByRole('button', { name: 'Editar mensaje' })).toBeInTheDocument();
+        expect(screen.queryByRole('textbox', { name: 'Editar mensaje' })).not.toBeInTheDocument();
+    });
+});
+
+describe('MessageList deleting', () => {
+    beforeAll(() => {
+        Object.defineProperty(HTMLElement.prototype, 'scrollHeight', { configurable: true, value: 0 });
+    });
+
+    const tree = (messages: ChatMessage[], canManageMessages: boolean, onDelete: (id: string) => Promise<void>) => (
+        <PublicProfilesProvider source={{ getPublicProfiles: vi.fn(async () => new Map()), peekPublicProfile: () => undefined }}>
+            <ProfileViewerContext.Provider value={{ openProfile: vi.fn() }}>
+                <MessageList
+                    channelName="general"
+                    topic={null}
+                    messages={messages}
+                    pending={[]}
+                    currentUser={me}
+                    canRetry
+                    onRetry={vi.fn()}
+                    onDiscard={vi.fn()}
+                    historyLoaded
+                    historyError={false}
+                    onRetryHistory={vi.fn()}
+                    hasMore={false}
+                    loadingMore={false}
+                    loadMoreError={false}
+                    onLoadMore={vi.fn()}
+                    onRetryLoadMore={vi.fn()}
+                    canEditOwn={false}
+                    maxLength={2000}
+                    onEdit={vi.fn(async () => {})}
+                    canManageMessages={canManageMessages}
+                    onDelete={onDelete}
+                />
+            </ProfileViewerContext.Provider>
+        </PublicProfilesProvider>
+    );
+    const deleteButtons = () => screen.queryAllByRole('button', { name: 'Eliminar mensaje' });
+
+    it('offers "Eliminar" on the own messages even without SEND_MESSAGES: taking back what one said is always allowed (CA1)', async () => {
+        render(tree([message('mine', 'me')], false, vi.fn(async () => {})));
+
+        await screen.findByText('texto mine');
+        expect(deleteButtons()).toHaveLength(1);
+    });
+
+    it('never offers "Eliminar" on a message of someone else without MANAGE_MESSAGES (CA3)', async () => {
+        render(tree([message('a', 'milton'), message('b', 'milton')], false, vi.fn(async () => {})));
+
+        await screen.findByText('texto a');
+        expect(deleteButtons()).toHaveLength(0);
+    });
+
+    it('with MANAGE_MESSAGES offers "Eliminar" on the messages of others too (CA2)', async () => {
+        render(tree([message('mine', 'me'), message('theirs', 'milton')], true, vi.fn(async () => {})));
+
+        await screen.findByText('texto theirs');
+        expect(deleteButtons()).toHaveLength(2);
+    });
+
+    it('asks for confirmation and deletes that message only after confirming', async () => {
+        const user = userEvent.setup();
+        const onDelete = vi.fn(async () => {});
+        render(tree([message('mine', 'me')], false, onDelete));
+
+        await user.click(await screen.findByRole('button', { name: 'Eliminar mensaje' }));
+        expect(onDelete).not.toHaveBeenCalled();
+        expect(screen.getByText('¿Eliminar este mensaje? Va a dejar de verse para todos y no se puede deshacer.')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+        await waitFor(() => expect(onDelete).toHaveBeenCalledWith('mine'));
+        expect(screen.queryByText(/Va a dejar de verse para todos/)).not.toBeInTheDocument();
+    });
+
+    it('cancelling the confirmation deletes nothing', async () => {
+        const user = userEvent.setup();
+        const onDelete = vi.fn(async () => {});
+        render(tree([message('mine', 'me')], false, onDelete));
+
+        await user.click(await screen.findByRole('button', { name: 'Eliminar mensaje' }));
+        await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+        expect(onDelete).not.toHaveBeenCalled();
+        expect(screen.queryByText(/Va a dejar de verse para todos/)).not.toBeInTheDocument();
+    });
+
+    it.each([
+        [403, 'No tenés permiso para eliminar este mensaje.'],
+        [500, 'No se pudo eliminar el mensaje.'],
+    ])('on an HTTP %i says why on that message and keeps it', async (status, text) => {
+        const user = userEvent.setup();
+        const onDelete = vi.fn(async () => { throw Object.assign(new Error('x'), { response: { status } }); });
+        render(tree([message('theirs', 'milton')], true, onDelete));
+
+        await user.click(await screen.findByRole('button', { name: 'Eliminar mensaje' }));
+        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(text);
+        expect(screen.getByText('texto theirs')).toBeInTheDocument();
+    });
+
+    // Lesson of the unread bug: the permission is read from the current props, so it is tried by
+    // changing it with the screen open, and never kept in a state of the row or of the dialog.
+    it('shows "Eliminar" on the messages of others when MANAGE_MESSAGES is given with the screen open, and removes it when it is taken away', async () => {
+        const messages = [message('mine', 'me'), message('theirs', 'milton')];
+        const onDelete = vi.fn(async () => {});
+        const { rerender } = render(tree(messages, false, onDelete));
+        await screen.findByText('texto theirs');
+        expect(deleteButtons()).toHaveLength(1);
+
+        rerender(tree(messages, true, onDelete));
+        expect(deleteButtons()).toHaveLength(2);
+
+        rerender(tree(messages, false, onDelete));
+        expect(deleteButtons()).toHaveLength(1);
+    });
+
+    it('closes an open confirmation on someone else\'s message when MANAGE_MESSAGES is taken away', async () => {
+        const user = userEvent.setup();
+        const messages = [message('theirs', 'milton')];
+        const onDelete = vi.fn(async () => {});
+        const { rerender } = render(tree(messages, true, onDelete));
+        await user.click(await screen.findByRole('button', { name: 'Eliminar mensaje' }));
+        expect(screen.getByText(/Va a dejar de verse para todos/)).toBeInTheDocument();
+
+        rerender(tree(messages, false, onDelete));
+
+        expect(screen.queryByText(/Va a dejar de verse para todos/)).not.toBeInTheDocument();
+        rerender(tree(messages, true, onDelete));
+        expect(screen.queryByText(/Va a dejar de verse para todos/)).not.toBeInTheDocument();
+        expect(onDelete).not.toHaveBeenCalled();
     });
 });

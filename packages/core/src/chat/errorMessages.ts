@@ -19,3 +19,31 @@ export const rejectionMessage = (code: 'EMPTY_MESSAGE' | 'MESSAGE_TOO_LONG', max
 // Only transient failures can be retried; FORBIDDEN and CHANNEL_NOT_FOUND would fail again.
 export const isRetryable = (code: PendingErrorCode | undefined): boolean =>
     code === 'INTERNAL_ERROR' || code === 'TIMEOUT' || code === 'DISCONNECTED';
+
+// Why an edit was refused, from the HTTP status of the PATCH. The server's detail is not shown as is.
+export const editErrorText = (error: unknown): string => {
+    const status = (error as { response?: { status?: number } } | null)?.response?.status;
+    switch (status) {
+        case 400:
+            return 'El mensaje no es válido.';
+        case 403:
+            return 'No tenés permiso para editar este mensaje.';
+        case 404:
+            return 'Este mensaje ya no existe.';
+        default:
+            return 'No se pudo editar el mensaje.';
+    }
+};
+
+// Why a delete was refused, from the HTTP status of the DELETE.
+export const deleteErrorText = (error: unknown): string => {
+    const status = (error as { response?: { status?: number } } | null)?.response?.status;
+    switch (status) {
+        case 403:
+            return 'No tenés permiso para eliminar este mensaje.';
+        case 404:
+            return 'Este mensaje ya no existe.';
+        default:
+            return 'No se pudo eliminar el mensaje.';
+    }
+};

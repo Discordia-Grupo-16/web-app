@@ -21,18 +21,21 @@ const role = (permissions: number, is_default = false): Role => ({
     created_at: '2026-10-01T00:00:00Z',
 });
 
-const renderModal = (permissions: number, isDefault = false) => {
+const renderModal = (permissions: number, isDefault = false, roleGone = false) => {
     const onUpdated = vi.fn();
     const onClose = vi.fn();
+    const onRoleGone = vi.fn();
     render(
         <EditRolePermissionsModal
             serverId="srv"
             role={role(permissions, isDefault)}
             onClose={onClose}
             onUpdated={onUpdated}
+            roleGone={roleGone}
+            onRoleGone={onRoleGone}
         />,
     );
-    return { onUpdated, onClose, user: userEvent.setup() };
+    return { onUpdated, onClose, onRoleGone, user: userEvent.setup() };
 };
 
 const save = () => screen.getByRole('button', { name: 'Guardar cambios' });
@@ -197,5 +200,49 @@ describe('el rol por defecto (SCRUM-63)', () => {
         expect(onUpdated).toHaveBeenCalledWith(
             expect.objectContaining({ permissions: VIEW_CHANNEL, is_default: true }),
         );
+    });
+});
+
+describe('EditRolePermissionsModal with a deleted role', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('only says the role no longer exists and lets close', async () => {
+        const { onClose, user } = renderModal(VIEW_CHANNEL, false, true);
+
+        expect(screen.getByRole('alert')).toHaveTextContent('Ese rol ya no existe');
+        expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Guardar cambios' })).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Cerrar' }));
+
+        expect(onClose).toHaveBeenCalled();
+    });
+
+    it('shows the 404 of saving and asks for the list to be read again', async () => {
+        vi.mocked(rolesService.updateRolePermissions).mockRejectedValue({
+            response: { status: 404, data: { detail: 'Ese rol ya no existe' } },
+        });
+        const { onRoleGone, user } = renderModal(VIEW_CHANNEL);
+
+        await user.click(screen.getByRole('checkbox', { name: 'Enviar mensajes' }));
+        await user.click(save());
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Ese rol ya no existe');
+        expect(onRoleGone).toHaveBeenCalled();
+    });
+
+    it('does not ask for the list again on a 403', async () => {
+        vi.mocked(rolesService.updateRolePermissions).mockRejectedValue({
+            response: { status: 403, data: { detail: 'No podés editar un rol que está en tu misma posición o por encima' } },
+        });
+        const { onRoleGone, user } = renderModal(VIEW_CHANNEL);
+
+        await user.click(screen.getByRole('checkbox', { name: 'Enviar mensajes' }));
+        await user.click(save());
+
+        await screen.findByRole('alert');
+        expect(onRoleGone).not.toHaveBeenCalled();
     });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { RealtimeClient } from '@discordia/api';
+import type { MessagesService, RealtimeClient } from '@discordia/api';
 import { chatReducer, initialChatState, type ChatMessage } from './chatStore';
 import { rejectionMessage } from './errorMessages';
 import {
@@ -33,6 +33,8 @@ export interface RealtimeControllerOptions {
     newClientMessageId: () => string;
     /** Axios-compatible client for history and resync HTTP calls. */
     api: HttpClient;
+    /** Edits and deletes messages over HTTP (SCRUM-44 and SCRUM-45). */
+    messagesService: Pick<MessagesService, 'editMessage' | 'deleteMessage'>;
     /** Error reporter. Pass `console` from the platform provider. */
     logger: Logger;
 }
@@ -54,6 +56,7 @@ export const useRealtimeController = ({
     token,
     newClientMessageId,
     api,
+    messagesService,
     logger,
 }: RealtimeControllerOptions): RealtimeController => {
     const [status, setStatus] = useState<RealtimeStatus>(() => (client ? client.getState() : 'disabled'));
@@ -189,7 +192,20 @@ export const useRealtimeController = ({
                             if (resp.data.length > 0) {
                                 dispatch({ type: 'resyncLoaded', channelId, messages: resp.data });
                             }
-                            if (!resp.hasMore || resp.data.length === 0) return;
+                            if (!resp.hasMore || resp.data.length === 0) {
+                                // `after` brings what is new but not the edits or deletes of messages the
+                                // session already had, so once it is up to date the last page is read
+                                // again to merge its edits and drop what was deleted. A change older than
+                                // that page is not seen until the user reloads that stretch.
+                                try {
+                                    const { data } = await api.get<HistoryApiResponse>(`/api/v1/channels/${channelId}/messages`);
+                                    if (abort.signal.aborted) return;
+                                    dispatch({ type: 'lastPageRefreshed', channelId, messages: data.data });
+                                } catch (err) {
+                                    logger.error('refresh last page failed', channelId, err);
+                                }
+                                return;
+                            }
                             afterId = resp.data[resp.data.length - 1].messageId;
                         }
                         logger.error('resync reached max pages without exhausting messages', channelId, { maxPages: MAX_RESYNC_PAGES });
@@ -204,6 +220,18 @@ export const useRealtimeController = ({
         const offCreated = client.on('messageCreated', (frame) => {
             clearTimer(frame.clientMessageId);
             dispatch({ type: 'created', frame });
+        });
+        const offUpdated = client.on('messageUpdated', (frame) => {
+            dispatch({
+                type: 'updated',
+                channelId: frame.channelId,
+                messageId: frame.messageId,
+                content: frame.content,
+                editedAt: frame.editedAt,
+            });
+        });
+        const offDeleted = client.on('messageDeleted', (frame) => {
+            dispatch({ type: 'deleted', channelId: frame.channelId, messageId: frame.messageId });
         });
         const offError = client.on('errorFrame', (frame) => {
             const head = stateRef.current.awaitingResponse[0];
@@ -231,6 +259,8 @@ export const useRealtimeController = ({
             offState();
             offAck();
             offCreated();
+            offUpdated();
+            offDeleted();
             offError();
             syncAbortRef.current?.abort();
         };
@@ -307,6 +337,36 @@ export const useRealtimeController = ({
 
     const clearRejected = useCallback(() => setLastRejected(null), []);
 
+    // The answer is applied without waiting for the frame: the author sees the edit at once, and
+    // the frame that follows is ignored because its editedAt is not newer. The error goes to the
+    // caller, which knows where to show it.
+    const editMessage = useCallback<RealtimeContextValue['editMessage']>(
+        async (channelId, messageId, content) => {
+            const message = await messagesService.editMessage(channelId, messageId, content);
+            // No editedAt means the content was already that one: nothing changed.
+            if (message.editedAt) {
+                dispatch({
+                    type: 'updated',
+                    channelId: message.channelId,
+                    messageId: message.messageId,
+                    content: message.content,
+                    editedAt: message.editedAt,
+                });
+            }
+        },
+        [messagesService],
+    );
+
+    // Removed from the list as soon as the server confirms, without waiting for the frame, which then
+    // finds nothing to remove. The error goes to the caller.
+    const deleteMessage = useCallback<RealtimeContextValue['deleteMessage']>(
+        async (channelId, messageId) => {
+            await messagesService.deleteMessage(channelId, messageId);
+            dispatch({ type: 'deleted', channelId, messageId });
+        },
+        [messagesService],
+    );
+
     const loadHistory = useCallback(async (channelId: string) => {
         if (stateRef.current.historyByChannel[channelId]?.loaded) return;
         if (historyFetching.current.has(channelId)) return;
@@ -363,6 +423,21 @@ export const useRealtimeController = ({
         [client],
     );
 
+    const onVoiceParticipants = useCallback<RealtimeContextValue['onVoiceParticipants']>(
+        (handler) => (client ? client.on('voiceParticipants', handler) : () => {}),
+        [client],
+    );
+
+    const onMessageCreated = useCallback<RealtimeContextValue['onMessageCreated']>(
+        (handler) => (client ? client.on('messageCreated', handler) : () => {}),
+        [client],
+    );
+
+    const onReadStateUpdated = useCallback<RealtimeContextValue['onReadStateUpdated']>(
+        (handler) => (client ? client.on('readStateUpdated', handler) : () => {}),
+        [client],
+    );
+
     const onReconnect = useCallback<RealtimeContextValue['onReconnect']>((handler) => {
         reconnectHandlers.current.add(handler);
         return () => {
@@ -372,12 +447,14 @@ export const useRealtimeController = ({
 
     const value = useMemo<RealtimeContextValue>(
         () => ({
-            status, state, maxLength, send, retry, discard, lastRejected, clearRejected,
-            loadHistory, retryHistory, loadMoreHistory, onInvalidate, onReconnect,
+            status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage,
+            loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
+            onVoiceParticipants, onReconnect,
         }),
         [
-            status, state, maxLength, send, retry, discard, lastRejected, clearRejected,
-            loadHistory, retryHistory, loadMoreHistory, onInvalidate, onReconnect,
+            status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage,
+            loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
+            onVoiceParticipants, onReconnect,
         ],
     );
 

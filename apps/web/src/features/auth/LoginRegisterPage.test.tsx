@@ -44,6 +44,15 @@ describe('LoginRegisterPage', () => {
         expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
+    it('shows a success notice as a status, not as an alert', () => {
+        setLoginNotice('Actualizamos tu contraseña. Iniciá sesión.', 'success');
+
+        renderPage();
+
+        expect(screen.getByRole('status')).toHaveTextContent('Actualizamos tu contraseña. Iniciá sesión.');
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
     it('shows no alert when there is no notice', () => {
         renderPage();
 

@@ -318,6 +318,92 @@ describe('receiving', () => {
         expect(onInvalidate).toHaveBeenNthCalledWith(3, ofAProfile);
     });
 
+    it('emits messageUpdated with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onUpdated = vi.fn();
+        client.on('messageUpdated', onUpdated);
+
+        const frame = {
+            type: 'message.updated',
+            messageId: 'm1',
+            channelId: 'c1',
+            serverId: 's1',
+            authorId: 'u1',
+            content: 'corregido',
+            editedAt: '2026-11-09T15:30:00.123Z',
+        };
+        socket.message(frame);
+
+        expect(onUpdated).toHaveBeenCalledTimes(1);
+        expect(onUpdated).toHaveBeenCalledWith(frame);
+    });
+
+    it.each([
+        ['messageId', { channelId: 'c1', content: 'x', editedAt: '2026-11-09T15:30:00Z' }],
+        ['channelId', { messageId: 'm1', content: 'x', editedAt: '2026-11-09T15:30:00Z' }],
+        ['content', { messageId: 'm1', channelId: 'c1', editedAt: '2026-11-09T15:30:00Z' }],
+        ['editedAt', { messageId: 'm1', channelId: 'c1', content: 'x' }],
+    ])('drops a message.updated without %s: there is nothing to apply it to or to order it by', async (_field, rest) => {
+        const { client, socket } = await openClient();
+        const onUpdated = vi.fn();
+        client.on('messageUpdated', onUpdated);
+
+        expect(() => socket.message({ type: 'message.updated', serverId: 's1', authorId: 'u1', ...rest })).not.toThrow();
+
+        expect(onUpdated).not.toHaveBeenCalled();
+    });
+
+    it('emits messageDeleted with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onDeleted = vi.fn();
+        client.on('messageDeleted', onDeleted);
+
+        const frame = { type: 'message.deleted', messageId: 'm1', channelId: 'c1', serverId: 's1', deletedAt: '2026-11-10T15:30:00Z' };
+        socket.message(frame);
+
+        expect(onDeleted).toHaveBeenCalledWith(frame);
+    });
+
+    it.each([
+        ['messageId', { channelId: 'c1' }],
+        ['channelId', { messageId: 'm1' }],
+    ])('drops a message.deleted without %s: there is nothing to remove', async (_field, rest) => {
+        const { client, socket } = await openClient();
+        const onDeleted = vi.fn();
+        client.on('messageDeleted', onDeleted);
+
+        expect(() => socket.message({ type: 'message.deleted', serverId: 's1', deletedAt: '2026-11-10T15:30:00Z', ...rest })).not.toThrow();
+
+        expect(onDeleted).not.toHaveBeenCalled();
+    });
+
+    it('emits readStateUpdated with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onReadState = vi.fn();
+        client.on('readStateUpdated', onReadState);
+
+        const frame = {
+            type: 'read-state.updated',
+            userId: 'u1',
+            states: [{ channelId: 'c1', serverId: 's1', lastReadMessageId: 'm1', lastReadAt: '2026-11-02T12:00:00Z' }],
+        };
+        socket.message(frame);
+
+        expect(onReadState).toHaveBeenCalledTimes(1);
+        expect(onReadState).toHaveBeenCalledWith(frame);
+    });
+
+    it('ignores a read-state.updated without a list of states: there is nothing to apply', async () => {
+        const { client, socket } = await openClient();
+        const onReadState = vi.fn();
+        client.on('readStateUpdated', onReadState);
+
+        expect(() => socket.message({ type: 'read-state.updated', userId: 'u1' })).not.toThrow();
+        expect(() => socket.message({ type: 'read-state.updated', userId: 'u1', states: 'c1' })).not.toThrow();
+
+        expect(onReadState).not.toHaveBeenCalled();
+    });
+
     it('delivers an invalidate with a resource it does not know: filtering is the subscriber\'s job', async () => {
         const { client, socket } = await openClient();
         const onInvalidate = vi.fn();
@@ -338,6 +424,40 @@ describe('receiving', () => {
         expect(() => socket.message({ type: 'invalidate', resources: 'members' })).not.toThrow();
 
         expect(onInvalidate).not.toHaveBeenCalled();
+    });
+
+    it('emits voiceParticipants with the parsed frame, also when the channel is empty', async () => {
+        const { client, socket } = await openClient();
+        const onVoice = vi.fn();
+        client.on('voiceParticipants', onVoice);
+
+        const withPeople = {
+            type: 'voice-participants.updated',
+            serverId: 's1',
+            channelId: 'c1',
+            participants: [{ userId: 'u1', joinedAt: '2026-11-05T10:00:00Z' }],
+            syncedAt: '2026-11-05T10:00:05.5Z',
+        };
+        const empty = { ...withPeople, participants: [] };
+        socket.message(withPeople);
+        socket.message(empty);
+
+        expect(onVoice).toHaveBeenNthCalledWith(1, withPeople);
+        expect(onVoice).toHaveBeenNthCalledWith(2, empty);
+    });
+
+    it('ignores a voice-participants.updated that cannot be placed or compared', async () => {
+        const { client, socket } = await openClient();
+        const onVoice = vi.fn();
+        client.on('voiceParticipants', onVoice);
+        const whole = { type: 'voice-participants.updated', serverId: 's1', channelId: 'c1', participants: [], syncedAt: 'x' };
+
+        expect(() => socket.message({ ...whole, serverId: undefined })).not.toThrow();
+        socket.message({ ...whole, channelId: undefined });
+        socket.message({ ...whole, syncedAt: undefined });
+        socket.message({ ...whole, participants: 'u1' });
+
+        expect(onVoice).not.toHaveBeenCalled();
     });
 
     it('ignores a frame with an unknown type without throwing or emitting', async () => {

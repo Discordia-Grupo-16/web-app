@@ -4,6 +4,7 @@ export * from './http/sessionExpiry';
 export type { AuthStorageStrategy } from './http/storage';
 
 export * from './auth/service';
+export * from './auth/mfaService';
 export type * from './auth/types';
 
 export * from './users/service';
@@ -27,6 +28,14 @@ export type * from './members/types';
 
 export * from './invitations/service';
 export type * from './invitations/types';
+
+export * from './messages/service';
+export type * from './messages/types';
+
+export * from './readStates/service';
+export type * from './readStates/types';
+export * from './ownership/service';
+export type * from './ownership/types';
 
 export * from './realtime/client';
 export type * from './realtime/protocol';

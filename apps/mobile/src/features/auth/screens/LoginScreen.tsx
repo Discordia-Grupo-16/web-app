@@ -14,8 +14,15 @@ import { useAuth, validateLoginInput } from '@discordia/core';
 import { authService } from '@/shared/api';
 import { consumeLoginNotice } from '@/shared/session/loginNotice';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
-import { getApiErrorMessage } from '@discordia/api';
-import { buildAuthHref, HOME_ROUTE, REGISTER_ROUTE, useReturnTo } from '../returnTo';
+import { getApiErrorMessage, isMfaChallenge } from '@discordia/api';
+import { MfaStep, RecoveryNotice } from './MfaStep';
+import {
+  buildAuthHref,
+  FORGOT_PASSWORD_ROUTE,
+  HOME_ROUTE,
+  REGISTER_ROUTE,
+  useReturnTo,
+} from '../returnTo';
 
 export function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -25,9 +32,12 @@ export function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   // Lazy initializer: consumed once on mount, so a later visit to the screen does not show it again.
   const [notice, setNotice] = useState(consumeLoginNotice);
-  const { signIn } = useAuth();
+  const [recoveryRemaining, setRecoveryRemaining] = useState<number | null>(null);
+  const { signIn, pendingMfa, beginMfa } = useAuth();
   const router = useRouter();
   const returnTo = useReturnTo();
+
+  const goToApp = () => router.replace((returnTo ?? HOME_ROUTE) as Href);
 
   const handleLogin = async () => {
     setNotice(null);
@@ -40,12 +50,17 @@ export function LoginScreen() {
     setLoading(true);
     setError(null);
     try {
-      const { token, user, refreshToken } = await authService.login({
+      const result = await authService.login({
         email: email.trim(),
         password,
       });
+      if (isMfaChallenge(result)) {
+        setPassword('');
+        beginMfa(result.mfaToken);
+        return;
+      }
 
-      await signIn(token, user, refreshToken);
+      await signIn(result.token, result.user, result.refreshToken);
       router.replace((returnTo ?? HOME_ROUTE) as Href);
 
     } catch (err: unknown) {
@@ -77,7 +92,20 @@ export function LoginScreen() {
             </Text>
           </View>
 
-          {/* Tarjeta Dark Discordia */}
+          {recoveryRemaining !== null ? (
+            <RecoveryNotice remaining={recoveryRemaining} onContinue={goToApp} />
+          ) : pendingMfa ? (
+            <MfaStep
+              onVerified={(remaining) => {
+                if (remaining !== undefined) {
+                  setRecoveryRemaining(remaining);
+                } else {
+                  goToApp();
+                }
+              }}
+            />
+          ) : (
+          /* Tarjeta Dark Discordia */
           <View className="bg-[#2c2f33] p-7 rounded-2xl shadow-2xl">
             <View className="mb-6 text-center items-center">
               <Text className="text-2xl font-black text-white mb-1">
@@ -107,7 +135,7 @@ export function LoginScreen() {
             {/* Campo Email */}
             <View className="mb-4">
               <Text className="text-xs font-semibold uppercase tracking-wider text-[#99aab5] mb-2">
-                Correo electrónico o teléfono
+                Correo electrónico
               </Text>
               <TextInput
                 className="w-full px-4 py-3 rounded-lg bg-[#23272a] text-white text-sm border border-transparent"
@@ -128,11 +156,13 @@ export function LoginScreen() {
                 <Text className="text-xs font-semibold uppercase tracking-wider text-[#99aab5]">
                   Contraseña
                 </Text>
-                <TouchableOpacity>
-                  <Text className="text-xs font-medium text-[#7289da]">
-                    ¿Olvidaste tu contraseña?
-                  </Text>
-                </TouchableOpacity>
+                <Link href={buildAuthHref(FORGOT_PASSWORD_ROUTE, returnTo)} asChild>
+                  <TouchableOpacity>
+                    <Text className="text-xs font-medium text-[#7289da]">
+                      ¿Olvidaste tu contraseña?
+                    </Text>
+                  </TouchableOpacity>
+                </Link>
               </View>
 
               <View className="relative justify-center">
@@ -180,6 +210,7 @@ export function LoginScreen() {
               </Link>
             </View>
           </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

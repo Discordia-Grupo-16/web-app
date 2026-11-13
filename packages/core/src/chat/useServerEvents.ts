@@ -10,6 +10,13 @@ export const NOTICE_COALESCE_MS = 300;
  */
 export const NOTICE_MAX_JITTER_MS = 1000;
 
+/**
+ * How long to wait before a refetch triggered by a notice or a reconnection: the coalescing window
+ * plus a random part. Shared so every refetch of this kind spreads out the same way.
+ */
+export const noticeDelayMs = (random: () => number = Math.random): number =>
+    NOTICE_COALESCE_MS + random() * NOTICE_MAX_JITTER_MS;
+
 /** The polling that stays as a safety net: it covers a notice that was lost and events that do not exist yet. */
 export const BACKUP_POLL_INTERVAL_MS = 60_000;
 
@@ -68,11 +75,10 @@ export const useServerEvents = ({
         // it will see the change too.
         const schedule = () => {
             if (timer !== null) return;
-            const delay = NOTICE_COALESCE_MS + randomRef.current() * NOTICE_MAX_JITTER_MS;
             timer = setTimeout(() => {
                 timer = null;
                 callbackRef.current();
-            }, delay);
+            }, noticeDelayMs(randomRef.current));
         };
 
         const offNotices = subscribeNotices((frame) => {

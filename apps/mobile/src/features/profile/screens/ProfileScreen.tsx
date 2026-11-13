@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { SecurityModal } from '../components/SecurityModal';
 import { View, Text, Image, TouchableOpacity, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '@discordia/core';
@@ -6,11 +8,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 export function ProfileScreen() {
     const { user, signOut } = useAuth();
     const router = useRouter();
+    const [securityOpen, setSecurityOpen] = useState(false);
 
     if (!user) return null;
 
     return (
         <ScrollView className="flex-1 bg-[#23272a]">
+            <SecurityModal visible={securityOpen} onClose={() => setSecurityOpen(false)} />
             <Stack.Screen
                 options={{
                     title: 'Perfil',
@@ -81,6 +85,15 @@ export function ProfileScreen() {
                         >
                             <Text className="text-[#7289da] font-bold text-sm">
                                 Editar perfil
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={() => setSecurityOpen(true)}
+                            className="w-full py-2.5 rounded-lg border border-[#7289da]/40 bg-[#7289da]/15 items-center mt-3"
+                        >
+                            <Text className="text-[#7289da] font-bold text-sm">
+                                Seguridad
                             </Text>
                         </TouchableOpacity>
 

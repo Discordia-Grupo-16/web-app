@@ -81,6 +81,8 @@ La app se puede abrir de dos maneras:
 | Todo lo demás | Sí | Sí |
 | Instalación | Ninguna | Una vez, con el celular por USB |
 
+¿No querés instalar Android Studio? Ver [APKs generadas con EAS](#apks-generadas-con-eas-sin-android-studio).
+
 La voz necesita los módulos nativos de WebRTC de LiveKit, que Expo Go no trae. El resto de la app
 sigue andando en Expo Go, así que quien no trabaje con la voz no necesita instalar nada.
 
@@ -148,6 +150,39 @@ npm run test --workspace=mobile-app -- --coverage
 Igual que en web, cada test vive junto al archivo que prueba. La configuración está en
 `apps/mobile/jest.config.js`; usa el preset de Expo (`jest-expo`).
 
+#### APKs generadas con EAS (sin Android Studio)
+
+Hay dos APKs, para dos usos distintos:
+
+| | App de desarrollo (`development`) | App de la demo (`preview`) |
+| --- | --- | --- |
+| Para qué | Probar tu rama con tu stack local | Usar la app contra la nube (AWS) |
+| El código JS | Lo pide al Metro de tu PC cada vez que abre | Va empaquetado adentro |
+| Necesita la PC | Sí: `npm run dev:mobile`, `s` y escanear el QR | No |
+| Cuándo hay que generar otra | Solo si cambia algo nativo (dependencia nativa, plugin o permiso en `app.json`, SDK de Expo) | Cada vez que cambia el código mobile o las URLs de AWS |
+
+**Instalar:** bajá la APK en el celu y abrila. Play Protect la frena por no venir de Play Store:
+"Más detalles" → "Instalar de todas formas". No hace falta Expo Go. Es solo para Android; con iPhone,
+usá el emulador de Android Studio (arrastrando la APK a la ventana) o la web.
+
+**Dónde están:**
+- La de la demo de cada versión está adjunta en el release de GitHub de su tag (`v0.3.0`, ...). La
+  genera sola el workflow `APK` al pushear el tag.
+- Para generar una de cualquier rama: pestaña **Actions** → **APK** → **Run workflow**, elegí la rama
+  y el perfil. Tarda lo que tarde la cola de EAS (de 20 a 60 min). El link al `.apk` queda en el
+  resumen del job.
+
+**Generar a mano** (necesita acceso al proyecto de Expo, que hoy es de la cuenta de Bruno):
+
+    cd apps/mobile
+    npx eas-cli@latest build -p android --profile preview      # o development
+
+Las URLs de la `preview` salen del `env` de `eas.json`: si cambia AWS, se cambian ahí y se buildea
+de nuevo.
+
+**Plan B** si se agota el cupo gratis de EAS: `npx eas-cli@latest build -p android --profile preview --local`
+compila en tu máquina. Necesita Linux o WSL con Java 17 y el Android SDK.
+
 ## Desarrollo local con API Gateway
 
 La web app se comunica con el backend a través del API Gateway. Creá el archivo `apps/web/.env.local` con:
@@ -211,8 +246,8 @@ Los packages se parten por capa:
 
 | Package | Qué tiene | Depende de |
 | --- | --- | --- |
-| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`, `voice/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
-| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios, el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) y la voz (`useVoiceController`, la lista de la llamada y sus textos) | `@discordia/api`, `react` |
+| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`, `ownership/`, `voice/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
+| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios, el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) la voz (`useVoiceController`, la lista de la llamada y sus textos) y la transferencia de propiedad (`ownership/`: los hooks del owner y del destinatario, el clasificador de errores y sus textos) | `@discordia/api`, `react` |
 | `@discordia/ui` | Componentes con variante web y `.native` (marca, íconos) | `react` |
 
 Cada package expone solo lo de su `src/index.ts` y tiene su propio typecheck (`npm run build`

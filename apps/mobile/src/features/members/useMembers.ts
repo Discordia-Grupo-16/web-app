@@ -45,18 +45,17 @@ export const useMembers = (serverId: string | undefined) => {
   // Quien entra al servidor después de que se cargó la lista no aparecía hasta
   // recargar, así que no se le podía asignar un rol. Ahora llega como un aviso de `members`; el
   // poll de respaldo cubre el que se pierda.
-  useLiveRefresh({
-    resources: ['members'],
-    serverId,
-    refresh: () => {
-      if (!serverId) return;
-      membersService
-        .listMembers(serverId)
-        .then(setMembers)
-        // Un servidor que ya no está lo resuelve quien lo carga.
-        .catch(console.error);
-    },
-  });
+  const reload = useCallback(() => {
+    if (!serverId) return;
+    membersService
+      .listMembers(serverId)
+      .then(setMembers)
+      // Un servidor que ya no está lo resuelve quien lo carga.
+      .catch(console.error);
+  }, [serverId]);
+  // Con `permissions` también: cuando a quien mira le asignan o le quitan un rol
+  // solo le llega ese aviso, y sus propios roles salen de esta lista.
+  useLiveRefresh({ resources: ['members', 'permissions'], serverId, refresh: reload });
 
   /**
    * Replaces the roles of one member in the list.
@@ -86,5 +85,7 @@ export const useMembers = (serverId: string | undefined) => {
     [],
   );
 
-  return { members, loading, setMemberRoles, removeMember };
+  // reload: after a refused action that means the list is out of date, such as proposing the
+  // ownership to someone who already left.
+  return { members, loading, setMemberRoles, removeMember, reload };
 };

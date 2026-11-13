@@ -1,13 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
+import { MANAGE_ROLES, PublicProfilesProvider, type PublicProfileSource, type RoleDeletionActor } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
 import { rolesService } from '@/shared/api';
 import { RolesSection } from './RolesSection';
 
 vi.mock('@/shared/api', () => ({
-    rolesService: { createRole: vi.fn(), updateRolePermissions: vi.fn() },
+    rolesService: { createRole: vi.fn(), updateRolePermissions: vi.fn(), deleteRole: vi.fn(), listRoles: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -41,6 +41,7 @@ interface Options {
     members?: ServerMember[];
     canManage?: boolean;
     onRoleCreated?: () => void;
+    actor?: RoleDeletionActor;
 }
 
 const renderSection = ({
@@ -48,25 +49,30 @@ const renderSection = ({
     members = [],
     canManage = true,
     onRoleCreated = vi.fn(),
+    actor,
 }: Options = {}) => {
     const source: PublicProfileSource = {
         getPublicProfiles: async () => profiles,
         peekPublicProfile: () => undefined,
     };
-    render(
+    const onRoleDeleted = vi.fn();
+    const section = (current: Role[]) => (
         <PublicProfilesProvider source={source}>
             <RolesSection
                 serverId="srv"
-                roles={roles}
+                roles={current}
                 members={members}
                 ownerId="owner"
                 canManage={canManage}
                 onRoleCreated={onRoleCreated}
                 onRoleUpdated={vi.fn()}
+                actor={actor}
+                onRoleDeleted={onRoleDeleted}
             />
-        </PublicProfilesProvider>,
+        </PublicProfilesProvider>
     );
-    return { user: userEvent.setup() };
+    const { rerender } = render(section(roles));
+    return { user: userEvent.setup(), onRoleDeleted, rerender: (next: Role[]) => rerender(section(next)) };
 };
 
 const MODERADOR = role('r2', 'Moderador');
@@ -160,5 +166,69 @@ describe('RolesSection', () => {
         renderSection({ roles: [MODERADOR], canManage: false });
 
         expect(screen.queryByTitle('Ver los miembros con el rol Moderador')).not.toBeInTheDocument();
+    });
+});
+
+describe('RolesSection deleting a role', () => {
+    const mine = { ...role('mine', 'Admin'), position: 5 };
+    const below = { ...role('x', 'Moderador'), position: 2 };
+    const everyone = { ...role('everyone', 'everyone'), is_default: true };
+    const manager: RoleDeletionActor = { isOwner: false, permissions: MANAGE_ROLES, roles: [mine] };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('does not offer it without MANAGE_ROLES', () => {
+        renderSection({ roles: [mine, below], actor: { ...manager, permissions: 0 } });
+
+        expect(screen.queryByRole('button', { name: 'Eliminar el rol Moderador' })).not.toBeInTheDocument();
+    });
+
+    it('does not offer it on a role at the height of whoever deletes', () => {
+        renderSection({ roles: [mine, below], actor: manager });
+
+        expect(screen.queryByRole('button', { name: 'Eliminar el rol Admin' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Eliminar el rol Moderador' })).toBeInTheDocument();
+    });
+
+    it('explains the default role without asking to confirm', async () => {
+        const { user } = renderSection({ roles: [mine, everyone], actor: manager });
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar el rol everyone' }));
+
+        expect(screen.getByText('Es el rol por defecto. Elegí otro rol por defecto antes de eliminarlo')).toBeInTheDocument();
+        expect(rolesService.deleteRole).not.toHaveBeenCalled();
+    });
+
+    it('deletes the role after confirming and tells the app', async () => {
+        vi.mocked(rolesService.deleteRole).mockResolvedValue(undefined);
+        const { user, onRoleDeleted } = renderSection({ roles: [mine, below], actor: manager });
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar el rol Moderador' }));
+        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+        expect(rolesService.deleteRole).toHaveBeenCalledWith('srv', 'x');
+        expect(onRoleDeleted).toHaveBeenCalledWith('x');
+    });
+
+    it('offers to retry when the connection is lost', async () => {
+        vi.mocked(rolesService.deleteRole).mockRejectedValue({ isAxiosError: true, response: undefined });
+        vi.mocked(rolesService.listRoles).mockRejectedValue({ isAxiosError: true, response: undefined });
+        const { user } = renderSection({ roles: [mine, below], actor: manager });
+
+        await user.click(screen.getByRole('button', { name: 'Eliminar el rol Moderador' }));
+        await user.click(screen.getByRole('button', { name: 'Eliminar' }));
+
+        expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument();
+    });
+
+    it('says the role no longer exists in an open permissions modal when it leaves the list', async () => {
+        const { user, rerender } = renderSection({ roles: [mine, below], actor: manager });
+        await user.click(screen.getByTitle('Editar permisos de Moderador'));
+
+        rerender([mine]);
+
+        expect(screen.getByRole('alert')).toHaveTextContent('Ese rol ya no existe');
     });
 });

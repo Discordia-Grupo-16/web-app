@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Ban, Crown, Pencil, UserMinus } from 'lucide-react';
 import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
@@ -18,6 +18,10 @@ interface MembersSectionProps {
     onRolesChange: (userId: string, roles: Role[]) => void;
     onMemberKicked: (userId: string) => void;
     onMemberBanned: (userId: string) => void;
+    /** Extra actions drawn at the end of each row, such as transferring the ownership. */
+    renderMemberActions?: (member: ServerMember) => ReactNode;
+    /** A 404 when giving or taking a role: the lists are out of date (SCRUM-64). */
+    onStale?: () => void;
 }
 
 export const MembersSection = ({
@@ -31,6 +35,8 @@ export const MembersSection = ({
     onRolesChange,
     onMemberKicked,
     onMemberBanned,
+    renderMemberActions,
+    onStale,
 }: MembersSectionProps) => {
     const { user } = useAuth();
     const { openProfile } = useProfileViewer();
@@ -56,7 +62,8 @@ export const MembersSection = ({
                 </span>
             </div>
 
-            {members.map(({ user_id, roles: memberRoles }) => {
+            {members.map((rowMember) => {
+                const { user_id, roles: memberRoles } = rowMember;
                 const isOwner = user_id === ownerId;
                 // The highest role is the one that names the member in the list: it is the
                 // one the backend's hierarchy uses, and the list comes ordered by position.
@@ -131,6 +138,8 @@ export const MembersSection = ({
                                 <Ban size={13} />
                             </button>
                         )}
+
+                        {renderMemberActions?.(rowMember)}
                     </div>
                 );
             })}
@@ -143,6 +152,7 @@ export const MembersSection = ({
                     roles={roles}
                     onClose={() => setEditing(null)}
                     onRolesChange={onRolesChange}
+                    onStale={onStale}
                 />
             )}
 

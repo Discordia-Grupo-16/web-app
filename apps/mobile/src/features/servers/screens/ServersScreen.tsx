@@ -7,14 +7,42 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { serversService } from '@/shared/api';
 import type { Server } from '@discordia/api';
+import { useMarkAllRead, useServerUnread } from '@discordia/core';
+import { UnreadMarks } from '@/shared/ui/UnreadMarks';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 import { getErrorDetail } from '@discordia/api';
+
+// The row of a server, in its own component because the unread hook is per server.
+function ServerRow({ server, onOpen }: { server: Server; onOpen: () => void }) {
+  const { unread, mentionCount } = useServerUnread(server.id);
+  return (
+    <TouchableOpacity
+      onPress={onOpen}
+      className="bg-[#2c2f33] rounded-xl px-4 py-4 flex-row items-center justify-between"
+    >
+      <View className="flex-1 mr-3">
+        <Text className={`text-white text-base ${unread ? 'font-black' : 'font-bold'}`}>{server.name}</Text>
+        {server.description ? (
+          <Text className="text-[#99aab5] text-xs mt-0.5" numberOfLines={1}>
+            {server.description}
+          </Text>
+        ) : null}
+        <Text className="text-[#72767d] text-xs mt-1">
+          {server.channels.length} canal{server.channels.length !== 1 ? 'es' : ''}
+        </Text>
+      </View>
+      {unread && <UnreadMarks mentionCount={mentionCount} what={`el servidor ${server.name}`} />}
+      <Text className="text-[#7289da] text-lg ml-2">›</Text>
+    </TouchableOpacity>
+  );
+}
 
 export function ServersScreen() {
   const router = useRouter();
   const [servers, setServers] = useState<Server[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const { anyUnread, markAllRead } = useMarkAllRead();
 
   useEffect(() => {
     serversService.getServers()
@@ -42,6 +70,14 @@ export function ServersScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 bg-[#2f3136] border-b border-[#202225]">
         <Text className="text-white font-black text-lg">Mis servidores</Text>
+        <TouchableOpacity
+          onPress={() => markAllRead().catch(console.error)}
+          disabled={!anyUnread}
+          accessibilityLabel="Marcar todo como leído"
+          style={{ opacity: anyUnread ? 1 : 0.4 }}
+        >
+          <Text className="text-[#7289da] text-sm font-semibold">Marcar todo como leído</Text>
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -59,33 +95,7 @@ export function ServersScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => router.push(`/server/${item.id}`)}
-              className="bg-[#2c2f33] rounded-xl px-4 py-4 flex-row items-center justify-between"
-            >
-              {item.avatar_url ? (
-                <Image
-                  source={{ uri: item.avatar_url }}
-                  style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }}
-                />
-              ) : (
-                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#7289da', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                  <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>{item.name[0].toUpperCase()}</Text>
-                </View>
-              )}
-              <View className="flex-1 mr-3">
-                <Text className="text-white font-bold text-base">{item.name}</Text>
-                {item.description ? (
-                  <Text className="text-[#99aab5] text-xs mt-0.5" numberOfLines={1}>
-                    {item.description}
-                  </Text>
-                ) : null}
-                <Text className="text-[#72767d] text-xs mt-1">
-                  {item.channels.length} canal{item.channels.length !== 1 ? 'es' : ''}
-                </Text>
-              </View>
-              <Text className="text-[#7289da] text-lg">›</Text>
-            </TouchableOpacity>
+            <ServerRow server={item} onOpen={() => router.push(`/server/${item.id}`)} />
           )}
         />
       )}

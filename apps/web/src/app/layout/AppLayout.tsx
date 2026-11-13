@@ -12,7 +12,7 @@ export const AppLayout = () => {
     return (
         <ProfileViewerProvider>
             <CurrentServerProvider>
-                <div className="flex h-screen overflow-hidden">
+                <div className="flex h-full overflow-hidden">
                     {isSidebarOpen && (
                         <div
                             className="fixed inset-0 bg-black/50 z-30 md:hidden"
