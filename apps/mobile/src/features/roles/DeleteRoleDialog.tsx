@@ -17,7 +17,8 @@ export function DeleteRoleDialog({ state, onConfirm, onRetry, onClose }: DeleteR
   const deleting = state.stage === 'confirming' && state.deleting;
   const error = state.stage === 'confirming' ? state.error : null;
   const retryable = error?.kind === 'network' || error?.kind === 'service';
-  const finished = state.stage === 'blocked' || error?.kind === 'server-gone';
+  // A 403 or 409 would come back the same if "Eliminar" were pressed again: only closing is left.
+  const finished = state.stage === 'blocked' || error?.kind === 'server-gone' || error?.kind === 'rejected';
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={deleting ? () => {} : onClose}>
