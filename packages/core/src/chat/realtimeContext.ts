@@ -5,6 +5,7 @@ import type {
     InvalidateFrame,
     MessageCreatedFrame,
     ReadStateUpdatedFrame,
+    VoiceParticipantsUpdatedFrame,
 } from '@discordia/api';
 
 export type RealtimeStatus = ConnectionState | 'disabled';
@@ -33,6 +34,12 @@ export interface RealtimeContextValue {
      * go through here so none of them touches the RealtimeClient. Returns the unsubscribe function.
      */
     onInvalidate: (handler: (frame: InvalidateFrame) => void) => () => void;
+    /**
+     * Subscribes to the frames that say who is connected to a voice channel (SCRUM-54). They carry
+     * the data, unlike the notices above. A frame of any server arrives: the subscriber filters by
+     * server and by `syncedAt`. Returns the unsubscribe function.
+     */
+    onVoiceParticipants: (handler: (frame: VoiceParticipantsUpdatedFrame) => void) => () => void;
     /**
      * Subscribes to the messages other sessions and users send, for what is not the message list
      * itself (the unread indicators). Returns the unsubscribe function.

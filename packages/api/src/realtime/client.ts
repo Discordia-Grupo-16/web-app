@@ -5,6 +5,7 @@ import type {
     MessageCreatedFrame,
     ReadStateUpdatedFrame,
     ServerFrame,
+    VoiceParticipantsUpdatedFrame,
 } from './protocol';
 
 // Minimal surface the client needs from a WebSocket. Declared here instead of
@@ -66,6 +67,7 @@ export interface RealtimeEventMap {
     ack: (frame: MessageAckFrame) => void;
     messageCreated: (frame: MessageCreatedFrame) => void;
     invalidate: (frame: InvalidateFrame) => void;
+    voiceParticipants: (frame: VoiceParticipantsUpdatedFrame) => void;
     readStateUpdated: (frame: ReadStateUpdatedFrame) => void;
     errorFrame: (frame: ErrorFrame) => void;
     terminated: (event: { code: number; reason: string }) => void;
@@ -125,6 +127,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         ack: new Set(),
         messageCreated: new Set(),
         invalidate: new Set(),
+        voiceParticipants: new Set(),
         readStateUpdated: new Set(),
         errorFrame: new Set(),
         terminated: new Set(),
@@ -192,6 +195,18 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
                     // Without a resource list there is nothing to refetch; an unknown resource
                     // is not filtered here, it is the subscriber that knows what it has loaded.
                     if (Array.isArray(frame.resources)) emit('invalidate', frame);
+                    break;
+                case 'voice-participants.updated':
+                    // Without these fields the frame cannot be placed or compared; the subscriber
+                    // only filters by server and by syncedAt.
+                    if (
+                        typeof frame.serverId === 'string' &&
+                        typeof frame.channelId === 'string' &&
+                        typeof frame.syncedAt === 'string' &&
+                        Array.isArray(frame.participants)
+                    ) {
+                        emit('voiceParticipants', frame);
+                    }
                     break;
                 case 'read-state.updated':
                     // Without a list there is nothing to apply.

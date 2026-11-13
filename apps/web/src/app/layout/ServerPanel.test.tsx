@@ -29,6 +29,7 @@ vi.mock('@/shared/api', () => ({
         listBans: vi.fn(),
         revokeBan: vi.fn(),
     },
+    voiceService: { getServerVoiceParticipants: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -37,6 +38,8 @@ vi.mock('@discordia/core', async (importOriginal) => ({
     // The voice call list under a channel has its own tests (ServerPanel.voice.test.tsx).
     useVoice: () => ({ call: { status: 'idle' } }),
     useVoiceCallParticipants: () => [],
+    useServerVoiceRoster: () => new Map(),
+    useVoiceRosterViews: () => new Map(),
 }));
 // El botón real depende de un contexto que este panel no provee: acá solo importa si aparece.
 vi.mock('@/features/invitations', () => ({ InviteButton: () => <button>Invitar</button> }));
