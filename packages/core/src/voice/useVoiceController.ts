@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { NO_SPEAKERS } from './participants';
 import { canRejoin } from './texts';
 import type {
     MicResult,
@@ -61,6 +62,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
     const [call, setCall] = useState<VoiceCall>({ status: 'idle' });
     const [attempt, setAttempt] = useState<VoiceJoinAttempt | null>(null);
     const [audioBlocked, setAudioBlocked] = useState(false);
+    const [speakers, setSpeakers] = useState<ReadonlySet<string>>(NO_SPEAKERS);
 
     // Mirrors of the state for the async flow, which outlives the render that started it.
     const callRef = useRef(call);
@@ -95,6 +97,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                 const current = callRef.current;
                 if (current.status === 'connected') updateCall({ ...current, participants: snapshot });
             }),
+            adapter.onActiveSpeakersChanged(setSpeakers),
             adapter.onDisconnected((info) => {
                 const current = callRef.current;
                 if (current.status !== 'connected') return;
@@ -320,5 +323,10 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
         [call, attempt, adapter, audioBlocked, join, rejoin, leave, toggleMute, retry, dismiss, startAudio],
     );
 
-    return { value, disconnectWithReason };
+    // Outside a connected call nobody is speaking, whatever the adapter said last. The memo keeps the
+    // reference while nothing changes, so the readers of the context do not re-render.
+    const connected = call.status === 'connected';
+    const speakingIds = useMemo(() => (connected ? speakers : NO_SPEAKERS), [connected, speakers]);
+
+    return { value, speakingIds, disconnectWithReason };
 };

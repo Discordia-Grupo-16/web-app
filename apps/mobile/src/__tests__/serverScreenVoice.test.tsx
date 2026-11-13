@@ -7,6 +7,7 @@ import {
   NOTICE_MAX_JITTER_MS,
   RealtimeContext,
   VIEW_CHANNEL,
+  VoiceSpeakersContext,
   useServerVoiceRoster,
   useVoice,
   type RealtimeContextValue,
@@ -58,6 +59,7 @@ jest.mock('@/features/servers', () => ({ ServerActions: () => null, useServerDet
 // The real list: the label and the names it draws are what these tests look at.
 jest.mock('@/features/voice', () => ({
   VoiceParticipantList: jest.requireActual('@/features/voice/VoiceParticipantList').VoiceParticipantList,
+  VoiceCallParticipantList: jest.requireActual('@/features/voice/VoiceCallParticipantList').VoiceCallParticipantList,
 }));
 jest.mock('@discordia/core', () => {
   const actual = jest.requireActual('@discordia/core');
@@ -151,6 +153,7 @@ describe('la pantalla del servidor: participantes de los canales de voz (SCRUM-5
     voice: Partial<VoiceContextValue> = {},
     rooms: ReturnType<typeof room>[] = [],
     myPermissions = VIEW_CHANNEL,
+    speaking: string[] = [],
   ) => {
     jest.mocked(useVoice).mockReturnValue({ call: { status: 'idle' }, ...voice } as VoiceContextValue);
     jest.mocked(useServerDetails).mockReturnValue({
@@ -162,7 +165,9 @@ describe('la pantalla del servidor: participantes de los canales de voz (SCRUM-5
     getSnapshot.mockResolvedValue(rooms);
     await render(
       <RealtimeContext.Provider value={realtime.value}>
-        <ServerScreen />
+        <VoiceSpeakersContext.Provider value={new Set(speaking)}>
+          <ServerScreen />
+        </VoiceSpeakersContext.Provider>
       </RealtimeContext.Provider>,
     );
     // Lets the snapshot land.
@@ -207,6 +212,20 @@ describe('la pantalla del servidor: participantes de los canales de voz (SCRUM-5
     expect(screen.queryByText('Roster ana')).toBeNull();
     expect(screen.queryByText('Roster me')).toBeNull();
     expect(below('v2').getByText('Roster beto')).toBeTruthy();
+  });
+
+  it('resalta a quien habla debajo de mi canal (SCRUM-56)', async () => {
+    await renderScreen(inCallAt('v1'), [], VIEW_CHANNEL, ['ana']);
+
+    expect(below('v1').getByTestId('voice-speaking-ana')).toBeTruthy();
+  });
+
+  it('no resalta en el roster de otro canal al mismo usuario que habla en mi llamada (SCRUM-56)', async () => {
+    await renderScreen(inCallAt('v1'), [room('v2', ['ana'])], VIEW_CHANNEL, ['ana']);
+
+    expect(below('v2').getByText('Roster ana')).toBeTruthy();
+    expect(below('v2').queryByTestId('voice-speaking-ana')).toBeNull();
+    expect(below('v1').getByTestId('voice-speaking-ana')).toBeTruthy();
   });
 
   it('pide el roster del servidor abierto', async () => {

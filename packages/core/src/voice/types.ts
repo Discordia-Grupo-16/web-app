@@ -82,6 +82,9 @@ export interface VoiceRoomAdapter {
     onMicrophoneLost(listener: (cause: MicLossCause) => void): () => void;
     onDisconnected(listener: (info: RoomDisconnectInfo) => void): () => void;
     onParticipantsChanged(listener: (snapshot: VoiceParticipant[]) => void): () => void;
+    // LiveKit identities of who is speaking now, the local participant included. Emitted only when
+    // the set changes; an empty set when the room is left.
+    onActiveSpeakersChanged(listener: (userIds: ReadonlySet<string>) => void): () => void;
     // true on SignalReconnecting or Reconnecting, false on Reconnected. A failed reconnection
     // is reported by onDisconnected, not here.
     onReconnectingChanged(listener: (reconnecting: boolean) => void): () => void;
@@ -129,6 +132,9 @@ export interface VoiceContextValue {
 
 export interface VoiceController {
     value: VoiceContextValue;
+    // Who is speaking in the connected call; NO_SPEAKERS without one. Kept out of `value` so a
+    // speaker change does not re-render everything that reads the voice context.
+    speakingIds: ReadonlySet<string>;
     // Also stops a join in progress. With only a join in progress, the call ends
     // 'disconnected' with the joined channel and this reason.
     disconnectWithReason: (reason: VoiceClientReason) => void;

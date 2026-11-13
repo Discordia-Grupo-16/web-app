@@ -8,7 +8,7 @@ import {
     type VoiceChannelRef,
     type VoiceParticipant,
 } from '@discordia/core';
-import { VoiceParticipantList } from './VoiceParticipantList';
+import { VoiceCallParticipantList } from './VoiceCallParticipantList';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
 
@@ -48,7 +48,7 @@ export const VoiceChannelPanel = ({ channel, canJoin }: { channel: VoiceChannelR
                             </button>
                         </div>
                     )}
-                    <VoiceParticipantList participants={participants} variant="roomy" />
+                    <VoiceCallParticipantList participants={participants} variant="roomy" />
                 </div>
             </section>
         );

@@ -2,6 +2,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VoiceToken } from '@discordia/api';
+import { NO_SPEAKERS } from './participants';
 import { useVoiceController } from './useVoiceController';
 import type {
     EnableMicrophoneOptions,
@@ -38,6 +39,7 @@ const createFakeAdapter = () => {
     const playback = new Set<(blocked: boolean) => void>();
     const reconnecting = new Set<(value: boolean) => void>();
     const micLost = new Set<(cause: MicLossCause) => void>();
+    const speakers = new Set<(userIds: ReadonlySet<string>) => void>();
     const subscribe = <T>(set: Set<T>) => (listener: T) => {
         set.add(listener);
         return () => set.delete(listener);
@@ -49,6 +51,7 @@ const createFakeAdapter = () => {
         enableMicrophone: vi.fn(async (_options?: EnableMicrophoneOptions) => mic),
         onDisconnected: subscribe(disconnected),
         onParticipantsChanged: subscribe(participants),
+        onActiveSpeakersChanged: subscribe(speakers),
         onReconnectingChanged: subscribe(reconnecting),
         muteMicrophone: vi.fn(async () => undefined),
         onMicrophoneLost: subscribe(micLost),
@@ -62,6 +65,7 @@ const createFakeAdapter = () => {
         },
         emitDisconnected: (info: RoomDisconnectInfo) => act(() => disconnected.forEach((l) => l(info))),
         emitParticipants: (snapshot: VoiceParticipant[]) => act(() => participants.forEach((l) => l(snapshot))),
+        emitSpeakers: (ids: string[]) => act(() => speakers.forEach((l) => l(new Set(ids)))),
         emitPlaybackBlocked: (blocked: boolean) => act(() => playback.forEach((l) => l(blocked))),
         emitReconnecting: (value: boolean) => act(() => reconnecting.forEach((l) => l(value))),
         emitMicrophoneLost: (cause: MicLossCause) => act(() => micLost.forEach((l) => l(cause))),
@@ -321,6 +325,79 @@ describe('useVoiceController', () => {
 
         act(() => result.current.value.startAudio());
         expect(fake.adapter.startAudio).toHaveBeenCalled();
+    });
+
+    describe('active speakers (SCRUM-56, Indicador de quién está hablando)', () => {
+        it('is NO_SPEAKERS without a call, even if the adapter emits', () => {
+            const { result } = render();
+
+            fake.emitSpeakers(['me', 'ana']);
+
+            expect(result.current.speakingIds).toBe(NO_SPEAKERS);
+        });
+
+        it('has who the adapter reports while connected', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+
+            fake.emitSpeakers(['me', 'ana']);
+
+            expect([...result.current.speakingIds].sort()).toEqual(['ana', 'me']);
+        });
+
+        it('keeps the reference of value when who is speaking changes', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            const before = result.current.value;
+
+            fake.emitSpeakers(['ana']);
+
+            expect(result.current.speakingIds.has('ana')).toBe(true);
+            expect(result.current.value).toBe(before);
+        });
+
+        it('keeps the reference of speakingIds when the call changes', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitSpeakers(['ana']);
+            const before = result.current.speakingIds;
+
+            act(() => result.current.value.toggleMute());
+
+            expect(result.current.value.call).toMatchObject({ muted: true });
+            expect(result.current.speakingIds).toBe(before);
+        });
+
+        it('goes back to NO_SPEAKERS after leave()', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitSpeakers(['ana']);
+
+            act(() => result.current.value.leave());
+
+            expect(result.current.speakingIds).toBe(NO_SPEAKERS);
+        });
+
+        it('goes back to NO_SPEAKERS when the room disconnects', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitSpeakers(['ana']);
+
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+
+            expect(result.current.value.call.status).toBe('disconnected');
+            expect(result.current.speakingIds).toBe(NO_SPEAKERS);
+        });
+
+        it('goes back to NO_SPEAKERS after disconnectWithReason', async () => {
+            const { result } = render();
+            await joinAndWait(result, A);
+            fake.emitSpeakers(['ana']);
+
+            act(() => result.current.disconnectWithReason('app_backgrounded'));
+
+            expect(result.current.speakingIds).toBe(NO_SPEAKERS);
+        });
     });
 
     it('is not available without an adapter', () => {
