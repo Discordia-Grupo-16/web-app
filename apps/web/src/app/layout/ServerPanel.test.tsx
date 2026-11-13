@@ -3,23 +3,35 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    ADMINISTRATOR,
     BAN_MEMBERS,
     KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
     PERMISSION_COPY,
+    PublicProfilesProvider,
     SEND_MESSAGES,
     VIEW_CHANNEL,
 } from '@discordia/core';
-import type { Server, ServerBan, ServerMember } from '@discordia/api';
+import type { OwnershipTransfer, Server, ServerBan, ServerMember } from '@discordia/api';
 import { CurrentServerProvider } from '@/features/servers';
-import { membersService, rolesService, serversService } from '@/shared/api';
+import { membersService, ownershipSource, rolesService, serversService } from '@/shared/api';
 import { ServerPanel } from './ServerPanel';
 
 const OWNER = 'owner';
 const ME = 'me';
 
 vi.mock('@/shared/api', () => ({
+    ownershipSource: {
+        getServerTransfer: vi.fn(),
+        proposeTransfer: vi.fn(),
+        cancelTransfer: vi.fn(),
+        acceptTransfer: vi.fn(),
+        rejectTransfer: vi.fn(),
+        listMyTransfers: vi.fn(),
+        getServer: vi.fn(),
+        getServers: vi.fn(),
+    },
     serversService: { getServer: vi.fn() },
     rolesService: { listRoles: vi.fn() },
     membersService: {
@@ -29,6 +41,7 @@ vi.mock('@/shared/api', () => ({
         listBans: vi.fn(),
         revokeBan: vi.fn(),
     },
+    voiceService: { getServerVoiceParticipants: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -37,6 +50,8 @@ vi.mock('@discordia/core', async (importOriginal) => ({
     // The voice call list under a channel has its own tests (ServerPanel.voice.test.tsx).
     useVoice: () => ({ call: { status: 'idle' } }),
     useVoiceCallParticipants: () => [],
+    useServerVoiceRoster: () => new Map(),
+    useVoiceRosterViews: () => new Map(),
 }));
 // El botón real depende de un contexto que este panel no provee: acá solo importa si aparece.
 vi.mock('@/features/invitations', () => ({ InviteButton: () => <button>Invitar</button> }));
@@ -88,12 +103,20 @@ const renderPanel = async (
     vi.mocked(rolesService.listRoles).mockResolvedValue([]);
     vi.mocked(membersService.listMembers).mockResolvedValue(members);
     vi.mocked(membersService.listBans).mockResolvedValue([]);
+    // Unless a test says otherwise, the server never had an ownership transfer.
+    if (!vi.mocked(ownershipSource.getServerTransfer).getMockImplementation()) {
+        vi.mocked(ownershipSource.getServerTransfer).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+    }
+    // The ownership hook of core reads the profiles itself, past the mock of usePublicProfiles.
+    const profiles = { getPublicProfiles: async () => new Map(), peekPublicProfile: () => undefined };
     render(
-        <MemoryRouter initialEntries={['/servers/srv']}>
-            <Routes>
-                <Route path="/servers/:serverId" element={<CurrentServerProvider><ServerPanel /></CurrentServerProvider>} />
-            </Routes>
-        </MemoryRouter>,
+        <PublicProfilesProvider source={profiles}>
+            <MemoryRouter initialEntries={['/servers/srv']}>
+                <Routes>
+                    <Route path="/servers/:serverId" element={<CurrentServerProvider><ServerPanel /></CurrentServerProvider>} />
+                </Routes>
+            </MemoryRouter>
+        </PublicProfilesProvider>,
     );
     await waitFor(() => expect(screen.getByText('general')).toBeInTheDocument());
 };
@@ -204,11 +227,10 @@ describe('ServerPanel: qué se ve según el permiso', () => {
         expect(banMember()).not.toBeInTheDocument();
     });
 
-    it('irse del servidor sigue decidiéndose por ser dueño, no por un bit', async () => {
-        // No es un permiso sino una condición: el dueño no puede irse, elimina.
+    it('al dueño también se le ofrece abandonar: al confirmar, le pide transferir antes', async () => {
         await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME);
 
-        expect(screen.queryByText(/abandonar/i)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Abandonar servidor' })).toBeInTheDocument();
     });
 });
 
@@ -227,5 +249,46 @@ describe('ServerPanel: invitar', () => {
         await renderPanel(VIEW_CHANNEL);
 
         expect(screen.queryByRole('button', { name: 'Invitar' })).not.toBeInTheDocument();
+    });
+});
+
+describe('ServerPanel: transferir la propiedad', () => {
+    const PENDING_TO_MILTON: OwnershipTransfer = {
+        server_id: 'srv',
+        server_name: 'Discordia',
+        from_user_id: ME,
+        to_user_id: 'milton',
+        status: 'pending',
+        created_at: '2026-11-05T10:00:00Z',
+        resolved_at: null,
+    };
+    const ME_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [] };
+    const transferButtons = () => screen.queryAllByRole('button', { name: 'Transferir servidor' });
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(ownershipSource.getServerTransfer).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+    });
+
+    it('el dueño la ve en la fila de los demás y no en la suya', async () => {
+        await renderPanel(VIEW_CHANNEL, ME, [ME_AS_MEMBER, MILTON]);
+
+        await waitFor(() => expect(transferButtons()).toHaveLength(1));
+    });
+
+    it('un miembro con ADMINISTRATOR que no es dueño no la ve', async () => {
+        await renderPanel(ADMINISTRATOR | VIEW_CHANNEL, OWNER, [ME_AS_MEMBER, MILTON]);
+
+        expect(transferButtons()).toHaveLength(0);
+        expect(ownershipSource.getServerTransfer).not.toHaveBeenCalled();
+    });
+
+    it('con una pendiente se ve el aviso y la acción queda deshabilitada', async () => {
+        vi.mocked(ownershipSource.getServerTransfer).mockResolvedValue(PENDING_TO_MILTON);
+
+        await renderPanel(VIEW_CHANNEL, ME, [ME_AS_MEMBER, MILTON]);
+
+        expect(await screen.findByRole('status')).toHaveTextContent(/^Transferencia pendiente a /);
+        expect(transferButtons()[0]).toBeDisabled();
     });
 });

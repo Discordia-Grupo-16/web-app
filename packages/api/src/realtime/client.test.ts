@@ -426,6 +426,40 @@ describe('receiving', () => {
         expect(onInvalidate).not.toHaveBeenCalled();
     });
 
+    it('emits voiceParticipants with the parsed frame, also when the channel is empty', async () => {
+        const { client, socket } = await openClient();
+        const onVoice = vi.fn();
+        client.on('voiceParticipants', onVoice);
+
+        const withPeople = {
+            type: 'voice-participants.updated',
+            serverId: 's1',
+            channelId: 'c1',
+            participants: [{ userId: 'u1', joinedAt: '2026-11-05T10:00:00Z' }],
+            syncedAt: '2026-11-05T10:00:05.5Z',
+        };
+        const empty = { ...withPeople, participants: [] };
+        socket.message(withPeople);
+        socket.message(empty);
+
+        expect(onVoice).toHaveBeenNthCalledWith(1, withPeople);
+        expect(onVoice).toHaveBeenNthCalledWith(2, empty);
+    });
+
+    it('ignores a voice-participants.updated that cannot be placed or compared', async () => {
+        const { client, socket } = await openClient();
+        const onVoice = vi.fn();
+        client.on('voiceParticipants', onVoice);
+        const whole = { type: 'voice-participants.updated', serverId: 's1', channelId: 'c1', participants: [], syncedAt: 'x' };
+
+        expect(() => socket.message({ ...whole, serverId: undefined })).not.toThrow();
+        socket.message({ ...whole, channelId: undefined });
+        socket.message({ ...whole, syncedAt: undefined });
+        socket.message({ ...whole, participants: 'u1' });
+
+        expect(onVoice).not.toHaveBeenCalled();
+    });
+
     it('ignores a frame with an unknown type without throwing or emitting', async () => {
         const { client, socket } = await openClient();
         const onAck = vi.fn();

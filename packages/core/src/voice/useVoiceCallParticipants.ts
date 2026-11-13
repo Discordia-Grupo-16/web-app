@@ -14,8 +14,12 @@ export interface ChannelParticipantView {
 // Never the id: a partial id is not a name.
 export const VOICE_NAME_PLACEHOLDER = 'Cargando…';
 
+// What the hook reads of a participant. The call's list has the mute; the roster of `chat` does not
+// (SCRUM-54, W15), and then the view carries no `muted`.
+export type NamedParticipant = Pick<VoiceParticipant, 'userId'> & Partial<Pick<VoiceParticipant, 'muted'>>;
+
 // The own name comes from the session, so an edit shows up without waiting for the profile cache.
-export const useVoiceCallParticipants = (participants: VoiceParticipant[]): ChannelParticipantView[] => {
+export const useVoiceCallParticipants = (participants: readonly NamedParticipant[]): ChannelParticipantView[] => {
     const { user } = useAuth();
     const ids = useMemo(
         () => participants.filter((p) => p.userId !== user?.id).map((p) => p.userId),
