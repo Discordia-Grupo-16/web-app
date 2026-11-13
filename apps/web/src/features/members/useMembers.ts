@@ -89,5 +89,7 @@ export const useMembers = (serverId: string | undefined) => {
         [],
     );
 
-    return { members, loading, setMemberRoles, removeMember };
+    // reload: after a refused action that means the list is out of date, such as proposing the
+    // ownership to someone who already left.
+    return { members, loading, setMemberRoles, removeMember, reload: refreshMembers };
 };

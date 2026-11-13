@@ -374,6 +374,32 @@ describe('useRealtimeController', () => {
         expect(handler).not.toHaveBeenCalled();
     });
 
+    it('hands the voice-participants frames to whoever subscribed, until they unsubscribe', () => {
+        const { result } = render();
+        const handler = vi.fn();
+        const off = result.current.value.onVoiceParticipants(handler);
+        const frame = {
+            type: 'voice-participants.updated' as const,
+            serverId: 's1',
+            channelId: 'c1',
+            participants: [],
+            syncedAt: '2026-11-05T10:00:05Z',
+        };
+
+        fake.emit('voiceParticipants', frame);
+        off();
+        fake.emit('voiceParticipants', frame);
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(handler).toHaveBeenCalledWith(frame);
+    });
+
+    it('subscribes to voice-participants frames as a no-op when there is no client', () => {
+        const { result } = render({ client: null });
+
+        expect(() => result.current.value.onVoiceParticipants(vi.fn())()).not.toThrow();
+    });
+
     it('fires onReconnect when the socket opens again after a drop', () => {
         const { result } = render();
         const handler = vi.fn();

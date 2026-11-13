@@ -409,6 +409,11 @@ export const useRealtimeController = ({
         [client],
     );
 
+    const onVoiceParticipants = useCallback<RealtimeContextValue['onVoiceParticipants']>(
+        (handler) => (client ? client.on('voiceParticipants', handler) : () => {}),
+        [client],
+    );
+
     const onMessageCreated = useCallback<RealtimeContextValue['onMessageCreated']>(
         (handler) => (client ? client.on('messageCreated', handler) : () => {}),
         [client],
@@ -430,12 +435,12 @@ export const useRealtimeController = ({
         () => ({
             status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage,
             loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
-            onReconnect,
+            onVoiceParticipants, onReconnect,
         }),
         [
             status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage,
             loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
-            onReconnect,
+            onVoiceParticipants, onReconnect,
         ],
     );
 

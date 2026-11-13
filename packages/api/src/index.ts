@@ -33,6 +33,8 @@ export type * from './messages/types';
 
 export * from './readStates/service';
 export type * from './readStates/types';
+export * from './ownership/service';
+export type * from './ownership/types';
 
 export * from './realtime/client';
 export type * from './realtime/protocol';

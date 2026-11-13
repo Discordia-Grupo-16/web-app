@@ -246,8 +246,8 @@ Los packages se parten por capa:
 
 | Package | Qué tiene | Depende de |
 | --- | --- | --- |
-| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`, `voice/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
-| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios, el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) y la voz (`useVoiceController`, la lista de la llamada y sus textos) | `@discordia/api`, `react` |
+| `@discordia/api` | TypeScript puro, sin React: cliente HTTP con refresh de sesión, endpoints y tipos por recurso (`auth/`, `users/`, `servers/`, `channels/`, `roles/`, `invitations/`, `ownership/`, `voice/`), cliente WebSocket y protocolo (`realtime/`) | `axios` |
+| `@discordia/core` | Lógica React compartida: sesión (`AuthProvider`, `useAuth`), validaciones de formularios, el chat (`chatStore`, `useRealtimeController`, `useChannelMessages`, textos de error) la voz (`useVoiceController`, la lista de la llamada y sus textos) y la transferencia de propiedad (`ownership/`: los hooks del owner y del destinatario, el clasificador de errores y sus textos) | `@discordia/api`, `react` |
 | `@discordia/ui` | Componentes con variante web y `.native` (marca, íconos) | `react` |
 
 Cada package expone solo lo de su `src/index.ts` y tiene su propio typecheck (`npm run build`
