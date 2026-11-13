@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import { VOICE_TEXTS, type ChannelParticipantView } from '@discordia/core';
 import { MicOffIcon } from './MicOffIcon';
 import { VolumeIcon } from './VolumeIcon';
@@ -36,13 +36,20 @@ const ParticipantRow = memo(({ participant: p, roomy, speaking, locallyMuted, on
       {/* Grey when muted locally: seen speaking but silenced on this device. */}
       <View
         testID={speaking ? `voice-speaking-${locallyMuted ? 'muted-' : ''}${p.userId}` : undefined}
-        className={`rounded-full items-center justify-center border-2 ${roomy ? 'w-8 h-8' : 'w-5 h-5'} ${
-          p.loading ? 'bg-[#4f545c]' : 'bg-[#5b6eae]'
+        className={`relative rounded-full overflow-hidden items-center justify-center border-2 ${roomy ? 'w-8 h-8' : 'w-7 h-7'} ${
+          p.loading ? 'bg-[#4f545c]' : p.userAvatar ? 'bg-transparent' : 'bg-[#5b6eae]'
         } ${speaking ? (locallyMuted ? 'border-[#72767d]' : 'border-[#3ba55d]') : 'border-transparent'}`}
       >
-        {!p.loading && (
+        {!p.loading && p.userAvatar ? (
+          <Image
+            testID={`voice-avatar-${p.userId}`}
+            source={{ uri: p.userAvatar }}
+            resizeMode="cover"
+            style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
+          />
+        ) : !p.loading ? (
           <Text className={`text-white font-bold ${roomy ? 'text-sm' : 'text-[10px]'}`}>{initial(p.name)}</Text>
-        )}
+        ) : null}
       </View>
       <Text
         numberOfLines={1}

@@ -3,9 +3,9 @@ import { VOICE_TEXTS, type ChannelParticipantView } from '@discordia/core';
 import { VoiceParticipantList } from './VoiceParticipantList';
 
 const participants: ChannelParticipantView[] = [
-  { userId: 'u1', name: 'Ana', loading: false, muted: false },
-  { userId: 'u2', name: 'Beto', loading: false, muted: true },
-  { userId: 'u3', name: 'Cargando…', loading: true, muted: false },
+  { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false },
+  { userId: 'u2', name: 'Beto', userAvatar: '', loading: false, muted: true },
+  { userId: 'u3', name: 'Cargando…', userAvatar: '', loading: true, muted: false },
 ];
 
 describe('VoiceParticipantList', () => {
@@ -17,6 +17,14 @@ describe('VoiceParticipantList', () => {
       'Beto',
       'Cargando…',
     ]);
+  });
+
+  it('renders the participant avatar image instead of displaying its URL', async () => {
+    const avatarUrl = 'https://cdn.example.com/ana.png';
+    await render(<VoiceParticipantList participants={[{ ...participants[0], userAvatar: avatarUrl }]} />);
+
+    expect(screen.getByTestId('voice-avatar-u1').props.source).toEqual({ uri: avatarUrl });
+    expect(screen.queryByText(avatarUrl)).toBeNull();
   });
 
   it('is labelled for the channel, not only for the call: it also lists who is in a channel I am not in', async () => {
@@ -70,9 +78,9 @@ describe('VoiceParticipantList', () => {
 
   describe('local mute (SCRUM-57, Silenciar a otro participante localmente)', () => {
     const call: ChannelParticipantView[] = [
-      { userId: 'u1', name: 'Ana', loading: false, muted: false, isSelf: false },
-      { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
-      { userId: 'u3', name: 'Bob', loading: false, muted: false, isSelf: false },
+      { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false, isSelf: false },
+      { userId: 'me', name: 'Milton', userAvatar: '', loading: false, muted: false, isSelf: true },
+      { userId: 'u3', name: 'Bob', userAvatar: '', loading: false, muted: false, isSelf: false },
     ];
 
     it('offers the button on the rows of the others and not on the own one (CA6)', async () => {
@@ -122,7 +130,7 @@ describe('VoiceParticipantList', () => {
     });
 
     it('shows both icons for someone with the microphone off and muted locally', async () => {
-      const muted = [{ userId: 'u1', name: 'Ana', loading: false, muted: true, isSelf: false }];
+      const muted = [{ userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: true, isSelf: false }];
       await render(<VoiceParticipantList participants={muted} locallyMuted={new Set(['u1'])} />);
 
       expect(screen.getByLabelText('Silenciado')).toBeTruthy();
@@ -141,7 +149,7 @@ describe('VoiceParticipantList', () => {
     });
 
     it('shows no ring for someone muted locally who is not speaking, or whose microphone is off', async () => {
-      const micOff = [{ userId: 'u1', name: 'Ana', loading: false, muted: true, isSelf: false }, call[2]];
+      const micOff = [{ userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: true, isSelf: false }, call[2]];
       await render(
         <VoiceParticipantList participants={micOff} speakingIds={new Set(['u1'])} locallyMuted={new Set(['u1', 'u3'])} />,
       );

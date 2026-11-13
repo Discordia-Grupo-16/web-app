@@ -8,9 +8,9 @@ const ANA_ID = '22222222-2222-2222-2222-222222222222';
 const LOADING_ID = '33333333-3333-3333-3333-333333333333';
 
 const participants: ChannelParticipantView[] = [
-    { userId: ANA_ID, name: 'Ana', loading: false, muted: true },
-    { userId: 'me', name: 'Milton', loading: false, muted: false },
-    { userId: LOADING_ID, name: VOICE_NAME_PLACEHOLDER, loading: true },
+    { userId: ANA_ID, name: 'Ana', userAvatar: '', loading: false, muted: true },
+    { userId: 'me', name: 'Milton', userAvatar: '', loading: false, muted: false },
+    { userId: LOADING_ID, name: VOICE_NAME_PLACEHOLDER, userAvatar: '', loading: true },
 ];
 
 describe('VoiceParticipantList', () => {
@@ -21,6 +21,14 @@ describe('VoiceParticipantList', () => {
         expect(items.map(i => i.textContent)).toEqual(['AAna', 'MMilton', VOICE_NAME_PLACEHOLDER]);
         expect(screen.getAllByLabelText('Silenciado')).toHaveLength(1);
         expect(items[0]).toContainElement(screen.getByLabelText('Silenciado'));
+    });
+
+    it('renders the participant avatar image instead of displaying its URL', () => {
+        const avatarUrl = 'https://cdn.example.com/ana.png';
+        render(<VoiceParticipantList participants={[{ ...participants[0], userAvatar: avatarUrl }]} />);
+
+        expect(screen.getByRole('listitem').querySelector('img')).toHaveAttribute('src', avatarUrl);
+        expect(screen.getByRole('listitem')).not.toHaveTextContent(avatarUrl);
     });
 
     describe('who is speaking (SCRUM-56, Indicador de quién está hablando)', () => {
@@ -41,8 +49,8 @@ describe('VoiceParticipantList', () => {
 
         it('highlights several at once', () => {
             const both = [
-                { userId: 'a', name: 'Ana', loading: false, muted: false },
-                { userId: 'b', name: 'Beto', loading: false, muted: false },
+                { userId: 'a', name: 'Ana', userAvatar: '', loading: false, muted: false },
+                { userId: 'b', name: 'Beto', userAvatar: '', loading: false, muted: false },
             ];
             render(<VoiceParticipantList participants={both} speakingIds={new Set(['a', 'b'])} />);
 
@@ -77,9 +85,9 @@ describe('VoiceParticipantList', () => {
     describe('local mute (SCRUM-57, Silenciar a otro participante localmente)', () => {
         const BOB_ID = '44444444-4444-4444-4444-444444444444';
         const call: ChannelParticipantView[] = [
-            { userId: ANA_ID, name: 'Ana', loading: false, muted: false, isSelf: false },
-            { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
-            { userId: BOB_ID, name: 'Bob', loading: false, muted: false, isSelf: false },
+            { userId: ANA_ID, name: 'Ana', userAvatar: '', loading: false, muted: false, isSelf: false },
+            { userId: 'me', name: 'Milton', userAvatar: '', loading: false, muted: false, isSelf: true },
+            { userId: BOB_ID, name: 'Bob', userAvatar: '', loading: false, muted: false, isSelf: false },
         ];
         const ring = (item: HTMLElement) => (item.firstElementChild as HTMLElement).style.boxShadow;
 
@@ -128,7 +136,7 @@ describe('VoiceParticipantList', () => {
         });
 
         it('shows both icons for someone with the microphone off and muted locally', () => {
-            const muted = [{ userId: ANA_ID, name: 'Ana', loading: false, muted: true, isSelf: false }];
+            const muted = [{ userId: ANA_ID, name: 'Ana', userAvatar: '', loading: false, muted: true, isSelf: false }];
             render(<VoiceParticipantList participants={muted} locallyMuted={new Set([ANA_ID])} />);
 
             expect(screen.getByLabelText('Silenciado')).toBeInTheDocument();
@@ -152,7 +160,7 @@ describe('VoiceParticipantList', () => {
         });
 
         it('shows no ring for someone muted locally who is not speaking, or whose microphone is off', () => {
-            const micOff = [{ userId: ANA_ID, name: 'Ana', loading: false, muted: true, isSelf: false }, call[2]];
+            const micOff = [{ userId: ANA_ID, name: 'Ana', userAvatar: '', loading: false, muted: true, isSelf: false }, call[2]];
             render(
                 <VoiceParticipantList
                     participants={micOff}

@@ -13,7 +13,7 @@ import { voiceValue } from './testing';
 import { VOICE_NEEDS_DEV_BUILD, VoiceChannelScreen } from './VoiceChannelScreen';
 
 // Named mock*: the factory of jest.mock is hoisted above the declarations and may read only these.
-const mockAnaOnly = [{ userId: 'u1', name: 'Ana', loading: false, muted: true }];
+const mockAnaOnly = [{ userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: true }];
 
 jest.mock('@discordia/core', () => ({
   ...jest.requireActual('@discordia/core'),
@@ -98,9 +98,9 @@ describe('VoiceChannelScreen', () => {
   it('highlights in the call who is speaking, and nobody who is muted (SCRUM-56)', async () => {
     jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
     jest.mocked(useVoiceCallParticipants).mockReturnValue([
-      { userId: 'u1', name: 'Ana', loading: false, muted: false },
-      { userId: 'u2', name: 'Beto', loading: false, muted: true },
-      { userId: 'u3', name: 'Cora', loading: false, muted: false },
+      { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false },
+      { userId: 'u2', name: 'Beto', userAvatar: '', loading: false, muted: true },
+      { userId: 'u3', name: 'Cora', userAvatar: '', loading: false, muted: false },
     ]);
     await render(
       <VoiceSpeakersContext.Provider value={new Set(['u1', 'u2'])}>
@@ -117,8 +117,8 @@ describe('VoiceChannelScreen', () => {
     const value = voiceValue({ call: connectedTo(general) });
     jest.mocked(useVoice).mockReturnValue(value);
     jest.mocked(useVoiceCallParticipants).mockReturnValue([
-      { userId: 'u1', name: 'Ana', loading: false, muted: false, isSelf: false },
-      { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
+      { userId: 'u1', name: 'Ana', userAvatar: '', loading: false, muted: false, isSelf: false },
+      { userId: 'me', name: 'Milton', userAvatar: '', loading: false, muted: false, isSelf: true },
     ]);
     await render(<VoiceChannelScreen channel={general} canJoin />);
 
