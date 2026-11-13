@@ -59,6 +59,7 @@ const server = (myPermissions: number, ownerId: string): Server => ({
   description: null,
   owner_id: ownerId,
   avatar_url: null,
+  banner_url: null,
   created_at: '2026-10-01T00:00:00Z',
   my_permissions: myPermissions,
   my_permission_names: [],

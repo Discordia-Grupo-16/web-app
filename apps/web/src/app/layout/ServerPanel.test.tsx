@@ -8,6 +8,7 @@ import {
     KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
+    MANAGE_SERVER,
     PERMISSION_COPY,
     PublicProfilesProvider,
     SEND_MESSAGES,
@@ -22,19 +23,19 @@ const OWNER = 'owner';
 const ME = 'me';
 
 vi.mock('@/shared/api', () => ({
-    ownershipSource: {
-        getServerTransfer: vi.fn(),
-        proposeTransfer: vi.fn(),
-        cancelTransfer: vi.fn(),
-        acceptTransfer: vi.fn(),
-        rejectTransfer: vi.fn(),
-        listMyTransfers: vi.fn(),
-        getServer: vi.fn(),
-        getServers: vi.fn(),
-    },
-    serversService: { getServer: vi.fn() },
-    rolesService: { listRoles: vi.fn(), deleteRole: vi.fn() },
-    membersService: {
+ownershipSource: {
+          getServerTransfer: vi.fn(),
+          proposeTransfer: vi.fn(),
+          cancelTransfer: vi.fn(),
+          acceptTransfer: vi.fn(),
+          rejectTransfer: vi.fn(),
+          listMyTransfers: vi.fn(),
+          getServer: vi.fn(),
+          getServers: vi.fn(),
+      },
+      serversService: { getServer: vi.fn(), updateServer: vi.fn() },
+      rolesService: { listRoles: vi.fn(), deleteRole: vi.fn() },
+      membersService: {
         listMembers: vi.fn(),
         banMember: vi.fn(),
         kickMember: vi.fn(),
@@ -64,7 +65,7 @@ const server = (myPermissions: number, ownerId = OWNER): Server => ({
     name: 'Discordia',
     description: null,
     owner_id: ownerId,
-    avatar_url: null,
+    avatar_url: null, banner_url: null,
     created_at: '2026-10-01T00:00:00Z',
     my_permissions: myPermissions,
     my_permission_names: [],
@@ -233,6 +234,34 @@ describe('ServerPanel: qué se ve según el permiso', () => {
         await renderPanel(VIEW_CHANNEL | MANAGE_ROLES, ME);
 
         expect(screen.getByRole('button', { name: 'Abandonar servidor' })).toBeInTheDocument();
+    });
+});
+
+describe('ServerPanel: configuración del servidor', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('con MANAGE_SERVER aparece el botón de configuración', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_SERVER);
+
+        expect(screen.getByTitle('Configuración del servidor')).toBeInTheDocument();
+    });
+
+    it('sin MANAGE_SERVER no aparece el botón de configuración', async () => {
+        await renderPanel(VIEW_CHANNEL | MANAGE_CHANNELS | MANAGE_ROLES);
+
+        expect(screen.queryByTitle('Configuración del servidor')).not.toBeInTheDocument();
+    });
+
+    it('hacer clic en el botón abre el modal con el nombre actual', async () => {
+        const user = userEvent.setup();
+        await renderPanel(VIEW_CHANNEL | MANAGE_SERVER);
+
+        await user.click(screen.getByTitle('Configuración del servidor'));
+
+        expect(await screen.findByRole('heading', { name: 'Configuración del servidor' })).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Discordia')).toBeInTheDocument();
     });
 });
 

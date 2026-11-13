@@ -28,6 +28,7 @@ const server: Server = {
   description: null,
   owner_id: 'ana',
   avatar_url: null,
+  banner_url: null,
   created_at: '2026-10-01T00:00:00Z',
   my_permissions: 1,
   my_permission_names: ['VIEW_CHANNEL'],

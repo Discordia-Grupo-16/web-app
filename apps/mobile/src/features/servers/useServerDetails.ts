@@ -73,10 +73,15 @@ export const useServerDetails = (serverId: string | undefined) => {
     setServer(prev => prev ? { ...prev, channels: update(prev.channels) } : prev);
   }, []);
 
+  const updateServer = useCallback((updated: Server) => {
+    setServer(prev => prev ? { ...prev, ...updated } : prev);
+    navigation.setOptions({ title: updated.name });
+  }, [navigation]);
+
   // While we leave or delete the server ourselves, the refresh must not report it as gone.
   const setLeaving = useCallback((leaving: boolean) => {
     goneRef.current = leaving;
   }, []);
 
-  return { server, loading, updateChannels, setLeaving };
+  return { server, loading, updateChannels, updateServer, setLeaving };
 };

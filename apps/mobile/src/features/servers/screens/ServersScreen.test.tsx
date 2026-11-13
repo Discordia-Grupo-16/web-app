@@ -14,6 +14,7 @@ const server = (id: string, name: string): Server => ({
   description: null,
   owner_id: 'owner',
   avatar_url: null,
+  banner_url: null,
   created_at: '2026-10-01T00:00:00Z',
   my_permissions: 0,
   my_permission_names: [],

@@ -7,6 +7,7 @@ import {
     KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
+    MANAGE_SERVER,
     NONE,
     OWNERSHIP_TEXTS,
     PERMISSION_COPY,
@@ -30,7 +31,7 @@ import { BansSection, MembersSection, useBans, useMembers } from '@/features/mem
 import { InviteButton } from '@/features/invitations';
 import { dismissedRejections, OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
 import { RolesSection, useRoles } from '@/features/roles';
-import { LeaveServerButton, ServerHeader, useCurrentServer } from '@/features/servers';
+import { EditServerModal, LeaveServerButton, ServerHeader, useCurrentServer } from '@/features/servers';
 import { VoiceCallParticipantList, VoiceParticipantList } from '@/features/voice';
 import { ownershipSource } from '@/shared/api';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
@@ -72,28 +73,29 @@ const ProposeDialog = ({ toUserId, serverName, transfer, onClose }: ProposeDialo
 export const ServerPanel = () => {
     const { serverId, channelId } = useParams();
     const { user } = useAuth();
-    const { server, loading: loadingServer, updateChannels } = useCurrentServer();
-    const navigate = useNavigate();
-    const {
-        roles,
-        loading: loadingRoles,
-        addRole,
-        updateRole,
-        reload: reloadRoles,
-        removeRole,
-        replaceRoles,
-    } = useRoles(serverId);
-    const {
-        members,
-        loading: loadingMembers,
-        setMemberRoles,
-        removeMember,
-        reload: reloadMembers,
-    } = useMembers(serverId);
+    const { server, loading: loadingServer, updateChannels, updateServer } = useCurrentServer();
+      const navigate = useNavigate();
+      const [showSettings, setShowSettings] = useState(false);
+      const {
+          roles,
+          loading: loadingRoles,
+          addRole,
+          updateRole,
+          reload: reloadRoles,
+          removeRole,
+          replaceRoles,
+      } = useRoles(serverId);
+      const {
+          members,
+          loading: loadingMembers,
+          setMemberRoles,
+          removeMember,
+          reload: reloadMembers,
+      } = useMembers(serverId);
 
-    // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
-    // showing a button that then disappears is worse than showing it one render late.
-    const permissions = server?.my_permissions ?? NONE;
+      // What the caller can do comes resolved from `community` (ADR-0011). Before it loads, nothing:
+      // showing a button that then disappears is worse than showing it one render late.
+      const permissions = server?.my_permissions ?? NONE;
 
     const { call } = useVoice();
     const callChannelId = call.status === 'connected' ? call.channel.id : null;
@@ -130,6 +132,7 @@ export const ServerPanel = () => {
     // Leaving is not a permission but a condition: the owner cannot leave their own server, they
     // transfer it or delete it first. That is why this is still an ownership check and not a bit.
     const isOwner = !!user && server?.owner_id === user.id;
+    const canManageServer = hasPermission(permissions, MANAGE_SERVER);
 
     // Only the owner transfers the ownership, whatever its permissions (SCRUM-35).
     const transfer = useOutgoingOwnershipTransfer({
@@ -187,8 +190,31 @@ export const ServerPanel = () => {
         >
             <ServerHeader
                 title={serverId ? (server?.name ?? '...') : 'Seleccioná un servidor'}
-                actions={serverId && isOwner && <InviteButton serverId={serverId} />}
+                bannerUrl={server?.banner_url}
+                iconUrl={server?.avatar_url}
+                actions={serverId && (
+                    <>
+                        {isOwner && <InviteButton serverId={serverId} />}
+                        {canManageServer && (
+                            <button
+                                onClick={() => setShowSettings(true)}
+                                title="Configuración del servidor"
+                                className="transition-colors"
+                                style={{ color: '#99aab5' }}
+                            >
+                                ⚙
+                            </button>
+                        )}
+                    </>
+                )}
             />
+            {showSettings && server && (
+                <EditServerModal
+                    server={server}
+                    onClose={() => setShowSettings(false)}
+                    onUpdated={updated => { updateServer(updated); setShowSettings(false); }}
+                />
+            )}
 
             <div className="flex-1 overflow-y-auto py-2">
                 {loading && (

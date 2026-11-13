@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Channel, ServerMember } from '@discordia/api';
@@ -8,6 +8,7 @@ import {
   KICK_MEMBERS,
   MANAGE_CHANNELS,
   MANAGE_ROLES,
+  MANAGE_SERVER,
   NONE,
   OWNERSHIP_TEXTS,
   PERMISSION_COPY,
@@ -31,7 +32,7 @@ import { InvitationsSection } from '@/features/invitations';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { dismissedRejections, OutgoingTransferNotice, TransferOwnershipDialog } from '@/features/ownership';
 import { RolesSection, useRoles } from '@/features/roles';
-import { ServerActions, useServerDetails } from '@/features/servers';
+import { EditServerModal, ServerActions, useServerDetails } from '@/features/servers';
 import { VoiceCallParticipantList, VoiceParticipantList } from '@/features/voice';
 import { ownershipSource } from '@/shared/api';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
@@ -72,8 +73,9 @@ function ProposeDialog({ toUserId, serverName, transfer, onClose }: ProposeDialo
 export default function ServerScreen() {
   const { serverId } = useLocalSearchParams<{ serverId: string }>();
   const { user } = useAuth();
-  const { server, loading: loadingServer, updateChannels, setLeaving } = useServerDetails(serverId);
+  const { server, loading: loadingServer, updateChannels, updateServer, setLeaving } = useServerDetails(serverId);
   const router = useRouter();
+  const [showSettings, setShowSettings] = useState(false);
   const {
     roles,
     loading: loadingRoles,
@@ -166,26 +168,35 @@ export default function ServerScreen() {
   const canManageChannels = hasPermission(permissions, MANAGE_CHANNELS);
   const canManageRoles = hasPermission(permissions, MANAGE_ROLES);
 
-  const pending = transfer.view.kind === 'pending';
-  const renderMemberActions = isOwner
-    ? (member: ServerMember) =>
-        member.user_id === user?.id ? null : (
-          <TouchableOpacity
-            onPress={() => setProposingTo(member.user_id)}
-            disabled={pending}
-            accessibilityLabel={OWNERSHIP_TEXTS.transfer}
-            accessibilityState={{ disabled: pending }}
-            className="pl-3"
-            style={{ opacity: pending ? 0.5 : 1 }}
-          >
-            <Text className="text-[#7289da] text-xs">Transferir ›</Text>
-          </TouchableOpacity>
-        )
-    : undefined;
+const canManageServer = hasPermission(permissions, MANAGE_SERVER);
 
-  return (
-    <SafeAreaView className="flex-1 bg-[#23272a]" edges={['bottom']}>
-      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, gap: 12 }}>
+    const pending = transfer.view.kind === 'pending';
+    const renderMemberActions = isOwner
+      ? (member: ServerMember) =>
+          member.user_id === user?.id ? null : (
+            <TouchableOpacity
+              onPress={() => setProposingTo(member.user_id)}
+              disabled={pending}
+              accessibilityLabel={OWNERSHIP_TEXTS.transfer}
+              accessibilityState={{ disabled: pending }}
+              className="pl-3"
+              style={{ opacity: pending ? 0.5 : 1 }}
+            >
+              <Text className="text-[#7289da] text-xs">Transferir ›</Text>
+            </TouchableOpacity>
+          )
+      : undefined;
+
+    return (
+      <SafeAreaView className="flex-1 bg-[#23272a]" edges={['bottom']}>
+        {server.banner_url && (
+          <Image
+            source={{ uri: server.banner_url }}
+            style={{ width: '100%', height: 120 }}
+            resizeMode="cover"
+          />
+        )}
+        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: 16, gap: 12 }}>
         {hasPermission(permissions, VIEW_CHANNEL) ? (
           <ChannelSection
             serverId={server.id}
@@ -257,22 +268,37 @@ export default function ServerScreen() {
           />
         )}
         <InvitationsSection serverId={server.id} canManage={isOwner} />
-        <ServerActions
-          server={server}
-          isOwner={isOwner}
-          onLeavingChange={setLeaving}
-          pendingTransferTo={transfer.view.kind === 'pending' ? transfer.view.toName : null}
-          onTransferRequested={() => scrollRef.current?.scrollTo({ y: membersY.current, animated: true })}
-        />
-      </ScrollView>
-      {proposingTo && (
-        <ProposeDialog
-          toUserId={proposingTo}
-          serverName={server.name}
-          transfer={transfer}
-          onClose={() => setProposingTo(null)}
-        />
-      )}
+<ServerActions
+            server={server}
+            isOwner={isOwner}
+            onLeavingChange={setLeaving}
+            pendingTransferTo={transfer.view.kind === 'pending' ? transfer.view.toName : null}
+            onTransferRequested={() => scrollRef.current?.scrollTo({ y: membersY.current, animated: true })}
+          />
+          {canManageServer && (
+            <TouchableOpacity
+              onPress={() => setShowSettings(true)}
+              className="bg-[#2c2f33] py-3 rounded-xl items-center border border-[#7289da] mt-2"
+            >
+              <Text className="text-[#7289da] font-bold">⚙ Configuración del servidor</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+        {showSettings && (
+          <EditServerModal
+            server={server}
+            onClose={() => setShowSettings(false)}
+            onUpdated={updated => { updateServer(updated); setShowSettings(false); }}
+          />
+        )}
+        {proposingTo && (
+          <ProposeDialog
+            toUserId={proposingTo}
+            serverName={server.name}
+            transfer={transfer}
+            onClose={() => setProposingTo(null)}
+          />
+        )}
     </SafeAreaView>
   );
 }

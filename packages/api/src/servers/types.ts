@@ -6,6 +6,7 @@ export interface Server {
     description: string | null
     owner_id: string
     avatar_url: string | null
+    banner_url: string | null
     created_at: string
     channels: Channel[]
     /**

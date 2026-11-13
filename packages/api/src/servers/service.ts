@@ -20,6 +20,15 @@ export const createServersService = (apiClient: AxiosInstance) => ({
         return apiClient.post<{ data: Server }>('/api/v1/servers/', form).then(r => r.data.data);
     },
 
+    updateServer: (serverId: string, options: { name?: string; description?: string; icon?: Blob; banner?: Blob }): Promise<Server> => {
+        const form = new FormData();
+        if (options.name !== undefined) form.append('name', options.name);
+        if (options.description !== undefined) form.append('description', options.description);
+        if (options.icon) form.append('icon', options.icon);
+        if (options.banner) form.append('banner', options.banner);
+        return apiClient.patch<{ data: Server }>(`/api/v1/servers/${serverId}`, form).then(r => r.data.data);
+    },
+
     deleteServer: (serverId: string): Promise<void> =>
         apiClient.delete(`/api/v1/servers/${serverId}`).then(() => undefined),
 

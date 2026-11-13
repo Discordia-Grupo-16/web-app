@@ -26,12 +26,13 @@ vi.mock('@/features/roles', () => ({
     useRoles: () => ({ roles: [], loading: false, addRole: vi.fn(), updateRole: vi.fn() }),
 }));
 vi.mock('@/features/members', () => ({
-    MembersSection: () => null,
     BansSection: () => null,
+    MembersSection: () => null,
     useMembers: () => ({ members: [], loading: false, setMemberRoles: vi.fn(), removeMember: vi.fn() }),
     useBans: () => ({ bans: [], loading: false, error: false, removeBan: vi.fn(), reload: vi.fn() }),
 }));
 vi.mock('@/features/servers', () => ({
+    EditServerModal: () => null,
     LeaveServerButton: () => null,
     ServerHeader: ({ title }: { title: string }) => <h2>{title}</h2>,
     useCurrentServer: vi.fn(),
@@ -100,6 +101,7 @@ const renderPanel = (
         server,
         loading: false,
         updateChannels: vi.fn(),
+        updateServer: vi.fn(),
     } as unknown as ReturnType<typeof useCurrentServer>);
     render(
         <VoiceSpeakersContext.Provider value={new Set(speaking)}>
