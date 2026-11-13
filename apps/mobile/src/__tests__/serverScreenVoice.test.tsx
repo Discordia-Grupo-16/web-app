@@ -7,6 +7,7 @@ import {
   NOTICE_MAX_JITTER_MS,
   RealtimeContext,
   VIEW_CHANNEL,
+  VOICE_TEXTS,
   VoiceSpeakersContext,
   useServerVoiceRoster,
   useVoice,
@@ -226,6 +227,23 @@ describe('la pantalla del servidor: participantes de los canales de voz (SCRUM-5
     expect(below('v2').getByText('Roster ana')).toBeTruthy();
     expect(below('v2').queryByTestId('voice-speaking-ana')).toBeNull();
     expect(below('v1').getByTestId('voice-speaking-ana')).toBeTruthy();
+  });
+
+  it('muestra el indicador de silencio local, sin botón, debajo de mi canal (SCRUM-57)', async () => {
+    await renderScreen({ ...inCallAt('v1'), locallyMuted: new Set(['ana']), toggleLocalMute: jest.fn() });
+
+    expect(below('v1').getByLabelText(VOICE_TEXTS.locallyMuted)).toBeTruthy();
+    expect(below('v1').queryByTestId('voice-local-mute-ana')).toBeNull();
+  });
+
+  it('no muestra silencio local en el roster de otro canal, aunque sea el mismo usuario (SCRUM-57)', async () => {
+    await renderScreen(
+      { ...inCallAt('v1'), locallyMuted: new Set(['ana']), toggleLocalMute: jest.fn() },
+      [room('v2', ['ana'])],
+    );
+
+    expect(below('v2').getByText('Roster ana')).toBeTruthy();
+    expect(below('v2').queryByLabelText(VOICE_TEXTS.locallyMuted)).toBeNull();
   });
 
   it('pide el roster del servidor abierto', async () => {

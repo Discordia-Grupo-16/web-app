@@ -113,6 +113,22 @@ describe('VoiceChannelScreen', () => {
     expect(screen.queryByTestId('voice-speaking-u3')).toBeNull();
   });
 
+  it('mutes someone locally from the call list, with no button on the own row (SCRUM-57)', async () => {
+    const value = voiceValue({ call: connectedTo(general) });
+    jest.mocked(useVoice).mockReturnValue(value);
+    jest.mocked(useVoiceCallParticipants).mockReturnValue([
+      { userId: 'u1', name: 'Ana', loading: false, muted: false, isSelf: false },
+      { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
+    ]);
+    await render(<VoiceChannelScreen channel={general} canJoin />);
+
+    expect(screen.queryByTestId('voice-local-mute-me')).toBeNull();
+    await userEvent.setup().press(screen.getByTestId('voice-local-mute-u1'));
+
+    expect(value.toggleLocalMute).toHaveBeenCalledTimes(1);
+    expect(value.toggleLocalMute).toHaveBeenCalledWith('u1');
+  });
+
   it('warns about joining without a microphone', async () => {
     jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general, { micAvailable: false }) }));
     await render(<VoiceChannelScreen channel={general} canJoin />);

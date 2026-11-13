@@ -11,6 +11,9 @@ import {
   type LocalTrack,
   type LocalTrackPublication,
   type Participant,
+  type RemoteParticipant,
+  type RemoteTrack,
+  type RemoteTrackPublication,
 } from 'livekit-client';
 import {
   buildParticipantSnapshot,
@@ -95,6 +98,9 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
   let muteRequested = false;
   let unwatchMicrophone: (() => void) | null = null;
   let room: Room | null = null;
+  // Remote participants muted only on this device, by identity. It outlives the room: the controller
+  // sends the whole set again before every connect.
+  let locallyMuted: ReadonlySet<string> = new Set();
   let audioStarted = false;
   let pendingAudioStop: ReturnType<typeof setTimeout> | null = null;
   let lastAudioStopAt = 0;
@@ -187,6 +193,14 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
       if (room === next) emitSpeakers(speakerIds(speakers));
     });
     SNAPSHOT_EVENTS.forEach((event) => next.on(event, emitSnapshot));
+    // The native module plays remote audio as soon as the track arrives, so the volume goes down right
+    // there. Covers a new track, a participant that came back as a new object and the ones already in the room.
+    next.on(
+      RoomEvent.TrackSubscribed,
+      (track: RemoteTrack, _publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+        if (track.kind === Track.Kind.Audio && locallyMuted.has(participant.identity)) participant.setVolume(0);
+      },
+    );
     // Only the current room counts: a room already left keeps no listener in the call.
     const emitReconnecting = (reconnecting: boolean) => {
       if (room === next) reconnectingListeners.forEach((l) => l(reconnecting));
@@ -289,6 +303,16 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
       } finally {
         muteRequested = false;
       }
+    },
+
+    setLocallyMuted(userIds) {
+      const previous = locallyMuted;
+      locallyMuted = userIds;
+      // Only the ones whose state changed: the others keep their volume.
+      room?.remoteParticipants.forEach((participant) => {
+        const muted = userIds.has(participant.identity);
+        if (muted !== previous.has(participant.identity)) participant.setVolume(muted ? 0 : 1);
+      });
     },
   };
 };

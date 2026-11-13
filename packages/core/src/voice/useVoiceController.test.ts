@@ -2,7 +2,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VoiceToken } from '@discordia/api';
-import { NO_SPEAKERS } from './participants';
+import { NO_LOCAL_MUTES, NO_SPEAKERS } from './participants';
 import { useVoiceController } from './useVoiceController';
 import type {
     EnableMicrophoneOptions,
@@ -28,6 +28,7 @@ const tokenFor = (channelId: string): VoiceToken => ({
 
 const me: VoiceParticipant = { userId: 'me', isLocal: true, muted: false, joinedAt: 1000, seenOrder: 0 };
 const ana: VoiceParticipant = { userId: 'ana', isLocal: false, muted: true, joinedAt: 500, seenOrder: 1 };
+const bob: VoiceParticipant = { userId: 'bob', isLocal: false, muted: false, joinedAt: 700, seenOrder: 2 };
 
 const httpError = (status?: number) =>
     Object.assign(new Error('Request failed'), { isAxiosError: true, response: status ? { status } : undefined });
@@ -54,6 +55,7 @@ const createFakeAdapter = () => {
         onActiveSpeakersChanged: subscribe(speakers),
         onReconnectingChanged: subscribe(reconnecting),
         muteMicrophone: vi.fn(async () => undefined),
+        setLocallyMuted: vi.fn((_userIds: ReadonlySet<string>) => undefined),
         onMicrophoneLost: subscribe(micLost),
         onAudioPlaybackBlocked: subscribe(playback),
         startAudio: vi.fn(async () => undefined),
@@ -862,6 +864,190 @@ describe('useVoiceController', () => {
             fake.emitReconnecting(false);
 
             expect(connectedCall(result)).toMatchObject({ muted: true, micAvailable: true, micPending: false });
+        });
+    });
+
+    describe('muting a participant locally (SCRUM-57, Silenciar a otro participante localmente)', () => {
+        const deferred = <T,>() => {
+            let resolve: (value: T) => void = () => undefined;
+            const promise = new Promise<T>((r) => (resolve = r));
+            return { promise, resolve };
+        };
+        const lastOrder = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder.at(-1) ?? -1;
+        const setCalls = () => fake.adapter.setLocallyMuted.mock.calls.map(([ids]) => [...ids]);
+        // Connected to A with [me, ana, bob] in the room.
+        const joinWithPeople = async (result: ReturnType<typeof render>['result']) => {
+            await joinAndWait(result, A);
+            fake.emitParticipants([me, ana, bob]);
+        };
+        const muteAna = (result: ReturnType<typeof render>['result']) => {
+            act(() => result.current.value.toggleLocalMute('ana'));
+            expect([...result.current.value.locallyMuted]).toEqual(['ana']);
+        };
+
+        it('is NO_LOCAL_MUTES without a call and does not call the adapter', () => {
+            const { result } = render();
+
+            act(() => result.current.value.toggleLocalMute('ana'));
+
+            expect(result.current.value.locallyMuted).toBe(NO_LOCAL_MUTES);
+            expect(fake.adapter.setLocallyMuted).not.toHaveBeenCalled();
+        });
+
+        it('mutes and unmutes a participant, sending the whole set to the adapter (CA1 y CA2 de SCRUM-57)', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            fake.adapter.setLocallyMuted.mockClear();
+
+            act(() => result.current.value.toggleLocalMute('ana'));
+            expect([...result.current.value.locallyMuted]).toEqual(['ana']);
+            expect(fake.adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set(['ana']));
+
+            act(() => result.current.value.toggleLocalMute('ana'));
+            expect(result.current.value.locallyMuted.size).toBe(0);
+            expect(fake.adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set());
+        });
+
+        it('keeps several participants muted at once', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+
+            act(() => result.current.value.toggleLocalMute('ana'));
+            act(() => result.current.value.toggleLocalMute('bob'));
+
+            expect([...result.current.value.locallyMuted].sort()).toEqual(['ana', 'bob']);
+            expect(fake.adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set(['ana', 'bob']));
+        });
+
+        it('does nothing for the own user or for someone who is not in the call', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            fake.adapter.setLocallyMuted.mockClear();
+            const before = result.current.value.locallyMuted;
+
+            act(() => result.current.value.toggleLocalMute('me'));
+            act(() => result.current.value.toggleLocalMute('nobody'));
+
+            expect(result.current.value.locallyMuted).toBe(before);
+            expect(fake.adapter.setLocallyMuted).not.toHaveBeenCalled();
+        });
+
+        it('does nothing while a join is in progress', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            const token = deferred<VoiceToken>();
+            requestToken.mockImplementationOnce(() => token.promise);
+            act(() => result.current.value.join(B));
+            fake.adapter.setLocallyMuted.mockClear();
+
+            act(() => result.current.value.toggleLocalMute('ana'));
+
+            expect(result.current.value.locallyMuted.size).toBe(0);
+            expect(fake.adapter.setLocallyMuted).not.toHaveBeenCalled();
+        });
+
+        it('clears the set on leave() and a new join starts with nobody, told to the adapter before connect', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            muteAna(result);
+
+            act(() => result.current.value.leave());
+            expect(result.current.value.locallyMuted).toBe(NO_LOCAL_MUTES);
+            await joinAndWait(result, A);
+
+            expect(result.current.value.locallyMuted.size).toBe(0);
+            expect(fake.adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set());
+            expect(lastOrder(fake.adapter.setLocallyMuted)).toBeLessThan(lastOrder(fake.adapter.connect));
+        });
+
+        it('clears the set when switching channel, told to the adapter before the new connect', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            muteAna(result);
+
+            await joinAndWait(result, B);
+
+            expect(result.current.value.locallyMuted.size).toBe(0);
+            expect(fake.adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set());
+            expect(lastOrder(fake.adapter.setLocallyMuted)).toBeLessThan(lastOrder(fake.adapter.connect));
+        });
+
+        it('keeps the mute when the switch fails asking the token (L5)', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            muteAna(result);
+            fake.adapter.setLocallyMuted.mockClear();
+            requestToken.mockRejectedValueOnce(httpError(403));
+
+            act(() => result.current.value.join(B));
+            await waitFor(() => expect(result.current.value.attempt).toMatchObject({ status: 'failed' }));
+
+            expect(result.current.value.call).toMatchObject({ status: 'connected', channel: A });
+            expect([...result.current.value.locallyMuted]).toEqual(['ana']);
+            expect(fake.adapter.setLocallyMuted).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            [
+                'a lost connection',
+                () => fake.emitDisconnected({ cause: 'connection_lost', serverReason: null }),
+            ],
+            [
+                'leaving the app',
+                (result: ReturnType<typeof render>['result']) =>
+                    act(() => result.current.disconnectWithReason('app_backgrounded')),
+            ],
+        ])('keeps the mute through "Volver a unirse" after %s, sent to the adapter before the second connect (CA5)', async (_label, cut) => {
+            const { result } = render();
+            await joinWithPeople(result);
+            muteAna(result);
+
+            cut(result);
+            expect(result.current.value.call.status).toBe('disconnected');
+            expect(result.current.value.locallyMuted).toBe(NO_LOCAL_MUTES);
+            act(() => result.current.value.rejoin());
+            await waitFor(() => expect(result.current.value.call.status).toBe('connected'));
+
+            expect([...result.current.value.locallyMuted]).toEqual(['ana']);
+            expect(fake.adapter.connect).toHaveBeenCalledTimes(2);
+            expect(fake.adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set(['ana']));
+            expect(lastOrder(fake.adapter.setLocallyMuted)).toBeLessThan(lastOrder(fake.adapter.connect));
+        });
+
+        it('forgets the mutes once the disconnection is dismissed', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            muteAna(result);
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+
+            act(() => result.current.value.dismiss());
+            await joinAndWait(result, A);
+
+            expect(result.current.value.locallyMuted.size).toBe(0);
+            expect(setCalls().at(-1)).toEqual([]);
+        });
+
+        it('keeps the mute while the muted participant leaves the call and comes back', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            muteAna(result);
+
+            fake.emitParticipants([me, bob]);
+            expect([...result.current.value.locallyMuted]).toEqual(['ana']);
+            fake.emitParticipants([me, ana, bob]);
+
+            expect([...result.current.value.locallyMuted]).toEqual(['ana']);
+        });
+
+        it('keeps the reference of speakingIds when a participant is muted', async () => {
+            const { result } = render();
+            await joinWithPeople(result);
+            fake.emitSpeakers(['ana']);
+            const before = result.current.speakingIds;
+
+            act(() => result.current.value.toggleLocalMute('ana'));
+
+            expect(result.current.speakingIds).toBe(before);
         });
     });
 });

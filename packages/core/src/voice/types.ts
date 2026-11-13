@@ -77,6 +77,10 @@ export interface VoiceRoomAdapter {
     enableMicrophone(options?: EnableMicrophoneOptions): Promise<MicResult>;
     // Mutes the published microphone track and keeps it published. Does nothing without one.
     muteMicrophone(): Promise<void>;
+    // Remote participants whose audio plays at volume 0 on this device, by LiveKit identity. The room
+    // keeps sending it, so nothing changes for the others. Replaces the previous set, applies at once
+    // to whoever is in the room and to every audio track subscribed later, in this room or the next.
+    setLocallyMuted(userIds: ReadonlySet<string>): void;
     // LiveKit was left without a microphone in the current room: no input device remains or the
     // permission was revoked. Not emitted when LiveKit switches to another device by itself.
     onMicrophoneLost(listener: (cause: MicLossCause) => void): () => void;
@@ -125,6 +129,13 @@ export interface VoiceContextValue {
     // Mutes an active microphone at once, or turns it on (asking for the permission when needed).
     // Does nothing without a connected call, while a join is in progress or while micPending.
     toggleMute: () => void;
+    // Remote participants this user stopped hearing, by userId. NO_LOCAL_MUTES outside a connected
+    // call. Kept on "Volver a unirse"; cleared on leave, on a join from scratch and on dismiss.
+    locallyMuted: ReadonlySet<string>;
+    // Stops or resumes hearing a remote participant of the connected call, only on this device. Does
+    // nothing without a connected call, while a join is in progress, for the own user or for someone
+    // who is not in the call.
+    toggleLocalMute: (userId: string) => void;
     retry: () => void; // retries a retryable failed attempt
     dismiss: () => void; // clears a failed attempt or a disconnected call
     startAudio: () => void;

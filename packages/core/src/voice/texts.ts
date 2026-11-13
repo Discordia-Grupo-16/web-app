@@ -15,6 +15,9 @@ export const VOICE_TEXTS = {
     connectedTo: 'Conectado a',
     mute: 'Silenciar micrófono',
     unmute: 'Activar micrófono',
+    localMute: 'Silenciar para mí',
+    localUnmute: 'Volver a escuchar',
+    locallyMuted: 'Silenciado por vos',
 } as const;
 
 export const VOICE_JOIN_ERROR_TEXTS: Record<VoiceJoinError, string> = {

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -105,6 +105,23 @@ describe('VoiceChannelPanel', () => {
 
         const items = screen.getAllByRole('listitem');
         expect(items.filter((i) => i.hasAttribute('data-speaking')).map((i) => i.textContent)).toEqual(['AAna']);
+    });
+
+    it('mutes someone locally from the call list, with no button on the own row (SCRUM-57)', async () => {
+        const value = voiceValue({ call: connectedTo(general) });
+        vi.mocked(useVoice).mockReturnValue(value);
+        vi.mocked(useVoiceCallParticipants).mockReturnValue([
+            { userId: 'u1', name: 'Ana', loading: false, muted: false, isSelf: false },
+            { userId: 'me', name: 'Milton', loading: false, muted: false, isSelf: true },
+        ]);
+        render(<VoiceChannelPanel channel={general} canJoin />);
+
+        const [ana, me] = screen.getAllByRole('listitem');
+        expect(within(me).queryByRole('button')).not.toBeInTheDocument();
+        await userEvent.click(within(ana).getByRole('button', { name: VOICE_TEXTS.localMute }));
+
+        expect(value.toggleLocalMute).toHaveBeenCalledTimes(1);
+        expect(value.toggleLocalMute).toHaveBeenCalledWith('u1');
     });
 
     it('offers to join another channel while in a call', () => {

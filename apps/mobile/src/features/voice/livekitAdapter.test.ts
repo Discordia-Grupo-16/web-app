@@ -21,6 +21,7 @@ class MockParticipant {
   createTracks = jest.fn<Promise<unknown[]>, [{ audio: boolean }]>(async () => [new MockTrack()]);
   publishTrack = jest.fn<Promise<unknown>, [unknown]>(async () => undefined);
   getTrackPublication = jest.fn<unknown, [string]>(() => undefined);
+  setVolume = jest.fn<void, [number]>();
 }
 
 // A local microphone track: records mute calls and lets each test emit its events.
@@ -80,7 +81,7 @@ jest.mock('livekit-client', () => ({
     jest.fn(() => new MockRoom()),
     { getLocalDevices: (kind: string, requestPermissions?: boolean) => mockGetLocalDevices(kind, requestPermissions) },
   ),
-  Track: { Source: { Microphone: 'microphone', Camera: 'camera' } },
+  Track: { Kind: { Audio: 'audio', Video: 'video' }, Source: { Microphone: 'microphone', Camera: 'camera' } },
   TrackEvent: { Muted: 'muted', Ended: 'ended', Restarted: 'restarted' },
   get ConnectionError() {
     return MockConnectionError;
@@ -107,6 +108,7 @@ jest.mock('livekit-client', () => ({
     ParticipantDisconnected: 'participantDisconnected',
     TrackPublished: 'trackPublished',
     TrackUnpublished: 'trackUnpublished',
+    TrackSubscribed: 'trackSubscribed',
     TrackMuted: 'trackMuted',
     TrackUnmuted: 'trackUnmuted',
     LocalTrackPublished: 'localTrackPublished',
@@ -422,6 +424,100 @@ describe('createLivekitAdapter', () => {
       room.emit('activeSpeakersChanged', [speaker('ana')]);
 
       expect(heard).toEqual([]);
+    });
+  });
+
+  describe('local mute (SCRUM-57, Silenciar a otro participante localmente)', () => {
+    const connected = async () => {
+      const adapter = createLivekitAdapter();
+      await adapter.connect('wss://lk', 'jwt');
+      return { adapter, room: lastRoom() };
+    };
+    const remote = (room: MockRoom, identity: string) => {
+      const participant = new MockParticipant(identity);
+      room.remoteParticipants.set(identity, participant);
+      return participant;
+    };
+    const audioTrack = () => ({ kind: 'audio' });
+
+    it('turns the volume of the muted ones to 0, leaves the others and restores it when unmuted (CA1 y CA2)', async () => {
+      const { adapter, room } = await connected();
+      const ana = remote(room, 'ana');
+      const bob = remote(room, 'bob');
+
+      adapter.setLocallyMuted(new Set(['ana']));
+
+      expect(ana.setVolume).toHaveBeenCalledWith(0);
+      expect(bob.setVolume).not.toHaveBeenCalled();
+
+      adapter.setLocallyMuted(new Set());
+
+      expect(ana.setVolume).toHaveBeenLastCalledWith(1);
+      expect(bob.setVolume).not.toHaveBeenCalled();
+    });
+
+    it('touches only the participants whose state changed', async () => {
+      const { adapter, room } = await connected();
+      const ana = remote(room, 'ana');
+      const bob = remote(room, 'bob');
+      adapter.setLocallyMuted(new Set(['ana']));
+
+      adapter.setLocallyMuted(new Set(['ana', 'bob']));
+
+      expect(ana.setVolume).toHaveBeenCalledTimes(1);
+      expect(bob.setVolume).toHaveBeenCalledWith(0);
+    });
+
+    it('sets the volume to 0 when an audio track of a muted participant arrives', async () => {
+      const { adapter, room } = await connected();
+      const ana = remote(room, 'ana');
+      adapter.setLocallyMuted(new Set(['ana']));
+      ana.setVolume.mockClear();
+
+      room.emit('trackSubscribed', audioTrack(), {}, ana);
+
+      expect(ana.setVolume).toHaveBeenCalledWith(0);
+    });
+
+    it('mutes a participant that came back as a new object with the same identity', async () => {
+      const { adapter, room } = await connected();
+      adapter.setLocallyMuted(new Set(['ana']));
+      const reconnected = new MockParticipant('ana');
+
+      room.emit('trackSubscribed', audioTrack(), {}, reconnected);
+
+      expect(reconnected.setVolume).toHaveBeenCalledWith(0);
+    });
+
+    it('does not touch the volume of someone who is not muted or of a video track', async () => {
+      const { adapter, room } = await connected();
+      adapter.setLocallyMuted(new Set(['ana']));
+      const bob = new MockParticipant('bob');
+      const ana = new MockParticipant('ana');
+
+      room.emit('trackSubscribed', audioTrack(), {}, bob);
+      room.emit('trackSubscribed', { kind: 'video' }, {}, ana);
+
+      expect(bob.setVolume).not.toHaveBeenCalled();
+      expect(ana.setVolume).not.toHaveBeenCalled();
+    });
+
+    it('keeps the set when the room changes', async () => {
+      const { adapter } = await connected();
+      adapter.setLocallyMuted(new Set(['ana']));
+      await adapter.disconnect();
+      await adapter.connect('wss://lk', 'jwt-2');
+      const ana = new MockParticipant('ana');
+
+      lastRoom().emit('trackSubscribed', audioTrack(), {}, ana);
+
+      expect(ana.setVolume).toHaveBeenCalledWith(0);
+    });
+
+    it('does not fail without a connected room', () => {
+      const adapter = createLivekitAdapter();
+
+      expect(() => adapter.setLocallyMuted(new Set(['ana']))).not.toThrow();
     });
   });
 
