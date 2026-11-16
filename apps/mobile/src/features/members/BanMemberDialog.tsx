@@ -3,6 +3,7 @@ import { Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PERMISSION_COPY } from '@discordia/core';
 import { getErrorDetail } from '@discordia/api';
 import { membersService } from '@/shared/api';
+import { KeyboardAvoidingView } from '@/shared/ui/keyboard';
 
 interface Props {
   visible: boolean;
@@ -63,7 +64,7 @@ export function BanMemberDialog({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-      <View className="flex-1 justify-end bg-black/60">
+      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/60">
         <View className="bg-[#36393f] rounded-t-2xl p-6">
           <Text className="text-white font-black text-xl mb-1">
             {PERMISSION_COPY.banMemberTitle}
@@ -104,7 +105,7 @@ export function BanMemberDialog({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
