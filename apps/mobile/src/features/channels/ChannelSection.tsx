@@ -7,6 +7,7 @@ import { categoriesService, channelsService } from '@/shared/api';
 import { ChannelItem } from './ChannelItem';
 import { CreateChannelModal } from './CreateChannelModal';
 import { EditChannelModal } from './EditChannelModal';
+import { KeyboardAvoidingView } from '@/shared/ui/keyboard';
 
 interface ChannelSectionProps {
   serverId: string;
@@ -41,7 +42,7 @@ function CategoryNameModal({ visible, initial, title, onClose, onSave }: {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 justify-end bg-black/60">
+      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/60">
         <View className="bg-[#36393f] rounded-t-2xl p-6">
           <Text className="text-white font-black text-xl mb-5">{title}</Text>
           <Text className="text-[#99aab5] text-xs font-semibold uppercase tracking-wider mb-1">Nombre *</Text>
@@ -67,7 +68,7 @@ function CategoryNameModal({ visible, initial, title, onClose, onSave }: {
             <Text className="text-[#99aab5]">Cancelar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '@discordia/core';
 import { userService } from '@/shared/api';
+import { KEYBOARD_BOTTOM_OFFSET, KeyboardAwareScrollView } from '@/shared/ui/keyboard';
 import axios from 'axios';
 
 export function EditProfileScreen() {
@@ -125,7 +126,11 @@ export function EditProfileScreen() {
     };
 
     return (
-        <ScrollView className="flex-1 bg-[#23272a] p-4">
+        <KeyboardAwareScrollView
+            bottomOffset={KEYBOARD_BOTTOM_OFFSET}
+            keyboardShouldPersistTaps="handled"
+            className="flex-1 bg-[#23272a] p-4"
+        >
             <Stack.Screen
                 options={{
                     title: 'Editar Perfil',
@@ -249,6 +254,6 @@ export function EditProfileScreen() {
                     )}
                 </View>
             </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
     );
 }
