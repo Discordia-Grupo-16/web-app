@@ -23,6 +23,12 @@ export const BAN_MEMBERS = 1 << 6;
 export const MANAGE_SERVER = 1 << 7;
 export const ADMINISTRATOR = 1 << 8;
 export const MANAGE_MESSAGES = 1 << 9;
+export const CREATE_INVITE = 1 << 10;
+export const ADD_REACTIONS = 1 << 11;
+export const MENTION_EVERYONE = 1 << 12;
+export const ATTACH_FILES = 1 << 13;
+export const MODERATE_MEMBERS = 1 << 14;
+export const VIEW_AUDIT_LOG = 1 << 15;
 
 /** The name of each permission, as the API sends and expects it. */
 export const PERMISSION_BY_NAME = {
@@ -36,6 +42,12 @@ export const PERMISSION_BY_NAME = {
     MANAGE_SERVER,
     ADMINISTRATOR,
     MANAGE_MESSAGES,
+    CREATE_INVITE,
+    ADD_REACTIONS,
+    MENTION_EVERYONE,
+    ATTACH_FILES,
+    MODERATE_MEMBERS,
+    VIEW_AUDIT_LOG,
 } as const;
 
 export type PermissionName = keyof typeof PERMISSION_BY_NAME;
@@ -44,12 +56,18 @@ export type PermissionName = keyof typeof PERMISSION_BY_NAME;
 export const PERMISSION_ORDER: PermissionName[] = [
     'VIEW_CHANNEL',
     'SEND_MESSAGES',
+    'ADD_REACTIONS',
+    'ATTACH_FILES',
+    'MENTION_EVERYONE',
     'CONNECT',
+    'CREATE_INVITE',
     'MANAGE_CHANNELS',
     'MANAGE_MESSAGES',
     'MANAGE_ROLES',
+    'MODERATE_MEMBERS',
     'KICK_MEMBERS',
     'BAN_MEMBERS',
+    'VIEW_AUDIT_LOG',
     'MANAGE_SERVER',
     'ADMINISTRATOR',
 ];
@@ -66,6 +84,12 @@ export const PERMISSION_LABEL: Record<PermissionName, string> = {
     BAN_MEMBERS: 'Banear miembros',
     MANAGE_SERVER: 'Administrar el servidor',
     ADMINISTRATOR: 'Administrador',
+    CREATE_INVITE: 'Invitar miembros',
+    ADD_REACTIONS: 'Agregar reacciones',
+    MENTION_EVERYONE: 'Mencionar a todos y a roles',
+    ATTACH_FILES: 'Adjuntar archivos',
+    MODERATE_MEMBERS: 'Moderar miembros',
+    VIEW_AUDIT_LOG: 'Ver el registro de auditoría',
 };
 
 /** One hint per permission, so the screen is not a blind list of switches. */
@@ -80,6 +104,12 @@ export const PERMISSION_HINT: Record<PermissionName, string> = {
     BAN_MEMBERS: 'Banear miembros e impedir que vuelvan a entrar.',
     MANAGE_SERVER: 'Editar el nombre, el ícono y la configuración.',
     ADMINISTRATOR: 'Concede todos los permisos. Darlo equivale a dar el servidor.',
+    CREATE_INVITE: 'Crear, ver y revocar las invitaciones del servidor.',
+    ADD_REACTIONS: 'Reaccionar a los mensajes con emojis.',
+    MENTION_EVERYONE: 'Usar @everyone y mencionar roles para avisarles a muchos a la vez.',
+    ATTACH_FILES: 'Subir imágenes y archivos en los mensajes.',
+    MODERATE_MEMBERS: 'Silenciar temporalmente a miembros y editar las palabras prohibidas.',
+    VIEW_AUDIT_LOG: 'Ver quién expulsó, baneó o silenció a quién, y cuándo.',
 };
 
 /**

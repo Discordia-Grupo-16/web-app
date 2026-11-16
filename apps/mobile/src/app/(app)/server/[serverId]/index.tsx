@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { Channel, ServerMember } from '@discordia/api';
 import {
   BAN_MEMBERS,
+  CREATE_INVITE,
   KICK_MEMBERS,
   MANAGE_CHANNELS,
   MANAGE_ROLES,
@@ -269,7 +270,7 @@ const canManageServer = hasPermission(permissions, MANAGE_SERVER);
             onBanRevoked={removeBan}
           />
         )}
-        <InvitationsSection serverId={server.id} canManage={isOwner} />
+        <InvitationsSection serverId={server.id} canManage={hasPermission(permissions, CREATE_INVITE)} />
         {/* The owner who is the only member has nobody to transfer the server to, so "Abandonar"
             would be a dead end (CA2 of "Abandonar servidor": transfer or delete first). */}
         {(!isOwner || members.length > 1) && (
