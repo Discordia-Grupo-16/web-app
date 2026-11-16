@@ -4,7 +4,7 @@ import type { Invitation } from '@discordia/api';
 import { invitationsService } from '@/shared/api';
 import { InvitationsModal } from './InvitationsModal';
 
-// Only the owner manages invitations: the list is fetched each time the modal opens.
+// Whoever has CREATE_INVITE manages invitations (the owner always does): the list is fetched each time the modal opens.
 export function InvitationsSection({ serverId, canManage }: { serverId: string; canManage: boolean }) {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [showInvitations, setShowInvitations] = useState(false);
