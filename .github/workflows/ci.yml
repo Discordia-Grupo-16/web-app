@@ -25,3 +25,7 @@ jobs:
       # Tests: Vitest in web-app, backoffice, @discordia/api and @discordia/core, Jest in
       # mobile-app. @discordia/ui has no tests yet; --if-present skips it.
       run-tests: true
+      # Line coverage below 50% fails the job in every workspace with tests,
+      # Jest included.
+      coverage-threshold: 50
+      fail-on-coverage: true
