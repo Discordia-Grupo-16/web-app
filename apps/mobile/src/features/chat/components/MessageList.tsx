@@ -182,6 +182,7 @@ export const MessageList = ({
               content={item.message.content}
               createdAt={item.message.createdAt}
               editedAt={item.message.editedAt}
+              attachments={item.message.attachments}
               onLongPress={
                 canEdit || canDelete
                   ? () =>
@@ -201,6 +202,7 @@ export const MessageList = ({
             authorName={currentUser?.name || 'Vos'}
             authorAvatarUrl={currentUser?.avatarUrl ?? null}
             content={item.message.content}
+            attachments={item.message.attachments}
             sending={item.message.status === 'sending'}
             failed={item.message.status === 'failed'}
             errorText={item.message.errorCode && ERROR_TEXTS[item.message.errorCode]}

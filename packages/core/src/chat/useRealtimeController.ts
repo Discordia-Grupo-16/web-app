@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { MessagesService, RealtimeClient } from '@discordia/api';
+import type { MessageAttachment, MessagesService, RealtimeClient } from '@discordia/api';
 import { chatReducer, initialChatState, type ChatMessage } from './chatStore';
 import { rejectionMessage } from './errorMessages';
 import {
@@ -286,10 +286,10 @@ export const useRealtimeController = ({
     }, [client]);
 
     const transmit = useCallback(
-        (clientMessageId: string, channelId: string, content: string) => {
+        (clientMessageId: string, channelId: string, content: string, attachments?: MessageAttachment[]) => {
             try {
                 if (!client) throw new Error('realtime disabled');
-                client.sendMessage({ channelId, content, clientMessageId });
+                client.sendMessage({ channelId, content, clientMessageId, attachments });
             } catch {
                 // sendMessage throws when the socket is not open (a race with the disabled send button).
                 dispatch({ type: 'sendFailed', clientMessageId });
@@ -308,10 +308,10 @@ export const useRealtimeController = ({
     );
 
     const send = useCallback(
-        (channelId: string, content: string) => {
+        (channelId: string, content: string, attachments?: MessageAttachment[]) => {
             const clientMessageId = newClientMessageId();
-            dispatch({ type: 'sent', clientMessageId, channelId, content });
-            transmit(clientMessageId, channelId, content);
+            dispatch({ type: 'sent', clientMessageId, channelId, content, attachments });
+            transmit(clientMessageId, channelId, content, attachments);
         },
         [transmit, newClientMessageId],
     );
@@ -322,7 +322,7 @@ export const useRealtimeController = ({
             if (!message || message.status !== 'failed') return;
             dispatch({ type: 'resent', clientMessageId });
             // Same clientMessageId: if the first attempt was actually persisted, the server answers with the existing ack.
-            transmit(clientMessageId, message.channelId, message.content);
+            transmit(clientMessageId, message.channelId, message.content, message.attachments);
         },
         [transmit],
     );

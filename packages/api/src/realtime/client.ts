@@ -62,6 +62,7 @@ export interface SendMessageInput {
     channelId: string;
     content: string;
     clientMessageId: string;
+    attachments?: import('../messages/types').MessageAttachment[];
 }
 
 export interface RealtimeEventMap {
@@ -316,6 +317,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
                 channelId: input.channelId,
                 content: input.content,
                 clientMessageId: input.clientMessageId,
+                ...(input.attachments?.length ? { attachments: input.attachments } : {}),
             }),
         );
     }

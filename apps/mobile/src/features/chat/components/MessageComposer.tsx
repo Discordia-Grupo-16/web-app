@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, ScrollView } from 'react-native';
+import type { MessageAttachment } from '@discordia/api';
 import { PERMISSION_COPY, editErrorText, type RealtimeStatus, type RejectedMessage } from '@discordia/core';
 
 interface MessageComposerProps {
   channelName: string;
   status: RealtimeStatus;
   maxLength: number;
-  onSend: (content: string) => void;
+  onSend: (content: string, attachments?: MessageAttachment[]) => void;
+  /**
+   * Returns the uploaded attachment, or null if the user cancelled the picker.
+   * Not available in edit mode (you cannot attach files to an existing message).
+   */
+  onAttach?: () => Promise<MessageAttachment | null>;
   rejected: RejectedMessage | null;
   onRejectedHandled: () => void;
   /** SEND_MESSAGES, resolved by `community`. The backend checks it too: this only hides it. */
@@ -31,6 +37,7 @@ export const MessageComposer = ({
   status,
   maxLength,
   onSend,
+  onAttach,
   rejected,
   onRejectedHandled,
   canSendMessages,
@@ -39,12 +46,15 @@ export const MessageComposer = ({
   const [content, setContent] = useState(editing?.initialContent ?? '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   // The server limit counts runes (code points), so [...content] instead of content.length: an emoji is 1.
   const length = [...content].length;
   const tooLong = length > maxLength;
+  const hasContent = content.trim() !== '' || attachments.length > 0;
   // Editing goes over HTTP, so it does not need the socket to be open.
-  const canSend = canSendMessages && content.trim() !== '' && !tooLong && !saving && (editing ? true : status === 'open');
+  const canSend = canSendMessages && hasContent && !tooLong && !saving && !uploading && (editing ? true : status === 'open');
 
   // The server rejected a message the client should have blocked: show why and give the text back.
   // Done while rendering (not in an effect) so it does not cascade an extra render.
@@ -59,6 +69,24 @@ export const MessageComposer = ({
   useEffect(() => {
     if (rejected) onRejectedHandled();
   }, [rejected, onRejectedHandled]);
+
+  const handleAttach = async () => {
+    if (!onAttach) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const attachment = await onAttach();
+      if (attachment) setAttachments((prev) => [...prev, attachment]);
+    } catch {
+      setError('No se pudo subir el archivo. Intentá de nuevo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const submit = async () => {
     if (!canSend) return;
@@ -79,9 +107,10 @@ export const MessageComposer = ({
       return;
     }
     // Sent as typed: trim() is only used to decide whether the button is enabled.
-    onSend(content);
+    onSend(content, attachments.length > 0 ? attachments : undefined);
     // The keyboard stays open on purpose: no Keyboard.dismiss().
     setContent('');
+    setAttachments([]);
     setError(null);
   };
 
@@ -95,7 +124,43 @@ export const MessageComposer = ({
           </TouchableOpacity>
         </View>
       )}
+      {attachments.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
+          <View className="flex-row gap-2">
+            {attachments.map((a, i) => (
+              <View key={i} className="relative rounded overflow-hidden" style={{ backgroundColor: '#2f3136' }}>
+                {a.contentType.startsWith('image/') ? (
+                  <Image source={{ uri: a.url }} className="w-20 h-20" resizeMode="cover" />
+                ) : (
+                  <View className="w-28 h-20 items-center justify-center px-2">
+                    <Text className="text-xs text-center text-[#dcddde]" numberOfLines={3}>{a.filename}</Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  onPress={() => removeAttachment(i)}
+                  accessibilityLabel={`Quitar ${a.filename}`}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full items-center justify-center"
+                  style={{ backgroundColor: '#ed4245' }}
+                >
+                  <Text className="text-white font-bold" style={{ fontSize: 9, lineHeight: 10 }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
       <View className="flex-row items-end rounded-lg bg-[#40444b] px-3 py-1">
+        {!editing && onAttach && (
+          <TouchableOpacity
+            className="self-center pr-2 py-2"
+            style={{ opacity: canSendMessages && !uploading ? 1 : 0.4 }}
+            onPress={() => void handleAttach()}
+            disabled={!canSendMessages || uploading}
+            accessibilityLabel="Adjuntar imagen"
+          >
+            <Text className="text-[#99aab5]" style={{ fontSize: 18 }}>📎</Text>
+          </TouchableOpacity>
+        )}
         {/* Enter is a line break on touch keyboards: sending is only through the button. */}
         <TextInput
           className="flex-1 text-sm text-[#dcddde] py-2"

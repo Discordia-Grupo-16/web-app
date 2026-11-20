@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { useHeaderHeight } from 'expo-router/react-navigation';
+import type { MessageAttachment } from '@discordia/api';
 import { useAuth, useChannelMessages } from '@discordia/core';
+import { api } from '@/shared/api';
 import { ConnectionBanner } from './ConnectionBanner';
 import { MessageComposer } from './MessageComposer';
 import { MessageList } from './MessageList';
@@ -26,6 +29,32 @@ export const ChatScreen = ({ channelId, channelName, canSendMessages, canManageM
     rejected, clearRejected,
   } = useChannelMessages(channelId);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Pick an image from the gallery and upload it to community.
+  // React Native FormData cannot use the web File API, so we post the asset URI directly.
+  const handleAttach = async (): Promise<MessageAttachment | null> => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.9,
+    });
+    if (result.canceled || !result.assets?.length) return null;
+    const asset = result.assets[0];
+    const fileName = asset.uri.split('/').pop() ?? 'image.jpg';
+    let type = asset.mimeType ?? '';
+    if (!type) {
+      const match = /\.(\w+)$/.exec(fileName);
+      type = match ? `image/${match[1]}` : 'image/jpeg';
+    }
+    if (type === 'image/jpg') type = 'image/jpeg';
+    const form = new FormData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    form.append('file', { uri: asset.uri, name: fileName, type } as any);
+    const response = await api.post<{ data: MessageAttachment }>('/api/v1/files/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.data;
+  };
 
   // What is being edited is looked up on every render and never kept: the message has to still be in
   // the list, be the user's, and the user has to still be able to write. If SEND_MESSAGES is taken
@@ -66,6 +95,7 @@ export const ChatScreen = ({ channelId, channelName, canSendMessages, canManageM
           status={status}
           maxLength={maxLength}
           onSend={send}
+          onAttach={handleAttach}
           rejected={rejected}
           onRejectedHandled={clearRejected}
           canSendMessages={canSendMessages}

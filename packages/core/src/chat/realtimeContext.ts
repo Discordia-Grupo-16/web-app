@@ -3,6 +3,7 @@ import type { ChatState } from './chatStore';
 import type {
     ConnectionState,
     InvalidateFrame,
+    MessageAttachment,
     MessageCreatedFrame,
     ReadStateUpdatedFrame,
     VoiceParticipantsUpdatedFrame,
@@ -21,7 +22,7 @@ export interface RealtimeContextValue {
     status: RealtimeStatus;
     state: ChatState;
     maxLength: number;
-    send: (channelId: string, content: string) => void;
+    send: (channelId: string, content: string, attachments?: MessageAttachment[]) => void;
     retry: (clientMessageId: string) => void;
     discard: (clientMessageId: string) => void;
     lastRejected: RejectedMessage | null;
