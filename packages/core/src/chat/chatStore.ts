@@ -1,4 +1,4 @@
-import type { MessageAckFrame, MessageCreatedFrame, ErrorFrame, RealtimeErrorCode } from '@discordia/api';
+import type { MessageAckFrame, MessageAttachment, MessageCreatedFrame, ErrorFrame, RealtimeErrorCode } from '@discordia/api';
 
 export interface ChatMessage {
     messageId: string;
@@ -10,6 +10,7 @@ export interface ChatMessage {
     createdAt: string;
     /** Última edición (SCRUM-44), o null/ausente si nunca se editó. */
     editedAt?: string | null;
+    attachments?: MessageAttachment[];
 }
 
 export type PendingStatus = 'sending' | 'acked' | 'failed';
@@ -24,6 +25,7 @@ export interface PendingMessage {
     errorCode?: PendingErrorCode;
     errorMessage?: string;
     correlationId?: string;
+    attachments?: MessageAttachment[];
 }
 
 export interface ChannelHistoryMeta {
@@ -44,7 +46,7 @@ export interface ChatState {
 }
 
 export type ChatAction =
-    | { type: 'sent'; clientMessageId: string; channelId: string; content: string }
+    | { type: 'sent'; clientMessageId: string; channelId: string; content: string; attachments?: MessageAttachment[] }
     | { type: 'resent'; clientMessageId: string }
     | { type: 'ack'; frame: MessageAckFrame }
     | { type: 'created'; frame: MessageCreatedFrame }
@@ -134,10 +136,10 @@ const failPending = (
 export const chatReducer = (state: ChatState, action: ChatAction): ChatState => {
     switch (action.type) {
         case 'sent': {
-            const { clientMessageId, channelId, content } = action;
+            const { clientMessageId, channelId, content, attachments } = action;
             return {
                 ...state,
-                pending: { ...state.pending, [clientMessageId]: { clientMessageId, channelId, content, status: 'sending' } },
+                pending: { ...state.pending, [clientMessageId]: { clientMessageId, channelId, content, status: 'sending', attachments } },
                 pendingOrder: [...state.pendingOrder, clientMessageId],
                 awaitingResponse: [...state.awaitingResponse, clientMessageId],
             };
@@ -156,6 +158,7 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                         channelId: current.channelId,
                         content: current.content,
                         status: 'sending',
+                        attachments: current.attachments,
                     },
                 },
                 awaitingResponse: [...without(state.awaitingResponse, action.clientMessageId), action.clientMessageId],
@@ -188,6 +191,7 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                 content: frame.content,
                 createdAt: frame.createdAt,
                 editedAt: null,
+                attachments: frame.attachments,
             };
             const prev = state.byChannel[frame.channelId] ?? [];
             const appended = [...prev, message];
