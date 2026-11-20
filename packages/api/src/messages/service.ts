@@ -1,7 +1,18 @@
 import type { AxiosInstance } from 'axios';
-import type { MessageDto } from './types';
+import type { MessageAttachment, MessageDto } from './types';
 
 export const createMessagesService = (apiClient: AxiosInstance) => ({
+    /**
+     * Sube un archivo adjunto a través de community y devuelve la URL permanente en Cloudinary.
+     */
+    uploadAttachment: (file: File): Promise<MessageAttachment> => {
+        const form = new FormData();
+        form.append('file', file);
+        return apiClient
+            .post<{ data: MessageAttachment }>('/api/v1/files/upload', form)
+            .then(r => r.data.data);
+    },
+
     /**
      * Cambia el contenido de un mensaje propio. Responde el mensaje vigente: si el contenido ya era
      * ese, `editedAt` no cambia. Un 403 es "no es tuyo" o "no podés escribir acá" y un 404, "ya no existe".

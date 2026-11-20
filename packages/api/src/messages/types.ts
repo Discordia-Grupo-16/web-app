@@ -1,3 +1,9 @@
+export interface MessageAttachment {
+    url: string;
+    filename: string;
+    contentType: string;
+}
+
 /**
  * Un mensaje tal como lo devuelve `chat` por HTTP. Es lo mismo que trae el historial.
  */
@@ -11,4 +17,5 @@ export interface MessageDto {
     /** Última edición, o `null` si nunca se editó. */
     editedAt: string | null;
     clientMessageId: string;
+    attachments?: MessageAttachment[];
 }
