@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import type { MessageAttachment } from '@discordia/api';
 import { MessageEditor } from './MessageEditor';
 
 interface MessageItemProps {
@@ -28,6 +30,7 @@ interface MessageItemProps {
     retryDisabled?: boolean;
     onDiscard?: () => void;
     onSelectAuthor?: () => void;
+    attachments?: MessageAttachment[];
 }
 
 const AVATAR_COLORS = ['#7289da', '#43b581', '#faa61a', '#f47fff', '#f04747', '#00b0f4', '#747f8d', '#e67e22'];
@@ -68,7 +71,10 @@ export const MessageItem = ({
     retryDisabled = false,
     onDiscard,
     onSelectAuthor,
+    attachments,
 }: MessageItemProps) => {
+    const [lightbox, setLightbox] = useState<string | null>(null);
+
     const avatar = (
         <div
             className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white font-bold select-none overflow-hidden"
@@ -155,14 +161,57 @@ export const MessageItem = ({
                     />
                 ) : (
                     /* Content comes from other users: always rendered as text, never as HTML. */
-                    <p className="text-sm whitespace-pre-wrap break-words" style={{ color: '#dcddde' }}>
-                        {content}
-                        {editedAt && (
-                            <span className="ml-1 text-xs" style={{ color: '#72767d' }} title={formatFullDate(editedAt)}>
-                                (editado)
-                            </span>
+                    <>
+                        {content && (
+                            <p className="text-sm whitespace-pre-wrap break-words" style={{ color: '#dcddde' }}>
+                                {content}
+                                {editedAt && (
+                                    <span className="ml-1 text-xs" style={{ color: '#72767d' }} title={formatFullDate(editedAt)}>
+                                        (editado)
+                                    </span>
+                                )}
+                            </p>
                         )}
-                    </p>
+                        {attachments && attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-1">
+                                {attachments.map((a, i) => (
+                                    a.contentType.startsWith('image/') ? (
+                                        <button key={i} type="button" onClick={() => setLightbox(a.url)}>
+                                            <img
+                                                src={a.url}
+                                                alt={a.filename}
+                                                className="max-h-60 max-w-xs rounded object-contain cursor-zoom-in"
+                                            />
+                                        </button>
+                                    ) : (
+                                        <a
+                                            key={i}
+                                            href={a.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 px-3 py-2 rounded text-xs underline"
+                                            style={{ backgroundColor: '#2f3136', color: '#7289da' }}
+                                        >
+                                            {a.filename}
+                                        </a>
+                                    )
+                                ))}
+                            </div>
+                        )}
+                        {lightbox && (
+                            <div
+                                className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+                                onClick={() => setLightbox(null)}
+                            >
+                                <img
+                                    src={lightbox}
+                                    alt=""
+                                    className="max-h-[90vh] max-w-[90vw] rounded object-contain"
+                                    onClick={e => e.stopPropagation()}
+                                />
+                            </div>
+                        )}
+                    </>
                 )}
                 {deleteError && (
                     <p role="alert" className="text-xs mt-1" style={{ color: '#ed4245' }}>{deleteError}</p>
