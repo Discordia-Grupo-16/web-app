@@ -1,4 +1,5 @@
-import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, Image, Linking, Pressable, TouchableOpacity } from 'react-native';
+import type { MessageAttachment } from '@discordia/api';
 
 interface MessageItemProps {
   authorId: string;
@@ -16,6 +17,7 @@ interface MessageItemProps {
   retryDisabled?: boolean;
   onDiscard?: () => void;
   onSelectAuthor?: () => void;
+  attachments?: MessageAttachment[];
 }
 
 const AVATAR_COLORS = ['#7289da', '#43b581', '#faa61a', '#f47fff', '#f04747', '#00b0f4', '#747f8d', '#e67e22'];
@@ -47,6 +49,7 @@ export const MessageItem = ({
   retryDisabled = false,
   onDiscard,
   onSelectAuthor,
+  attachments,
 }: MessageItemProps) => (
   <Pressable
     className="flex-row px-4 py-1"
@@ -82,10 +85,38 @@ export const MessageItem = ({
         {createdAt && <Text className="text-xs text-[#72767d]">{formatTime(createdAt)}</Text>}
       </View>
       {/* Content comes from other users: always rendered as plain text. Not selectable when failed so the long-press reaches the row. */}
-      <Text selectable={!failed} className="text-sm text-[#dcddde]">
-        {content}
-        {editedAt && <Text className="text-xs text-[#72767d]"> (editado)</Text>}
-      </Text>
+      {!!content && (
+        <Text selectable={!failed} className="text-sm text-[#dcddde]">
+          {content}
+          {editedAt && <Text className="text-xs text-[#72767d]"> (editado)</Text>}
+        </Text>
+      )}
+      {attachments && attachments.length > 0 && (
+        <View className="flex-row flex-wrap gap-1 mt-1">
+          {attachments.map((a, i) =>
+            a.contentType.startsWith('image/') ? (
+              <TouchableOpacity key={i} onPress={() => void Linking.openURL(a.url)} accessibilityLabel={a.filename}>
+                <Image
+                  source={{ uri: a.url }}
+                  className="rounded"
+                  style={{ width: 200, height: 150 }}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                key={i}
+                onPress={() => void Linking.openURL(a.url)}
+                accessibilityLabel={a.filename}
+                className="px-3 py-2 rounded"
+                style={{ backgroundColor: '#2f3136' }}
+              >
+                <Text className="text-xs text-[#7289da] underline">{a.filename}</Text>
+              </TouchableOpacity>
+            ),
+          )}
+        </View>
+      )}
       {failed && (
         <View className="flex-row flex-wrap items-center mt-1">
           {errorText && <Text className="text-xs mr-3 text-[#ed4245]">{errorText}</Text>}
