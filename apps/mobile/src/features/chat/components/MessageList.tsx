@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, View, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
-import { authorView, deleteErrorText, ERROR_TEXTS, isRetryable, usePublicProfiles } from '@discordia/core';
+import {
+  authorView,
+  deleteErrorText,
+  ERROR_TEXTS,
+  isRetryable,
+  reactionErrorText,
+  reactionSummary,
+  usePublicProfiles,
+} from '@discordia/core';
 import { MessageItem } from './MessageItem';
+import { ReactionPicker } from './ReactionPicker';
 
 interface MessageListProps {
   channelName: string;
@@ -30,6 +39,10 @@ interface MessageListProps {
   canManageMessages: boolean;
   /** Rejects with the HTTP error if the server refuses. */
   onDelete: (messageId: string) => Promise<void>;
+  /** ADD_REACTIONS: the user may add reactions. Taking back their own never needs it (SCRUM-49). */
+  canAddReactions: boolean;
+  /** Adds (`reacted: true`) or takes back a reaction. Rejects with the HTTP error if the server refuses. */
+  onReact: (messageId: string, emoji: string, reacted: boolean) => Promise<void>;
 }
 
 // There is no tooltip on mobile: the correlationId (for searching the logs) is shown on long-press.
@@ -83,8 +96,22 @@ export const MessageList = ({
   onStartEdit,
   canManageMessages,
   onDelete,
+  canAddReactions,
+  onReact,
 }: MessageListProps) => {
   const listRef = useRef<FlatList<ListItem>>(null);
+  // One picker for the whole list, for the message it was opened on.
+  const [pickerFor, setPickerFor] = useState<string | null>(null);
+  const pickerMessage = pickerFor === null ? undefined : messages.find((m) => m.messageId === pickerFor);
+  // Read from the props on every render, never kept: if ADD_REACTIONS is taken away, or the message
+  // is deleted, with the picker open, it closes. Set while rendering to avoid an extra render.
+  if (pickerFor !== null && (!canAddReactions || pickerMessage === undefined)) setPickerFor(null);
+
+  const react = (messageId: string, emoji: string, reacted: boolean) => {
+    onReact(messageId, emoji, reacted).catch((err: unknown) =>
+      Alert.alert('No se pudo reaccionar', reactionErrorText(err)),
+    );
+  };
   const pendingCountRef = useRef(pending.length);
   const router = useRouter();
 
@@ -142,79 +169,92 @@ export const MessageList = ({
   }
 
   return (
-    <FlatList
-      ref={listRef}
-      className="flex-1"
-      inverted
-      data={data}
-      // clientMessageId is unique per channel and keeps the row mounted when a pending message is confirmed.
-      keyExtractor={(item) => item.message.clientMessageId}
-      keyboardShouldPersistTaps="handled"
-      // In an inverted list, onEndReached fires when scrolling to the visual top (oldest messages).
-      onEndReached={hasMore ? onLoadMore : undefined}
-      onEndReachedThreshold={0.2}
-      ListFooterComponent={
-        loadingMore ? (
-          <ActivityIndicator size="small" color="#7289da" style={{ paddingVertical: 12 }} />
-        ) : loadMoreError ? (
-          <View className="items-center py-2 gap-1">
-            <Text className="text-xs text-center text-[#ed4245]">No se pudo cargar más mensajes.</Text>
-            <Text className="text-xs text-[#7289da]" onPress={onRetryLoadMore}>Reintentar</Text>
-          </View>
-        ) : null
-      }
-      renderItem={({ item }) => {
-        if (item.kind === 'confirmed') {
-          const { authorId } = item.message;
-          const author = authorView(authorId, currentUser, profiles.get(authorId));
-          // Read from the props on every render, never kept: if SEND_MESSAGES is taken away with the
-          // screen open the menu stops existing on the next render.
-          const isOwn = currentUser !== null && authorId === currentUser.id;
-          const canEdit = canEditOwn && isOwn;
-          // The own message can always be deleted, even without SEND_MESSAGES.
-          const canDelete = isOwn || canManageMessages;
-          const messageId = item.message.messageId;
+    <>
+      <FlatList
+        ref={listRef}
+        className="flex-1"
+        inverted
+        data={data}
+        // clientMessageId is unique per channel and keeps the row mounted when a pending message is confirmed.
+        keyExtractor={(item) => item.message.clientMessageId}
+        keyboardShouldPersistTaps="handled"
+        // In an inverted list, onEndReached fires when scrolling to the visual top (oldest messages).
+        onEndReached={hasMore ? onLoadMore : undefined}
+        onEndReachedThreshold={0.2}
+        ListFooterComponent={
+          loadingMore ? (
+            <ActivityIndicator size="small" color="#7289da" style={{ paddingVertical: 12 }} />
+          ) : loadMoreError ? (
+            <View className="items-center py-2 gap-1">
+              <Text className="text-xs text-center text-[#ed4245]">No se pudo cargar más mensajes.</Text>
+              <Text className="text-xs text-[#7289da]" onPress={onRetryLoadMore}>Reintentar</Text>
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => {
+          if (item.kind === 'confirmed') {
+            const { authorId } = item.message;
+            const author = authorView(authorId, currentUser, profiles.get(authorId));
+            // Read from the props on every render, never kept: if SEND_MESSAGES is taken away with the
+            // screen open the menu stops existing on the next render.
+            const isOwn = currentUser !== null && authorId === currentUser.id;
+            const canEdit = canEditOwn && isOwn;
+            // The own message can always be deleted, even without SEND_MESSAGES.
+            const canDelete = isOwn || canManageMessages;
+            const messageId = item.message.messageId;
+            return (
+              <MessageItem
+                authorId={authorId}
+                authorName={author.name}
+                authorAvatarUrl={author.avatarUrl}
+                content={item.message.content}
+                createdAt={item.message.createdAt}
+                editedAt={item.message.editedAt}
+                onLongPress={
+                  canEdit || canDelete
+                    ? () =>
+                        showMessageMenu({
+                          onEdit: canEdit ? () => onStartEdit(messageId) : undefined,
+                          onDelete: canDelete ? () => onDelete(messageId) : undefined,
+                        })
+                    : undefined
+                }
+                onSelectAuthor={() => router.push({ pathname: '/user/[userId]', params: { userId: authorId } })}
+                reactions={reactionSummary(item.message.reactions, currentUser?.id)}
+                canAddReactions={canAddReactions}
+                onReact={(emoji, reacted) => react(messageId, emoji, reacted)}
+                onOpenReactionPicker={() => setPickerFor(messageId)}
+              />
+            );
+          }
           return (
             <MessageItem
-              authorId={authorId}
-              authorName={author.name}
-              authorAvatarUrl={author.avatarUrl}
+              authorId={currentUser?.id ?? ''}
+              authorName={currentUser?.name || 'Vos'}
+              authorAvatarUrl={currentUser?.avatarUrl ?? null}
               content={item.message.content}
-              createdAt={item.message.createdAt}
-              editedAt={item.message.editedAt}
+              sending={item.message.status === 'sending'}
+              failed={item.message.status === 'failed'}
+              errorText={item.message.errorCode && ERROR_TEXTS[item.message.errorCode]}
               onLongPress={
-                canEdit || canDelete
-                  ? () =>
-                      showMessageMenu({
-                        onEdit: canEdit ? () => onStartEdit(messageId) : undefined,
-                        onDelete: canDelete ? () => onDelete(messageId) : undefined,
-                      })
+                item.message.status === 'failed'
+                  ? () => showErrorDetails(item.message.errorCode, item.message.correlationId)
                   : undefined
               }
-              onSelectAuthor={() => router.push({ pathname: '/user/[userId]', params: { userId: authorId } })}
+              onRetry={isRetryable(item.message.errorCode) ? () => onRetry(item.message.clientMessageId) : undefined}
+              retryDisabled={!canRetry}
+              onDiscard={() => onDiscard(item.message.clientMessageId)}
             />
           );
-        }
-        return (
-          <MessageItem
-            authorId={currentUser?.id ?? ''}
-            authorName={currentUser?.name || 'Vos'}
-            authorAvatarUrl={currentUser?.avatarUrl ?? null}
-            content={item.message.content}
-            sending={item.message.status === 'sending'}
-            failed={item.message.status === 'failed'}
-            errorText={item.message.errorCode && ERROR_TEXTS[item.message.errorCode]}
-            onLongPress={
-              item.message.status === 'failed'
-                ? () => showErrorDetails(item.message.errorCode, item.message.correlationId)
-                : undefined
-            }
-            onRetry={isRetryable(item.message.errorCode) ? () => onRetry(item.message.clientMessageId) : undefined}
-            retryDisabled={!canRetry}
-            onDiscard={() => onDiscard(item.message.clientMessageId)}
-          />
-        );
-      }}
-    />
+        }}
+      />
+      {pickerMessage && canAddReactions && (
+        <ReactionPicker
+          mine={new Set(reactionSummary(pickerMessage.reactions, currentUser?.id).filter((c) => c.mine).map((c) => c.emoji))}
+          onPick={(emoji, reacted) => react(pickerMessage.messageId, emoji, reacted)}
+          onClose={() => setPickerFor(null)}
+        />
+      )}
+    </>
   );
 };

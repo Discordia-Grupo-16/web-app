@@ -1,4 +1,8 @@
+import { useMemo } from 'react';
+import type { ReactionChip } from '@discordia/core';
 import { MessageEditor } from './MessageEditor';
+import { ReactionBar } from './ReactionBar';
+import { ReactionPicker } from './ReactionPicker';
 
 interface MessageItemProps {
     authorId: string;
@@ -20,6 +24,14 @@ interface MessageItemProps {
     onRequestDelete?: () => void;
     /** Why the last delete of this message failed. */
     deleteError?: string | null;
+    /** The reactions of the message (SCRUM-49), already summarised for the user. */
+    reactions?: ReactionChip[];
+    /** ADD_REACTIONS: shows "Reaccionar" and lets the user join others' chips. Their own never needs it. */
+    canAddReactions?: boolean;
+    /** Adds (`true`) or takes back the user's reaction. Absent on a message still being sent. */
+    onReact?: (emoji: string, reacted: boolean) => void;
+    /** Why the last reaction to this message failed. */
+    reactionError?: string | null;
     sending?: boolean;
     failed?: boolean;
     errorText?: string;
@@ -29,6 +41,8 @@ interface MessageItemProps {
     onDiscard?: () => void;
     onSelectAuthor?: () => void;
 }
+
+const NO_REACTIONS: ReactionChip[] = [];
 
 const AVATAR_COLORS = ['#7289da', '#43b581', '#faa61a', '#f47fff', '#f04747', '#00b0f4', '#747f8d', '#e67e22'];
 
@@ -60,6 +74,10 @@ export const MessageItem = ({
     canDelete = false,
     onRequestDelete,
     deleteError = null,
+    reactions = NO_REACTIONS,
+    canAddReactions = false,
+    onReact,
+    reactionError = null,
     sending = false,
     failed = false,
     errorText,
@@ -69,6 +87,12 @@ export const MessageItem = ({
     onDiscard,
     onSelectAuthor,
 }: MessageItemProps) => {
+    const mineEmojis = useMemo(
+        () => new Set(reactions.filter((chip) => chip.mine).map((chip) => chip.emoji)),
+        [reactions],
+    );
+    const canPick = canAddReactions && onReact !== undefined;
+
     const avatar = (
         <div
             className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white font-bold select-none overflow-hidden"
@@ -119,8 +143,9 @@ export const MessageItem = ({
                     {createdAt && (
                         <span className="text-xs" style={{ color: '#72767d' }}>{formatTime(createdAt)}</span>
                     )}
-                    {!editing && ((canEdit && onStartEdit) || (canDelete && onRequestDelete)) && (
+                    {!editing && (canPick || (canEdit && onStartEdit) || (canDelete && onRequestDelete)) && (
                         <span className="ml-auto flex gap-3">
+                            {canPick && <ReactionPicker mine={mineEmojis} onPick={onReact} />}
                             {canEdit && onStartEdit && (
                                 <button
                                     type="button"
@@ -163,6 +188,12 @@ export const MessageItem = ({
                             </span>
                         )}
                     </p>
+                )}
+                {onReact && (
+                    <ReactionBar chips={reactions} canAddReactions={canAddReactions} onToggle={onReact} />
+                )}
+                {reactionError && (
+                    <p role="alert" className="text-xs mt-1" style={{ color: '#ed4245' }}>{reactionError}</p>
                 )}
                 {deleteError && (
                     <p role="alert" className="text-xs mt-1" style={{ color: '#ed4245' }}>{deleteError}</p>

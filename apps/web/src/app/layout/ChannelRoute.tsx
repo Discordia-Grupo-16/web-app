@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
-import { MANAGE_MESSAGES, NONE, SEND_MESSAGES, canJoinVoice, hasPermission, useMarkChannelRead } from '@discordia/core';
+import { ADD_REACTIONS, MANAGE_MESSAGES, NONE, SEND_MESSAGES, canJoinVoice, hasPermission, useMarkChannelRead } from '@discordia/core';
 import { ChatPanel } from '@/features/chat';
 import { useCurrentServer } from '@/features/servers';
 import { VoiceChannelPanel } from '@/features/voice';
@@ -60,6 +60,7 @@ export const ChannelRoute = () => {
                     topic={channel.topic}
                     canSendMessages={hasPermission(server?.my_permissions ?? NONE, SEND_MESSAGES)}
                     canManageMessages={hasPermission(server?.my_permissions ?? NONE, MANAGE_MESSAGES)}
+                    canAddReactions={hasPermission(server?.my_permissions ?? NONE, ADD_REACTIONS)}
                 />
             )}
         </div>
