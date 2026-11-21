@@ -11,4 +11,24 @@ export interface MessageDto {
     /** Última edición, o `null` si nunca se editó. */
     editedAt: string | null;
     clientMessageId: string;
+    /** One entry per emoji, in the order each emoji was first added (SCRUM-49). Never null. */
+    reactions: ReactionDto[];
+    /** Goes up by one with every change of `reactions`, and is 0 if it never had any. */
+    reactionsVersion: number;
+}
+
+/** An emoji and who reacted with it (SCRUM-49). The count is `userIds.length`. */
+export interface ReactionDto {
+    emoji: string;
+    userIds: string[];
+}
+
+/**
+ * The reactions of a message after adding or removing one (SCRUM-49). It is the same data the
+ * `message.reactions` frame carries, so the client that reacted applies it without waiting for it.
+ */
+export interface MessageReactionsDto {
+    messageId: string;
+    reactions: ReactionDto[];
+    reactionsVersion: number;
 }
