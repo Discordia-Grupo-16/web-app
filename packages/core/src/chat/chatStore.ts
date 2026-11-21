@@ -1,4 +1,4 @@
-import type { MessageAckFrame, MessageCreatedFrame, ErrorFrame, RealtimeErrorCode } from '@discordia/api';
+import type { MessageAckFrame, MessageCreatedFrame, ErrorFrame, ReactionDto, RealtimeErrorCode } from '@discordia/api';
 
 export interface ChatMessage {
     messageId: string;
@@ -10,6 +10,10 @@ export interface ChatMessage {
     createdAt: string;
     /** Última edición (SCRUM-44), o null/ausente si nunca se editó. */
     editedAt?: string | null;
+    /** Reactions (SCRUM-49), one entry per emoji. Absent in messages built before they existed. */
+    reactions?: ReactionDto[];
+    /** Orders the changes of `reactions`: absent counts as 0, the version of a message nobody reacted to. */
+    reactionsVersion?: number;
 }
 
 export type PendingStatus = 'sending' | 'acked' | 'failed';
@@ -50,6 +54,7 @@ export type ChatAction =
     | { type: 'created'; frame: MessageCreatedFrame }
     | { type: 'updated'; channelId: string; messageId: string; content: string; editedAt: string }
     | { type: 'deleted'; channelId: string; messageId: string }
+    | { type: 'reactions'; channelId: string; messageId: string; reactions: ReactionDto[]; reactionsVersion: number }
     | { type: 'lastPageRefreshed'; channelId: string; messages: ChatMessage[] }
     | { type: 'error'; frame: ErrorFrame }
     | { type: 'timeout'; clientMessageId: string }
@@ -103,6 +108,28 @@ const withEdits = (
         if (index === -1 || !isNewerEdit(edit.editedAt, next[index].editedAt)) continue;
         if (next === list) next = [...list];
         next[index] = { ...next[index], content: edit.content, editedAt: edit.editedAt };
+    }
+    return next;
+};
+
+interface ReactionsUpdate {
+    messageId: string;
+    reactions?: ReactionDto[];
+    reactionsVersion?: number;
+}
+
+// Reactions are applied only with a greater version, never by arrival order: the answer to the PUT,
+// the frame and a page of history can cross, and two changes in the same millisecond would tie on a
+// date. An update without a version (a server from before SCRUM-49) leaves the message as is. Returns
+// the same array when nothing changed, like withEdits.
+const withReactions = (list: ChatMessage[], updates: ReadonlyArray<ReactionsUpdate>): ChatMessage[] => {
+    let next = list;
+    for (const update of updates) {
+        if (typeof update.reactionsVersion !== 'number' || !Array.isArray(update.reactions)) continue;
+        const index = next.findIndex((m) => m.messageId === update.messageId);
+        if (index === -1 || update.reactionsVersion <= (next[index].reactionsVersion ?? 0)) continue;
+        if (next === list) next = [...list];
+        next[index] = { ...next[index], reactions: update.reactions, reactionsVersion: update.reactionsVersion };
     }
     return next;
 };
@@ -188,6 +215,8 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
                 content: frame.content,
                 createdAt: frame.createdAt,
                 editedAt: null,
+                reactions: [],
+                reactionsVersion: 0,
             };
             const prev = state.byChannel[frame.channelId] ?? [];
             const appended = [...prev, message];
@@ -220,6 +249,14 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             return { ...state, byChannel: { ...state.byChannel, [action.channelId]: next } };
         }
 
+        case 'reactions': {
+            const list = state.byChannel[action.channelId];
+            if (!list) return state;
+            const next = withReactions(list, [action]);
+            if (next === list) return state;
+            return { ...state, byChannel: { ...state.byChannel, [action.channelId]: next } };
+        }
+
         case 'deleted': {
             const list = state.byChannel[action.channelId];
             if (!list) return state;
@@ -238,7 +275,8 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             const edits = action.messages.flatMap((m) =>
                 m.editedAt ? [{ messageId: m.messageId, content: m.content, editedAt: m.editedAt }] : [],
             );
-            const edited = withEdits(list, edits);
+            // Its reactions too: the frames that went by while offline are lost.
+            const edited = withReactions(withEdits(list, edits), action.messages);
             // And it tells which ones were deleted: a stored message that falls inside the stretch
             // the page covers but is not in it was deleted meanwhile. One newer than the page may have
             // arrived after the request, so it is kept.
@@ -291,7 +329,9 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             const newMsgs = messages.filter((m) => !state.seenMessageIds[m.messageId]);
             const seen = { ...state.seenMessageIds };
             newMsgs.forEach((m) => { seen[m.messageId] = true; });
-            const allMerged = [...newMsgs, ...existing];
+            // The messages already held stay, but take the page's reactions if they are newer: one that
+            // arrived through message.created while the page was loading starts at version 0.
+            const allMerged = withReactions([...newMsgs, ...existing], messages);
             const merged = allMerged.slice(-MAX_MESSAGES_PER_CHANNEL);
             const dropped = allMerged.length - merged.length;
             for (let i = 0; i < dropped; i++) {
@@ -342,7 +382,7 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             const seen = { ...state.seenMessageIds };
             newMsgs.forEach((m) => { seen[m.messageId] = true; });
             // Older messages prepended; no slice so newest messages are never discarded from seenMessageIds.
-            const merged = [...newMsgs, ...existing];
+            const merged = withReactions([...newMsgs, ...existing], messages);
             return {
                 ...state,
                 byChannel: { ...state.byChannel, [channelId]: merged },
@@ -367,10 +407,16 @@ export const chatReducer = (state: ChatState, action: ChatAction): ChatState => 
             const { channelId, messages } = action;
             const existing = state.byChannel[channelId] ?? [];
             const newMsgs = messages.filter((m) => !state.seenMessageIds[m.messageId]);
-            if (newMsgs.length === 0) return state;
+            if (newMsgs.length === 0) {
+                // Nothing new, but a message that came in through message.created may have reactions
+                // whose frame was lost with the socket.
+                const reacted = withReactions(existing, messages);
+                if (reacted === existing) return state;
+                return { ...state, byChannel: { ...state.byChannel, [channelId]: reacted } };
+            }
             const seen = { ...state.seenMessageIds };
             newMsgs.forEach((m) => { seen[m.messageId] = true; });
-            const sorted = [...existing, ...newMsgs].sort((a, b) => {
+            const sorted = withReactions([...existing, ...newMsgs], messages).sort((a, b) => {
                 const diff = Date.parse(a.createdAt) - Date.parse(b.createdAt);
                 return diff !== 0 ? diff : a.messageId < b.messageId ? -1 : 1;
             });

@@ -36,6 +36,14 @@ export interface RealtimeContextValue {
      * when it is deleted and already out of the list; rejects with the HTTP error (`deleteErrorText`).
      */
     deleteMessage: (channelId: string, messageId: string) => Promise<void>;
+    /**
+     * Adds (`reacted: true`) or removes the user's reaction with that emoji (SCRUM-49). The caller
+     * decides from what the user sees: the chip that is already theirs removes, any other adds.
+     * Resolves when the server answered and the new state is already applied, without waiting for
+     * the frame; rejects with the HTTP error (`reactionErrorText`). A second call for the same
+     * message and emoji while the first is in flight gets the same promise and sends nothing.
+     */
+    setReaction: (channelId: string, messageId: string, emoji: string, reacted: boolean) => Promise<void>;
     loadHistory: (channelId: string) => void;
     retryHistory: (channelId: string) => void;
     loadMoreHistory: (channelId: string, beforeId: string) => void;

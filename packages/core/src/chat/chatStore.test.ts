@@ -533,3 +533,103 @@ describe('chatReducer — borrado de mensajes', () => {
         });
     });
 });
+
+describe('chatReducer — reactions (SCRUM-49)', () => {
+    const thumbsUp = (...userIds: string[]) => [{ emoji: '👍', userIds }];
+    const reactions = (
+        messageId: string,
+        reactionsVersion: number,
+        list = thumbsUp('u1'),
+        channelId = 'ch1',
+    ): ChatAction => ({ type: 'reactions', channelId, messageId, reactions: list, reactionsVersion });
+    const withVersion = (message: ChatMessage, reactionsVersion: number, list = thumbsUp('u1')): ChatMessage => ({
+        ...message,
+        reactions: list,
+        reactionsVersion,
+    });
+    const loaded = () => run([historyLoaded([histMsg('m1'), histMsg('m2')])]);
+
+    it('applies a frame to that message and leaves the others alone', () => {
+        const s = run([reactions('m1', 1)], loaded());
+
+        expect(s.byChannel.ch1[0]).toMatchObject({ reactions: thumbsUp('u1'), reactionsVersion: 1 });
+        expect(s.byChannel.ch1[1].reactions).toBeUndefined();
+    });
+
+    it('a message without a version counts as 0, so the first change applies', () => {
+        // Messages from before SCRUM-49, or built by hand in the apps, have no reactionsVersion.
+        const s = run([reactions('m1', 1, [])], loaded());
+
+        expect(s.byChannel.ch1[0].reactionsVersion).toBe(1);
+    });
+
+    it.each([
+        ['the same version (a repeated frame, or the frame after the PUT answer)', 2],
+        ['an older version (crossed frames)', 1],
+    ])('ignores %s', (_case, version) => {
+        const base = run([reactions('m1', 2, thumbsUp('u1', 'u2'))], loaded());
+
+        const s = run([reactions('m1', version, thumbsUp('u1'))], base);
+
+        expect(s).toBe(base);
+    });
+
+    it('ignores a frame of a message or a channel that is not loaded: the history brings it when opened', () => {
+        const base = loaded();
+
+        expect(run([reactions('unknown', 1)], base)).toBe(base);
+        expect(run([reactions('m1', 1, thumbsUp('u1'), 'other-channel')], base)).toBe(base);
+    });
+
+    it('a message that arrives as new starts with no reactions at version 0', () => {
+        const s = run([created('m9')]);
+
+        expect(s.byChannel.ch1[0]).toMatchObject({ reactions: [], reactionsVersion: 0 });
+    });
+
+    it('a history page gives a message already held its newer reactions', () => {
+        // m9 came in through message.created (version 0) while the first page was on its way.
+        const base = run([created('m9')]);
+
+        const s = run([historyLoaded([withVersion(histMsg('m9'), 3)])], base);
+
+        expect(s.byChannel.ch1).toHaveLength(1);
+        expect(s.byChannel.ch1[0]).toMatchObject({ reactions: thumbsUp('u1'), reactionsVersion: 3 });
+    });
+
+    it('a history page with an older version does not undo a newer frame', () => {
+        const base = run([reactions('m1', 5, thumbsUp('u1', 'u2'))], loaded());
+
+        const s = run([moreHistoryLoaded([withVersion(histMsg('m1'), 4)])], base);
+
+        expect(s.byChannel.ch1[0]).toMatchObject({ reactions: thumbsUp('u1', 'u2'), reactionsVersion: 5 });
+    });
+
+    it('lastPageRefreshed brings the reactions missed while offline', () => {
+        const s = run(
+            [{ type: 'lastPageRefreshed', channelId: 'ch1', messages: [withVersion(histMsg('m1'), 2), histMsg('m2')] }],
+            loaded(),
+        );
+
+        expect(s.byChannel.ch1[0]).toMatchObject({ reactions: thumbsUp('u1'), reactionsVersion: 2 });
+    });
+
+    it('lastPageRefreshed without anything newer leaves the state as it was', () => {
+        const base = run([reactions('m1', 2)], loaded());
+
+        const s = run(
+            [{ type: 'lastPageRefreshed', channelId: 'ch1', messages: [withVersion(histMsg('m1'), 2), histMsg('m2')] }],
+            base,
+        );
+
+        expect(s).toBe(base);
+    });
+
+    it('a resync with nothing new still applies the newer reactions of what it brings', () => {
+        const base = run([created('m9')]);
+
+        const s = run([{ type: 'resyncLoaded', channelId: 'ch1', messages: [withVersion(histMsg('m9'), 1)] }], base);
+
+        expect(s.byChannel.ch1[0].reactionsVersion).toBe(1);
+    });
+});
