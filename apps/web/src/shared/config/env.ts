@@ -7,4 +7,7 @@ export const API_TIMEOUT_MS: number | undefined = import.meta.env.VITE_API_TIMEO
     ? Number(import.meta.env.VITE_API_TIMEOUT_MS)
     : undefined;
 
+// Public by design (it ships in the bundle). Empty means the Google button is not shown.
+export const GOOGLE_CLIENT_ID: string = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+
 export const WS_URL: string = import.meta.env.VITE_WS_URL ?? '';

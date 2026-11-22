@@ -2,6 +2,7 @@ import type { AxiosInstance } from 'axios';
 import type {
     AuthApiResponse,
     AuthResponse,
+    AuthResult,
     LoginCredentials,
     LoginResult,
     MfaAuthResponse,
@@ -14,21 +15,37 @@ import type {
 export const isMfaChallenge = (result: LoginResult): result is MfaChallenge =>
     'mfaRequired' in result && result.mfaRequired === true;
 
-export const createAuthService = (apiClient: AxiosInstance) => ({
+const toLoginResult = (body: AuthResult | MfaChallenge): LoginResult => {
+    if ('mfaRequired' in body) {
+        return { mfaRequired: true, mfaToken: body.mfaToken };
+    }
+    return {
+        token: body.accessToken,
+        user: body.user,
+        refreshToken: body.refreshToken,
+    };
+};
+
+export const createAuthService =(apiClient: AxiosInstance) => ({
     async login(credentials: LoginCredentials): Promise<LoginResult> {
         const { data } = await apiClient.post<AuthApiResponse | { data: MfaChallenge }>(
             '/api/v1/sessions',
             credentials,
         );
-        const body = data.data;
-        if ('mfaRequired' in body) {
-            return { mfaRequired: true, mfaToken: body.mfaToken };
-        }
-        return {
-            token: body.accessToken,
-            user: body.user,
-            refreshToken: body.refreshToken,
-        };
+        return toLoginResult(data.data);
+    },
+
+    /**
+     * Exchanges the Google ID token (the `credential` of Google Identity Services) for a session.
+     * Same answer as `login`: the session, or the 2FA challenge when the account has it on.
+     * Rejects with a 401 for an invalid token and a 503 when Google cannot be reached.
+     */
+    async loginWithGoogle(idToken: string): Promise<LoginResult> {
+        const { data } = await apiClient.post<AuthApiResponse | { data: MfaChallenge }>(
+            '/api/v1/sessions/google',
+            { idToken },
+        );
+        return toLoginResult(data.data);
     },
 
     async verifyMfa(payload: MfaLoginPayload): Promise<MfaAuthResponse> {

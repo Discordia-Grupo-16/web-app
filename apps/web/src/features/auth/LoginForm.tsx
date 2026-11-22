@@ -6,6 +6,7 @@ import { getApiErrorMessage, isMfaChallenge } from "@discordia/api";
 import { authService } from '@/shared/api';
 import { useReturnTo } from './returnTo';
 import { MfaStep, RecoveryNotice } from './MfaStep';
+import { GoogleSignIn } from './GoogleSignIn';
 
 interface LoginFormProps {
     onSwitch: () => void
@@ -245,6 +246,10 @@ export const LoginForm = ({ onSwitch, onForgotPassword, notice, noticeTone, onSu
                         o
                     </span>
                     <div className="flex-1 h-px" style={{ background: 'rgba(153,170,181,0.2)' }} />
+                </div>
+
+                <div className="mb-5">
+                    <GoogleSignIn onStart={() => setError(null)} onError={setError} />
                 </div>
 
                 {/* Register prompt */}

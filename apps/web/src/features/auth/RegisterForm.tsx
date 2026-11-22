@@ -5,13 +5,15 @@ import { useAuth, validateRegisterInput } from "@discordia/core";
 import { getApiErrorMessage } from "@discordia/api";
 import { authService } from '@/shared/api';
 import { useReturnTo } from './returnTo';
+import { GoogleSignIn } from './GoogleSignIn';
+import { MfaStep } from './MfaStep';
 
 export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
     const [form, setForm] = useState({ email: '', name: '', password: '' })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const { signIn } = useAuth()
+    const { signIn, pendingMfa } = useAuth()
     const navigate = useNavigate()
     const returnTo = useReturnTo()
 
@@ -40,6 +42,11 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
         } finally {
             setLoading(false)
         }
+    }
+
+    // Google found an existing account with 2FA: the same second step as in the login.
+    if (pendingMfa) {
+        return <MfaStep onVerified={() => navigate(returnTo, { replace: true })} />
     }
 
     const inputStyle = {
@@ -156,6 +163,10 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
                     <div className="flex-1 h-px" style={{ background: 'rgba(153,170,181,0.2)' }} />
                     <span className="text-xs" style={{ color: '#99aab5', fontFamily: 'Open Sans, sans-serif' }}>o</span>
                     <div className="flex-1 h-px" style={{ background: 'rgba(153,170,181,0.2)' }} />
+                </div>
+
+                <div className="mb-5">
+                    <GoogleSignIn onStart={() => setError(null)} onError={setError} />
                 </div>
 
                 <p
