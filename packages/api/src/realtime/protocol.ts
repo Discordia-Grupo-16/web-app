@@ -5,6 +5,7 @@ export interface MessageSendFrame {
     channelId: string;
     content: string;
     clientMessageId: string;
+    authorName?: string;
 }
 
 export interface MessageAckFrame {
