@@ -13,7 +13,7 @@ export interface ChannelMessages {
     hasMore: boolean;
     loadingMore: boolean;
     loadMoreError: boolean;
-    send: (content: string) => void;
+    send: (content: string, authorName?: string) => void;
     retry: (clientMessageId: string) => void;
     discard: (clientMessageId: string) => void;
     loadMore: () => void;
@@ -52,7 +52,7 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
         [state.pendingOrder, state.pending, channelId],
     );
 
-    const sendToChannel = useCallback((content: string) => send(channelId, content), [send, channelId]);
+    const sendToChannel = useCallback((content: string, authorName?: string) => send(channelId, content, authorName), [send, channelId]);
 
     const loadMore = useCallback(() => {
         const firstMessage = messages[0];

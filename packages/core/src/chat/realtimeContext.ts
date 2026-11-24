@@ -21,7 +21,7 @@ export interface RealtimeContextValue {
     status: RealtimeStatus;
     state: ChatState;
     maxLength: number;
-    send: (channelId: string, content: string) => void;
+    send: (channelId: string, content: string, authorName?: string) => void;
     retry: (clientMessageId: string) => void;
     discard: (clientMessageId: string) => void;
     lastRejected: RejectedMessage | null;
