@@ -54,7 +54,7 @@ export const ChatPanel = ({ channelId, channelName, topic, canSendMessages, canM
                 channelName={channelName}
                 status={status}
                 maxLength={maxLength}
-                onSend={send}
+                onSend={(content) => send(content, user?.name ?? '')}
                 rejected={rejected}
                 onRejectedHandled={clearRejected}
                 canSendMessages={canSendMessages}

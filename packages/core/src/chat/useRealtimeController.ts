@@ -286,10 +286,10 @@ export const useRealtimeController = ({
     }, [client]);
 
     const transmit = useCallback(
-        (clientMessageId: string, channelId: string, content: string) => {
+        (clientMessageId: string, channelId: string, content: string, authorName?: string) => {
             try {
                 if (!client) throw new Error('realtime disabled');
-                client.sendMessage({ channelId, content, clientMessageId });
+                client.sendMessage({ channelId, content, clientMessageId, authorName });
             } catch {
                 // sendMessage throws when the socket is not open (a race with the disabled send button).
                 dispatch({ type: 'sendFailed', clientMessageId });
@@ -308,10 +308,10 @@ export const useRealtimeController = ({
     );
 
     const send = useCallback(
-        (channelId: string, content: string) => {
+        (channelId: string, content: string, authorName?: string) => {
             const clientMessageId = newClientMessageId();
             dispatch({ type: 'sent', clientMessageId, channelId, content });
-            transmit(clientMessageId, channelId, content);
+            transmit(clientMessageId, channelId, content, authorName);
         },
         [transmit, newClientMessageId],
     );

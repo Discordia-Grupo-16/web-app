@@ -1,6 +1,18 @@
 import type { AxiosInstance } from 'axios';
 import type { MessageDto } from './types';
 
+export interface SearchMessagesParams {
+    q?: string;
+    author?: string;
+    limit?: number;
+    before?: string;
+}
+
+export interface SearchMessagesResult {
+    data: MessageDto[];
+    hasMore: boolean;
+}
+
 export const createMessagesService = (apiClient: AxiosInstance) => ({
     /**
      * Cambia el contenido de un mensaje propio. Responde el mensaje vigente: si el contenido ya era
@@ -17,6 +29,16 @@ export const createMessagesService = (apiClient: AxiosInstance) => ({
      */
     deleteMessage: (channelId: string, messageId: string): Promise<void> =>
         apiClient.delete(`/api/v1/channels/${channelId}/messages/${messageId}`).then(() => undefined),
+
+    /**
+     * Busca mensajes en los canales de texto del servidor a los que el usuario tiene acceso.
+     * Requiere al menos `q` o `authorId`. Resultados más recientes primero.
+     * Pagina con `before` (messageId cursor) y `limit` (máx 100, default 50).
+     */
+    searchMessages: (serverId: string, params: SearchMessagesParams): Promise<SearchMessagesResult> =>
+        apiClient
+            .get<SearchMessagesResult>(`/api/v1/servers/${serverId}/messages/search`, { params })
+            .then(r => r.data),
 });
 
 export type MessagesService = ReturnType<typeof createMessagesService>;
