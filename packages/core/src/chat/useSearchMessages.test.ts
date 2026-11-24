@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { type Mock, describe, expect, it, vi } from 'vitest';
 import type { MessageDto } from '@discordia/api';
 import { type SearchMessagesService, useSearchMessages } from './useSearchMessages';
 
@@ -28,11 +28,11 @@ const msg = (id: string): MessageDto => ({
     clientMessageId: `client-${id}`,
 });
 
-function fakeService(overrides: Partial<SearchMessagesService> = {}): SearchMessagesService {
+function fakeService(overrides: { searchMessages?: Mock } = {}): SearchMessagesService {
     return {
         searchMessages: vi.fn().mockResolvedValue({ data: [], hasMore: false }),
         ...overrides,
-    };
+    } as unknown as SearchMessagesService;
 }
 
 describe('useSearchMessages', () => {
