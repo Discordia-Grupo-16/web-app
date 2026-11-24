@@ -43,3 +43,4 @@ export * from './unread/unreadContext';
 export * from './unread/useUnreadController';
 export * from './unread/UnreadProvider';
 export * from './unread/useUnread';
+export * from './chat/useSearchMessages';

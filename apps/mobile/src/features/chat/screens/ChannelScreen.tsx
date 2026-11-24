@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, ActivityIndicator, Alert } from 'react-native';
+import { View, ActivityIndicator, Alert, Pressable, Text } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { NONE, MANAGE_MESSAGES, SEND_MESSAGES, hasPermission, useMarkChannelRead } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import { isGoneError } from '@discordia/api';
 import { ChatScreen } from '../components/ChatScreen';
+import { SearchScreen } from '../components/SearchScreen';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 import { useScreenVisible } from '@/shared/hooks/useScreenVisible';
 
@@ -16,11 +17,25 @@ export function ChannelScreen() {
   // null while unknown. The chat is not drawn until it is: a composer that appears usable and
   // then blocks itself looks broken, and the web does not do that either.
   const [permissions, setPermissions] = useState<number | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const goneRef = useRef(false);
 
   useEffect(() => {
-    if (channelName !== null) navigation.setOptions({ title: `#${channelName}` });
-  }, [channelName, navigation]);
+    if (channelName !== null) {
+      navigation.setOptions({
+        title: `#${channelName}`,
+        headerRight: () => (
+          <Pressable
+            onPress={() => setSearchOpen(o => !o)}
+            style={{ marginRight: 8, padding: 4 }}
+            accessibilityLabel={searchOpen ? 'Cerrar búsqueda' : 'Buscar mensajes'}
+          >
+            <Text style={{ color: '#b9bbbe', fontSize: 18 }}>{searchOpen ? '✕' : '🔍'}</Text>
+          </Pressable>
+        ),
+      });
+    }
+  }, [channelName, navigation, searchOpen]);
 
   // The server is fetched even when the name came in the params, because `my_permissions` comes
   // with it and decides whether the composer is usable.
@@ -94,6 +109,15 @@ export function ChannelScreen() {
       <View className="flex-1 items-center justify-center bg-[#23272a]">
         <ActivityIndicator size="large" color="#7289da" />
       </View>
+    );
+  }
+
+  if (searchOpen) {
+    return (
+      <SearchScreen
+        serverId={serverId}
+        onClose={() => setSearchOpen(false)}
+      />
     );
   }
 
