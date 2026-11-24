@@ -65,7 +65,7 @@ export const ChatScreen = ({ channelId, channelName, canSendMessages, canManageM
           channelName={channelName}
           status={status}
           maxLength={maxLength}
-          onSend={send}
+          onSend={(content) => send(content, user?.name ?? '')}
           rejected={rejected}
           onRejectedHandled={clearRejected}
           canSendMessages={canSendMessages}
