@@ -61,6 +61,8 @@ export const useServer = (serverId: string | undefined, channelId: string | unde
                     categories: srv.categories,
                     my_permissions: srv.my_permissions,
                     my_permission_names: srv.my_permission_names,
+                    // Muted or unmuted by a moderator (SCRUM-71): it arrives with the permissions notice.
+                    my_muted_until: srv.my_muted_until,
                 } : prev);
             })
             .catch(err => {

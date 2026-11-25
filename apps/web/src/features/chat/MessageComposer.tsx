@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { SendHorizontal } from 'lucide-react';
-import { PERMISSION_COPY, type RealtimeStatus, type RejectedMessage } from '@discordia/core';
+import { PERMISSION_COPY, formatMutedUntil, type RealtimeStatus, type RejectedMessage } from '@discordia/core';
 
 interface MessageComposerProps {
     channelName: string;
@@ -11,6 +11,8 @@ interface MessageComposerProps {
     onRejectedHandled: () => void;
     /** SEND_MESSAGES, resolved by `community`. The backend checks it too: this only hides it. */
     canSendMessages: boolean;
+    /** The end of a moderator's mute while it is on (SCRUM-71): it takes the place of the permission's placeholder. */
+    mutedUntil?: string | null;
 }
 
 const MAX_TEXTAREA_HEIGHT_PX = 8 * 24;
@@ -24,6 +26,7 @@ export const MessageComposer = ({
     rejected,
     onRejectedHandled,
     canSendMessages,
+    mutedUntil = null,
 }: MessageComposerProps) => {
     const [content, setContent] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -84,9 +87,11 @@ export const MessageComposer = ({
                     onKeyDown={handleKeyDown}
                     disabled={!canSendMessages}
                     placeholder={
-                        canSendMessages
-                            ? PERMISSION_COPY.sendMessage(channelName)
-                            : PERMISSION_COPY.cannotSendMessage(channelName)
+                        mutedUntil
+                            ? PERMISSION_COPY.mutedComposer(formatMutedUntil(mutedUntil))
+                            : canSendMessages
+                              ? PERMISSION_COPY.sendMessage(channelName)
+                              : PERMISSION_COPY.cannotSendMessage(channelName)
                     }
                     className="flex-1 resize-none bg-transparent outline-none text-sm leading-6"
                     style={{ color: '#dcddde' }}

@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react';
-import { Ban, Crown, Pencil, UserMinus } from 'lucide-react';
-import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
+import { Ban, Crown, MicOff, Pencil, UserMinus } from 'lucide-react';
+import { PERMISSION_COPY, authorView, formatMutedUntil, useAuth, useMuteStatus, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
 import { BanMemberDialog } from './BanMemberDialog';
 import { KickMemberDialog } from './KickMemberDialog';
 import { MemberRolesModal } from './MemberRolesModal';
+import { MuteMemberDialog } from './MuteMemberDialog';
 
 interface MembersSectionProps {
     serverId: string;
@@ -15,14 +16,55 @@ interface MembersSectionProps {
     canManage: boolean;
     canKick: boolean;
     canBan: boolean;
+    /** MODERATE_MEMBERS, resolved by `community`. The backend checks it too: this only shows the button. */
+    canModerate: boolean;
     onRolesChange: (userId: string, roles: Role[]) => void;
     onMemberKicked: (userId: string) => void;
     onMemberBanned: (userId: string) => void;
+    /** A member was muted or unmuted: the list has to be read again (SCRUM-71). */
+    onMuteChanged: () => void;
     /** Extra actions drawn at the end of each row, such as transferring the ownership. */
     renderMemberActions?: (member: ServerMember) => ReactNode;
     /** A 404 when giving or taking a role: the lists are out of date (SCRUM-64). */
     onStale?: () => void;
 }
+
+// Both read the clock through useMuteStatus: nothing arrives when a mute ends (SCRUM-71), so the mark
+// and the button's meaning have to turn off by themselves instead of waiting for the next read of the list.
+const MutedBadge = ({ mutedUntil }: { mutedUntil: string | null }) => {
+    const { until } = useMuteStatus(mutedUntil);
+    if (!until) return null;
+    return (
+        <span className="flex items-center gap-1 truncate text-xs" style={{ color: '#faa61a' }}>
+            <MicOff size={11} aria-hidden className="shrink-0" />
+            {PERMISSION_COPY.mutedBadge(formatMutedUntil(until))}
+        </span>
+    );
+};
+
+const MuteButton = ({
+    mutedUntil,
+    memberName,
+    onClick,
+}: {
+    mutedUntil: string | null;
+    memberName: string;
+    onClick: () => void;
+}) => {
+    const { muted } = useMuteStatus(mutedUntil);
+    return (
+        <button
+            onClick={onClick}
+            className="opacity-0 group-hover/member:opacity-100 transition-opacity p-1 rounded shrink-0"
+            style={{ color: '#8e9297' }}
+            title={muted ? PERMISSION_COPY.unmuteMember(memberName) : PERMISSION_COPY.muteMember(memberName)}
+            onMouseEnter={e => (e.currentTarget.style.color = '#faa61a')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+        >
+            <MicOff size={13} />
+        </button>
+    );
+};
 
 export const MembersSection = ({
     serverId,
@@ -32,9 +74,11 @@ export const MembersSection = ({
     canManage,
     canKick,
     canBan,
+    canModerate,
     onRolesChange,
     onMemberKicked,
     onMemberBanned,
+    onMuteChanged,
     renderMemberActions,
     onStale,
 }: MembersSectionProps) => {
@@ -43,6 +87,7 @@ export const MembersSection = ({
     const [editing, setEditing] = useState<string | null>(null);
     const [kicking, setKicking] = useState<string | null>(null);
     const [banning, setBanning] = useState<string | null>(null);
+    const [muting, setMuting] = useState<string | null>(null);
 
     // `community` only returns ids: the names are `identity`'s, resolved in one request.
     const profiles = usePublicProfiles(members.map(member => member.user_id));
@@ -50,6 +95,7 @@ export const MembersSection = ({
     const nameOf = (userId: string) => authorView(userId, user, profiles.get(userId)).name;
 
     const member = members.find(m => m.user_id === editing);
+    const mutingMember = members.find(m => m.user_id === muting);
 
     return (
         <div className="mb-4">
@@ -94,6 +140,7 @@ export const MembersSection = ({
                                     {topRole.name}
                                 </span>
                             )}
+                            <MutedBadge mutedUntil={rowMember.muted_until} />
                         </button>
 
                         {/* The owner is never a target: the backend refuses it, because nobody
@@ -139,6 +186,14 @@ export const MembersSection = ({
                             </button>
                         )}
 
+                        {canModerate && !isOwner && user_id !== user?.id && (
+                            <MuteButton
+                                mutedUntil={rowMember.muted_until}
+                                memberName={nameOf(user_id)}
+                                onClick={() => setMuting(user_id)}
+                            />
+                        )}
+
                         {renderMemberActions?.(rowMember)}
                     </div>
                 );
@@ -163,6 +218,17 @@ export const MembersSection = ({
                     memberName={nameOf(kicking)}
                     onClose={() => setKicking(null)}
                     onKicked={onMemberKicked}
+                />
+            )}
+
+            {mutingMember && (
+                <MuteMemberDialog
+                    serverId={serverId}
+                    userId={mutingMember.user_id}
+                    memberName={nameOf(mutingMember.user_id)}
+                    mutedUntil={mutingMember.muted_until}
+                    onClose={() => setMuting(null)}
+                    onChanged={onMuteChanged}
                 />
             )}
 

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import { useVoice } from '@discordia/core';
+import { formatMutedUntil, useVoice, VOICE_TEXTS } from '@discordia/core';
 import { voiceValue } from './testing';
 import { VoiceBar } from './VoiceBar';
 
@@ -15,7 +15,14 @@ const general = { id: 'c1', serverId: 's1', name: 'General' };
 const juegos = { id: 'c2', serverId: 's1', name: 'Juegos' };
 
 const connected = (
-    extra: { reconnecting?: boolean; micAvailable?: boolean; muted?: boolean; micPending?: boolean } = {},
+    extra: {
+        reconnecting?: boolean;
+        micAvailable?: boolean;
+        muted?: boolean;
+        micPending?: boolean;
+        serverMuted?: boolean;
+        serverMutedUntil?: string | null;
+    } = {},
 ) => ({
     status: 'connected' as const,
     channel: general,
@@ -24,8 +31,8 @@ const connected = (
     muted: extra.muted ?? false,
     micPending: extra.micPending ?? false,
     reconnecting: extra.reconnecting ?? false,
-    serverMuted: false,
-    serverMutedUntil: null,
+    serverMuted: extra.serverMuted ?? false,
+    serverMutedUntil: extra.serverMutedUntil ?? null,
     participants: [],
 });
 
@@ -163,5 +170,36 @@ describe('VoiceBar', () => {
         renderBar();
 
         expect(screen.queryByRole('button', { name: /micrófono/ })).not.toBeInTheDocument();
+    });
+
+    describe('with a moderator mute (SCRUM-71)', () => {
+        const until = '2099-01-01T15:30:00Z';
+
+        it('blocks the microphone and says why, with the hour', () => {
+            vi.mocked(useVoice).mockReturnValue(
+                voiceValue({ call: connected({ muted: true, serverMuted: true, serverMutedUntil: until }) }),
+            );
+            renderBar();
+
+            const button = screen.getByRole('button', { name: 'Activar micrófono' });
+            expect(button).toBeDisabled();
+            expect(screen.getByText(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)))).toBeInTheDocument();
+            expect(button).toHaveAccessibleDescription(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)));
+        });
+
+        it('says it without the hour until chat answers', () => {
+            vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connected({ muted: true, serverMuted: true }) }));
+            renderBar();
+
+            expect(screen.getByText(VOICE_TEXTS.serverMuted)).toBeInTheDocument();
+        });
+
+        it('shows nothing of it, and leaves the microphone alone, without the mute', () => {
+            vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connected() }));
+            renderBar();
+
+            expect(screen.queryByText(VOICE_TEXTS.serverMuted)).not.toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Silenciar micrófono' })).toBeEnabled();
+        });
     });
 });

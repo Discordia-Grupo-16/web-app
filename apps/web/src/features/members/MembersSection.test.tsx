@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
+import { PERMISSION_COPY, PublicProfilesProvider, formatMutedUntil, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
 import { membersService, rolesService } from '@/shared/api';
 import { ProfileViewerContext } from '@/shared/profile/ProfileViewerContext';
@@ -10,7 +10,7 @@ import { MembersSection } from './MembersSection';
 
 vi.mock('@/shared/api', () => ({
     rolesService: { assignRole: vi.fn(), removeRole: vi.fn() },
-    membersService: { banMember: vi.fn(), kickMember: vi.fn() },
+    membersService: { banMember: vi.fn(), kickMember: vi.fn(), muteMember: vi.fn(), unmuteMember: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -49,6 +49,7 @@ interface Options {
     canManage?: boolean;
     canKick?: boolean;
     canBan?: boolean;
+    canModerate?: boolean;
     renderMemberActions?: (member: ServerMember) => ReactNode;
 }
 
@@ -58,11 +59,13 @@ const renderSection = ({
     canManage = true,
     canKick = false,
     canBan = false,
+    canModerate = false,
     renderMemberActions,
 }: Options = {}) => {
     const onRolesChange = vi.fn();
     const onMemberKicked = vi.fn();
     const onMemberBanned = vi.fn();
+    const onMuteChanged = vi.fn();
     const onStale = vi.fn();
     const openProfile = vi.fn();
     const source: PublicProfileSource = {
@@ -80,16 +83,18 @@ const renderSection = ({
                     canManage={canManage}
                     canKick={canKick}
                     canBan={canBan}
+                    canModerate={canModerate}
                     onRolesChange={onRolesChange}
                     onMemberKicked={onMemberKicked}
                     onMemberBanned={onMemberBanned}
+                    onMuteChanged={onMuteChanged}
                     renderMemberActions={renderMemberActions}
                     onStale={onStale}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
     );
-    return { onRolesChange, onMemberKicked, onMemberBanned, onStale, openProfile, user: userEvent.setup() };
+    return { onRolesChange, onMemberKicked, onMemberBanned, onMuteChanged, onStale, openProfile, user: userEvent.setup() };
 };
 
 describe('MembersSection', () => {
@@ -410,5 +415,74 @@ describe('MembersSection with a deleted role', () => {
 
         await screen.findByRole('alert');
         expect(onStale).not.toHaveBeenCalled();
+    });
+
+    describe('mutes (SCRUM-71)', () => {
+        const FUTURE = '2099-01-01T15:30:00Z';
+        const PAST = '2020-01-01T15:30:00Z';
+
+        it('offers the mute button with MODERATE_MEMBERS', async () => {
+            renderSection({ canModerate: true });
+            await screen.findByText('Milton');
+
+            expect(screen.getByTitle('Silenciar a Milton')).toBeInTheDocument();
+        });
+
+        it('offers no mute to whoever lacks MODERATE_MEMBERS', async () => {
+            renderSection({ canModerate: false });
+            await screen.findByText('Milton');
+
+            expect(screen.queryByTitle('Silenciar a Milton')).not.toBeInTheDocument();
+        });
+
+        it('never offers to mute the owner or oneself, who the backend refuses', async () => {
+            renderSection({ members: [member('owner'), member('me')], canModerate: true });
+            await screen.findByText('Bruno');
+
+            expect(screen.queryByTitle(/Silenciar a/)).not.toBeInTheDocument();
+        });
+
+        it('marks only the member who is muted, with the end of the mute', async () => {
+            const muted: ServerMember = { ...member('milton'), muted_until: FUTURE };
+            renderSection({ members: [muted, member('ana')] });
+            await screen.findByText('Milton');
+
+            expect(screen.getAllByText(/Silenciado hasta/)).toHaveLength(1);
+            expect(screen.getByText(PERMISSION_COPY.mutedBadge(formatMutedUntil(FUTURE)))).toBeInTheDocument();
+        });
+
+        it('does not mark a mute that already ended', async () => {
+            renderSection({ members: [{ ...member('milton'), muted_until: PAST }] });
+            await screen.findByText('Milton');
+
+            expect(screen.queryByText(/Silenciado hasta/)).not.toBeInTheDocument();
+        });
+
+        it('mutes from the row and asks for the list to be read again', async () => {
+            vi.mocked(membersService.muteMember).mockResolvedValue({ user_id: 'milton', muted_until: FUTURE, muted_by: 'me' });
+            const { user, onMuteChanged } = renderSection({ canModerate: true });
+            await screen.findByText('Milton');
+
+            await user.click(screen.getByTitle('Silenciar a Milton'));
+            await user.click(screen.getByRole('button', { name: 'Silenciar' }));
+
+            expect(membersService.muteMember).toHaveBeenCalledWith('srv', 'milton', 60);
+            expect(onMuteChanged).toHaveBeenCalled();
+        });
+
+        it('lifts the mute of a muted member from the same button', async () => {
+            vi.mocked(membersService.unmuteMember).mockResolvedValue(undefined);
+            const { user, onMuteChanged } = renderSection({
+                members: [{ ...member('milton'), muted_until: FUTURE }],
+                canModerate: true,
+            });
+            await screen.findByText('Milton');
+
+            await user.click(screen.getByTitle('Levantar el silencio de Milton'));
+            await user.click(screen.getByRole('button', { name: 'Levantar silencio' }));
+
+            expect(membersService.unmuteMember).toHaveBeenCalledWith('srv', 'milton');
+            expect(onMuteChanged).toHaveBeenCalled();
+        });
     });
 });

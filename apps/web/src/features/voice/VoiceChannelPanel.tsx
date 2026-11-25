@@ -9,6 +9,7 @@ import {
     type VoiceParticipant,
 } from '@discordia/core';
 import { VoiceCallParticipantList } from './VoiceCallParticipantList';
+import { serverMutedText } from './serverMutedText';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
 
@@ -30,6 +31,12 @@ export const VoiceChannelPanel = ({ channel, canJoin }: { channel: VoiceChannelR
                     <p className="text-sm font-semibold" style={{ color: '#3ba55d' }}>
                         Estás en la llamada
                     </p>
+                    {call.serverMuted && (
+                        <div role="status" className="flex gap-3 p-3 rounded-md text-sm" style={{ background: '#3a3d43', color: '#dcddde' }}>
+                            <MicOff size={18} className="shrink-0 mt-0.5" style={{ color: '#faa61a' }} />
+                            <p>{serverMutedText(call.serverMutedUntil)}</p>
+                        </div>
+                    )}
                     {!call.micAvailable && (
                         <div role="status" className="flex gap-3 p-3 rounded-md text-sm" style={{ background: '#3a3d43', color: '#dcddde' }}>
                             <MicOff size={18} className="shrink-0 mt-0.5" style={{ color: '#faa61a' }} />

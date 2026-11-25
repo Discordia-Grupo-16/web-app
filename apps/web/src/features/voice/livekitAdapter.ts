@@ -43,6 +43,9 @@ const SNAPSHOT_EVENTS = [
     RoomEvent.LocalTrackUnpublished,
 ] as const;
 
+// The attribute chat writes on the participant with the end of a moderator's mute (SCRUM-71).
+const MUTED_UNTIL_ATTRIBUTE = 'mutedUntil';
+
 const disconnectCause = (reason: DisconnectReason | undefined): RoomDisconnectCause => {
     switch (reason) {
         case DisconnectReason.CLIENT_INITIATED:
@@ -87,6 +90,7 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
     const reconnectingListeners = new Set<(reconnecting: boolean) => void>();
     const micLostListeners = new Set<(cause: MicLossCause) => void>();
     const speakerListeners = new Set<(userIds: ReadonlySet<string>) => void>();
+    const publishPermissionListeners = new Set<(canPublish: boolean) => void>();
     // A mute asked by the user is not a lost microphone.
     let muteRequested = false;
     let unwatchMicrophone: (() => void) | null = null;
@@ -194,6 +198,18 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
         next.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication) => {
             if (room === next && publication.source === Track.Source.Microphone) stopWatchingMicrophone();
         });
+        // The right to publish, for the local participant of the current room only. A mute that
+        // replaces another leaves the permission at false, so the attribute chat writes with it is
+        // the one that notices it.
+        const emitPublishPermission = () => {
+            if (room === next) publishPermissionListeners.forEach((l) => l(next.localParticipant.permissions?.canPublish ?? true));
+        };
+        next.on(RoomEvent.ParticipantPermissionsChanged, (_previous: unknown, participant: Participant) => {
+            if (participant === next.localParticipant) emitPublishPermission();
+        });
+        next.on(RoomEvent.ParticipantAttributesChanged, (changed: Record<string, string>, participant: Participant) => {
+            if (participant === next.localParticipant && MUTED_UNTIL_ATTRIBUTE in changed) emitPublishPermission();
+        });
         next.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
             if (room === next) {
                 room = null;
@@ -268,6 +284,9 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
         onActiveSpeakersChanged: subscribe(speakerListeners),
         onReconnectingChanged: subscribe(reconnectingListeners),
         onMicrophoneLost: subscribe(micLostListeners),
+        onPublishPermissionChanged: subscribe(publishPermissionListeners),
+
+        canPublish: () => room?.localParticipant.permissions?.canPublish ?? true,
 
         async muteMicrophone() {
             const current = room;

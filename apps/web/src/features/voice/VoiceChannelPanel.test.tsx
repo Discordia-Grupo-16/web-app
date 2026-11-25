@@ -27,7 +27,10 @@ vi.mock('@discordia/core', async (importOriginal) => ({
 const general: VoiceChannelRef = { id: 'c1', serverId: 's1', name: 'General' };
 const other: VoiceChannelRef = { id: 'c2', serverId: 's1', name: 'Juegos' };
 
-const connectedTo = (channel: VoiceChannelRef, extra: { micAvailable?: boolean; micBlocked?: boolean } = {}) => ({
+const connectedTo = (
+    channel: VoiceChannelRef,
+    extra: { micAvailable?: boolean; micBlocked?: boolean; serverMuted?: boolean; serverMutedUntil?: string | null } = {},
+) => ({
     status: 'connected' as const,
     channel,
     micAvailable: extra.micAvailable ?? true,
@@ -35,8 +38,8 @@ const connectedTo = (channel: VoiceChannelRef, extra: { micAvailable?: boolean; 
     muted: !(extra.micAvailable ?? true),
     micPending: false,
     reconnecting: false,
-    serverMuted: false,
-    serverMutedUntil: null,
+    serverMuted: extra.serverMuted ?? false,
+    serverMutedUntil: extra.serverMutedUntil ?? null,
     participants: [],
 });
 
@@ -90,6 +93,20 @@ describe('VoiceChannelPanel', () => {
 
         expect(screen.getByText('Ana')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Unirse' })).not.toBeInTheDocument();
+    });
+
+    it('tells in the call that a moderator took the microphone away (SCRUM-71)', () => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general, { serverMuted: true }) }));
+        render(<VoiceChannelPanel channel={general} canJoin />);
+
+        expect(screen.getByRole('status')).toHaveTextContent(VOICE_TEXTS.serverMuted);
+    });
+
+    it('says nothing of a mute that is not there', () => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+        render(<VoiceChannelPanel channel={general} canJoin />);
+
+        expect(screen.queryByText(VOICE_TEXTS.serverMuted)).not.toBeInTheDocument();
     });
 
     it('highlights in the call who is speaking, and nobody who is muted (SCRUM-56)', () => {
