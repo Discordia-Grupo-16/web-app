@@ -100,6 +100,27 @@ export const PERMISSION_COPY = {
     revokeBanError: 'No se pudo revocar el baneo',
     bansError: 'No se pudieron cargar los baneados',
 
+    /** Muting a member for a while, and lifting it (SCRUM-71). */
+    muteMember: (memberName: string) => `Silenciar a ${memberName}`,
+    muteMemberTitle: 'Silenciar miembro',
+    /**
+     * Says what a mute keeps as much as what it takes: unlike a kick, the member
+     * stays and still reads and listens. And that it ends by itself.
+     */
+    muteMemberWarning: (memberName: string) =>
+        `${memberName} no va a poder escribir ni hablar por voz hasta que termine el silencio. Sigue en el servidor y puede leer y escuchar.`,
+    muteDurationLabel: 'Duración',
+    muteConfirm: 'Silenciar',
+    muting: 'Silenciando...',
+    muteCancel: 'Cancelar',
+    muteMemberError: 'No se pudo silenciar al miembro',
+    unmuteMember: (memberName: string) => `Levantar el silencio de ${memberName}`,
+    unmuteConfirm: 'Levantar silencio',
+    unmuteMemberError: 'No se pudo levantar el silencio',
+    /** `time` comes from formatMutedUntil: the hour if it ends today, the date and the hour if not. */
+    mutedBadge: (time: string) => `Silenciado hasta ${time}`,
+    mutedComposer: (time: string) => `Estás silenciado hasta ${time}`,
+
     /** Shown instead of the channel list to whoever lacks VIEW_CHANNEL. */
     noViewChannel: 'No tenés permiso para ver los canales de este servidor.',
 

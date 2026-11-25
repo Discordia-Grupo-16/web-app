@@ -25,7 +25,7 @@ describe('RoleMembersModal', () => {
       <RoleMembersModal
         visible
         role={role}
-        members={[{ user_id: 'me', joined_at: '2026-10-01T00:00:00Z', roles: [role] }]}
+        members={[{ user_id: 'me', joined_at: '2026-10-01T00:00:00Z', roles: [role], muted_until: null }]}
         ownerId="owner"
         onClose={jest.fn()}
         roleGone

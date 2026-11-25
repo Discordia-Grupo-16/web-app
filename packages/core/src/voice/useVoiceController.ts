@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MAX_TIMEOUT_MS } from '../moderation/mute';
 import { NO_LOCAL_MUTES, NO_SPEAKERS, toggleId } from './participants';
 import { canRejoin } from './texts';
 import type {
@@ -48,6 +49,11 @@ type MicPlan = { kind: 'on' } | { kind: 'muted' } | { kind: 'none'; micBlocked: 
 
 type ConnectedCall = Extract<VoiceCall, { status: 'connected' }>;
 
+// chat answers how long is left; the timer waits half a second more so the mute is over when it asks again.
+const PERMISSION_REFRESH_MARGIN_MS = 500;
+// A request for the permission that fails is repeated once, after this.
+const PERMISSION_RETRY_MS = 5000;
+
 const micState = (mic: MicResult, muted: boolean) => {
     const micAvailable = mic === 'ok';
     return { micAvailable, micBlocked: mic === 'blocked', muted: micAvailable ? muted : true, micPending: false };
@@ -58,7 +64,7 @@ const intentionallyMuted = (call: ConnectedCall) => call.micAvailable && call.mu
 
 // The call and the join attempt are separate: a rejected attempt never touches the active call.
 // The current room is left only once the new token is in hand.
-export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOptions): VoiceController => {
+export const useVoiceController = ({ adapter, requestToken, refreshPermissions: requestPermissions }: VoiceControllerOptions): VoiceController => {
     const [call, setCall] = useState<VoiceCall>({ status: 'idle' });
     const [attempt, setAttempt] = useState<VoiceJoinAttempt | null>(null);
     const [audioBlocked, setAudioBlocked] = useState(false);
@@ -81,6 +87,10 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
     const micRequestRef = useRef(0);
     // Whether the call that was cut was muted on purpose: "Volver a unirse" keeps it.
     const rememberedMuteRef = useRef(false);
+    // The timer that asks chat for the permission when a mute should be over, and the number of the
+    // request in flight: cancelling takes a new one, so an answer that comes late is dropped.
+    const permissionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const permissionRequestRef = useRef(0);
 
     const updateCall = useCallback((next: VoiceCall) => {
         callRef.current = next;
@@ -94,6 +104,45 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
         locallyMutedRef.current = next;
         setLocallyMuted(next);
     }, []);
+
+    const cancelPermissionRefresh = useCallback(() => {
+        permissionRequestRef.current += 1;
+        if (permissionTimerRef.current !== null) clearTimeout(permissionTimerRef.current);
+        permissionTimerRef.current = null;
+    }, []);
+
+    // chat does not trust the client: it checks its own copy of the mute and applies the result in LiveKit,
+    // so asking early is harmless. The answer says how long is left, and the next ask waits for that. The
+    // end of the mute itself comes through the adapter, once LiveKit gives the permission back.
+    const refreshPermissions = useCallback(
+        function run(channelId: string, isRetry = false) {
+            cancelPermissionRefresh();
+            const requestId = permissionRequestRef.current;
+            const wait = (delayMs: number, retry: boolean) => {
+                permissionTimerRef.current = setTimeout(() => {
+                    permissionTimerRef.current = null;
+                    run(channelId, retry);
+                }, Math.min(delayMs, MAX_TIMEOUT_MS));
+            };
+            requestPermissions(channelId).then(
+                (state) => {
+                    const current = callRef.current;
+                    if (permissionRequestRef.current !== requestId) return;
+                    if (current.status !== 'connected' || current.channel.id !== channelId) return;
+                    if (state.canPublish) return;
+                    updateCall({ ...current, serverMutedUntil: state.mutedUntil });
+                    // Still muted: it may be early, or a mute longer than a timer can wait (then chat says how
+                    // much is left again when it asks).
+                    wait(state.remainingSeconds * 1000 + PERMISSION_REFRESH_MARGIN_MS, false);
+                },
+                () => {
+                    if (permissionRequestRef.current !== requestId || isRetry) return;
+                    wait(PERMISSION_RETRY_MS, true);
+                },
+            );
+        },
+        [cancelPermissionRefresh, requestPermissions, updateCall],
+    );
 
     useEffect(() => {
         if (!adapter) return;
@@ -111,6 +160,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                     hiddenDisconnectRef.current = info;
                     return;
                 }
+                cancelPermissionRefresh();
                 participantsRef.current = [];
                 rememberedMuteRef.current = intentionallyMuted(current);
                 updateCall({ status: 'disconnected', channel: current.channel, reason: disconnectReason(info) });
@@ -121,6 +171,20 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                 micRequestRef.current += 1;
                 updateCall({ ...current, micAvailable: false, micBlocked: cause === 'blocked', muted: true, micPending: false });
             }),
+            adapter.onPublishPermissionChanged((canPublish) => {
+                const current = callRef.current;
+                if (current.status !== 'connected') return;
+                if (canPublish) {
+                    // The microphone stays off: turning it on is for the user, with the button.
+                    cancelPermissionRefresh();
+                    if (current.serverMuted) updateCall({ ...current, serverMuted: false, serverMutedUntil: null });
+                    return;
+                }
+                // LiveKit already unpublished the track; an answer of the microphone still in flight must not turn it on.
+                micRequestRef.current += 1;
+                updateCall({ ...current, serverMuted: true, muted: true, micPending: false });
+                refreshPermissions(current.channel.id);
+            }),
             adapter.onReconnectingChanged((reconnecting) => {
                 const current = callRef.current;
                 if (current.status === 'connected' && current.reconnecting !== reconnecting) {
@@ -130,16 +194,17 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
         ];
         if (adapter.onAudioPlaybackBlocked) unsubscribers.push(adapter.onAudioPlaybackBlocked(setAudioBlocked));
         return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-    }, [adapter, updateCall]);
+    }, [adapter, updateCall, cancelPermissionRefresh, refreshPermissions]);
 
     // Leaving the session (logout) closes the room and stops a join in progress.
     useEffect(
         () => () => {
             joinIdRef.current += 1;
             micRequestRef.current += 1;
+            cancelPermissionRefresh();
             if (adapter && callRef.current.status === 'connected') void adapter.disconnect();
         },
-        [adapter],
+        [adapter, cancelPermissionRefresh],
     );
 
     const startJoin = useCallback(
@@ -164,6 +229,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                     const hidden = hiddenDisconnectRef.current;
                     const current = callRef.current;
                     if (hidden && current.status === 'connected') {
+                        cancelPermissionRefresh();
                         participantsRef.current = [];
                         rememberedMuteRef.current = intentionallyMuted(current);
                         updateCall({ status: 'disconnected', channel: current.channel, reason: disconnectReason(hidden) });
@@ -179,6 +245,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                         participantsRef.current = [];
                         if (stopped()) return;
                     }
+                    cancelPermissionRefresh();
                     // The old room is gone from here on. A join from scratch starts with nobody muted; "Volver a
                     // unirse" keeps them. Either way the adapter gets the whole set before connecting, so the first
                     // audio of a muted participant already plays at volume 0.
@@ -201,7 +268,30 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
 
                 // The call is in the new room from here on. Without a microphone it stays that way and
                 // the permission is not asked again; otherwise it is muted until the microphone answers.
-                const base = { status: 'connected' as const, channel, reconnecting: false, participants: participantsRef.current };
+                const base = {
+                    status: 'connected' as const,
+                    channel,
+                    reconnecting: false,
+                    participants: participantsRef.current,
+                    serverMuted: false,
+                    serverMutedUntil: null,
+                };
+                // Muted by a moderator at the door: the token came without the right to publish, so there is
+                // nothing to ask the system for. No event will tell how long it lasts, so chat is asked.
+                if (!adapter.canPublish()) {
+                    const noMic = micPlan.kind === 'none';
+                    updateCall({
+                        ...base,
+                        micAvailable: !noMic,
+                        micBlocked: noMic && micPlan.micBlocked,
+                        muted: true,
+                        micPending: false,
+                        serverMuted: true,
+                    });
+                    updateAttempt(null);
+                    refreshPermissions(channel.id);
+                    return;
+                }
                 if (micPlan.kind === 'none') {
                     updateCall({ ...base, micAvailable: false, micBlocked: micPlan.micBlocked, muted: true, micPending: false });
                     updateAttempt(null);
@@ -221,7 +311,7 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
                 updateCall({ ...current, ...micState(mic, micPlan.kind === 'muted') });
             })();
         },
-        [adapter, requestToken, updateAttempt, updateCall, updateLocallyMuted],
+        [adapter, requestToken, cancelPermissionRefresh, refreshPermissions, updateAttempt, updateCall, updateLocallyMuted],
     );
 
     // A channel's "Unirse". Switching rooms keeps the microphone as it was; from no call it starts on.
@@ -274,13 +364,14 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
             joinIdRef.current += 1;
             micRequestRef.current += 1;
             switchingRef.current = false;
+            cancelPermissionRefresh();
             if (joining) updateAttempt(null);
             participantsRef.current = [];
             rememberedMuteRef.current = current.status === 'connected' && intentionallyMuted(current);
             updateCall({ status: 'disconnected', channel, reason });
             if (current.status === 'connected') void adapter.disconnect();
         },
-        [adapter, updateAttempt, updateCall],
+        [adapter, cancelPermissionRefresh, updateAttempt, updateCall],
     );
 
     // The state goes first, so the client-initiated disconnection finds the call idle and is not shown
@@ -290,17 +381,18 @@ export const useVoiceController = ({ adapter, requestToken }: VoiceControllerOpt
         if (!adapter || current.status !== 'connected' || attemptRef.current?.status === 'connecting') return;
         participantsRef.current = [];
         micRequestRef.current += 1;
+        cancelPermissionRefresh();
         rememberedMuteRef.current = false;
         updateLocallyMuted(NO_LOCAL_MUTES);
         updateCall({ status: 'idle' });
         void adapter.disconnect();
-    }, [adapter, updateCall, updateLocallyMuted]);
+    }, [adapter, cancelPermissionRefresh, updateCall, updateLocallyMuted]);
 
     // Muting is immediate. Turning the microphone on waits for its answer: the control shows it is
-    // active only once the system gave it.
+    // active only once the system gave it. Muted by a moderator, there is nothing to toggle.
     const toggleMute = useCallback(() => {
         const current = callRef.current;
-        if (!adapter || current.status !== 'connected' || current.micPending) return;
+        if (!adapter || current.status !== 'connected' || current.micPending || current.serverMuted) return;
         if (attemptRef.current?.status === 'connecting') return;
         if (current.micAvailable && !current.muted) {
             updateCall({ ...current, muted: true });

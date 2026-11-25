@@ -62,7 +62,7 @@ describe('useMembers setMemberRoles', () => {
     // Asignar uno de menor posición y dejarlo al final lo haría aparecer como
     // el más alto.
     const user = await mounted(
-      [{ user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [ALTO] }],
+      [{ user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [ALTO], muted_until: null }],
       api => api.setMemberRoles('u1', [ALTO, BAJO]),
     );
 
@@ -74,8 +74,8 @@ describe('useMembers setMemberRoles', () => {
   it('no toca a los demás miembros', async () => {
     const user = await mounted(
       [
-        { user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [] },
-        { user_id: 'u2', joined_at: '2026-10-01T00:00:00Z', roles: [ALTO] },
+        { user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [], muted_until: null },
+        { user_id: 'u2', joined_at: '2026-10-01T00:00:00Z', roles: [ALTO], muted_until: null },
       ],
       api => api.setMemberRoles('u1', [BAJO]),
     );
@@ -90,7 +90,7 @@ describe('useMembers with notices', () => {
   it('also reads the members again when the permissions of whoever looks change', async () => {
     // Assigning or removing a role of theirs only sends `permissions`, and their own roles come from
     // this list.
-    await mounted([{ user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [] }], () => undefined);
+    await mounted([{ user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [], muted_until: null }], () => undefined);
 
     expect(useLiveRefresh).toHaveBeenCalledWith(
       expect.objectContaining({ resources: ['members', 'permissions'], serverId: 'srv' }),

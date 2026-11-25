@@ -1,4 +1,4 @@
-import type { VoiceToken } from '@discordia/api';
+import type { VoicePublishState, VoiceToken } from '@discordia/api';
 
 export type VoiceJoinError = 'forbidden' | 'not-found' | 'not-voice' | 'unavailable' | 'network';
 
@@ -47,6 +47,9 @@ export type VoiceCall =
           micPending: boolean; // true while the microphone is being turned on (permission prompt or device)
           reconnecting: boolean; // true while LiveKit is reconnecting; false when it connects
           participants: VoiceParticipant[];
+          // A moderator took the right to publish away (SCRUM-71): the microphone is off and cannot be turned on.
+          serverMuted: boolean;
+          serverMutedUntil: string | null; // ISO-8601 in UTC with Z; null until chat answers, and when not serverMuted
       }
     | { status: 'disconnected'; channel: VoiceChannelRef; reason: VoiceDisconnectReason };
 
@@ -84,6 +87,11 @@ export interface VoiceRoomAdapter {
     // LiveKit was left without a microphone in the current room: no input device remains or the
     // permission was revoked. Not emitted when LiveKit switches to another device by itself.
     onMicrophoneLost(listener: (cause: MicLossCause) => void): () => void;
+    // Whether the local participant may publish in the current room. true without a room.
+    canPublish(): boolean;
+    // The right to publish changed, because of the permission or of the "mutedUntil" attribute that chat
+    // writes: the second one is what notices a mute that replaces another, where the permission stays false.
+    onPublishPermissionChanged(listener: (canPublish: boolean) => void): () => void;
     onDisconnected(listener: (info: RoomDisconnectInfo) => void): () => void;
     onParticipantsChanged(listener: (snapshot: VoiceParticipant[]) => void): () => void;
     // LiveKit identities of who is speaking now, the local participant included. Emitted only when
@@ -111,6 +119,8 @@ export interface ParticipantLike {
 export interface VoiceControllerOptions {
     adapter: VoiceRoomAdapter | null; // null: voice is not available (Expo Go)
     requestToken: (channelId: string) => Promise<VoiceToken>;
+    // Asks chat to evaluate again whether the user can publish in the channel (SCRUM-71).
+    refreshPermissions: (channelId: string) => Promise<VoicePublishState>;
 }
 
 export interface VoiceContextValue {

@@ -79,6 +79,8 @@ const inCallAt = (channelId: string, serverId: string): Partial<VoiceContextValu
         muted: false,
         micPending: false,
         reconnecting: false,
+        serverMuted: false,
+        serverMutedUntil: null,
         participants: [{ userId: 'ana', isLocal: false, muted: false, joinedAt: 1, seenOrder: 0 }],
     },
 });

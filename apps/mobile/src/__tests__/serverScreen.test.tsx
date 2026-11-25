@@ -68,11 +68,12 @@ const server = (myPermissions: number, ownerId: string): Server => ({
   created_at: '2026-10-01T00:00:00Z',
   my_permissions: myPermissions,
   my_permission_names: [],
+  my_muted_until: null,
   channels: [],
   categories: [],
 });
 
-const member = (userId: string): ServerMember => ({ user_id: userId, joined_at: '2026-10-01T00:00:00Z', roles: [] });
+const member = (userId: string): ServerMember => ({ user_id: userId, joined_at: '2026-10-01T00:00:00Z', roles: [], muted_until: null });
 
 const PENDING_TO_MILTON: OwnershipTransfer = {
   server_id: 'srv',

@@ -116,6 +116,7 @@ export interface ReadStateUpdatedFrame {
 export type RealtimeErrorCode =
     | 'CHANNEL_NOT_FOUND'
     | 'FORBIDDEN'
+    | 'MUTED'
     | 'EMPTY_MESSAGE'
     | 'MESSAGE_TOO_LONG'
     | 'INTERNAL_ERROR';

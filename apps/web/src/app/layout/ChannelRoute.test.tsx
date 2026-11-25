@@ -46,6 +46,7 @@ const server = (myPermissions = VIEW_CHANNEL | SEND_MESSAGES | CONNECT): Server 
     created_at: '2026-10-01T00:00:00Z',
     my_permissions: myPermissions,
     my_permission_names: [],
+    my_muted_until: null,
     channels: [channel('c1', 'general', 'text'), channel('c2', 'lobby', 'voice')],
     categories: [],
 });

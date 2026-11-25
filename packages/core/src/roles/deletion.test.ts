@@ -102,8 +102,8 @@ describe('roleDeletionBlocker', () => {
 
 describe('rolesOfMember', () => {
     const members: ServerMember[] = [
-        { user_id: 'ana', joined_at: '2026-10-01T00:00:00Z', roles: [mine] },
-        { user_id: 'beto', joined_at: '2026-10-01T00:00:00Z', roles: [] },
+        { user_id: 'ana', joined_at: '2026-10-01T00:00:00Z', roles: [mine], muted_until: null },
+        { user_id: 'beto', joined_at: '2026-10-01T00:00:00Z', roles: [], muted_until: null },
     ];
 
     it('returns the roles of the member', () => {

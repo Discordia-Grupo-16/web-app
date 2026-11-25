@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deleteErrorText, editErrorText } from './errorMessages';
+import { deleteErrorText, editErrorText, ERROR_TEXTS, isRetryable } from './errorMessages';
 
 const httpError = (status: number) => Object.assign(new Error('http'), { response: { status } });
 
@@ -32,5 +32,16 @@ describe('deleteErrorText', () => {
     it('falls back to the generic text without an HTTP answer', () => {
         expect(deleteErrorText(new Error('Network Error'))).toBe('No se pudo eliminar el mensaje.');
         expect(deleteErrorText(null)).toBe('No se pudo eliminar el mensaje.');
+    });
+});
+
+describe('MUTED', () => {
+    it('tells the user they are muted, not that they lack the permission', () => {
+        expect(ERROR_TEXTS.MUTED).toBe('Estás silenciado en este servidor.');
+        expect(ERROR_TEXTS.MUTED).not.toBe(ERROR_TEXTS.FORBIDDEN);
+    });
+
+    it('is not retryable: it would fail again until the mute ends', () => {
+        expect(isRetryable('MUTED')).toBe(false);
     });
 });

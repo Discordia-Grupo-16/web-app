@@ -34,6 +34,7 @@ describe('useMembers setMemberRoles', () => {
         const member: ServerMember = {
             user_id: 'u1',
             joined_at: '2026-10-01T00:00:00Z',
+            muted_until: null,
             roles: [ALTO],
         };
         vi.mocked(membersService.listMembers).mockResolvedValue([member]);
@@ -47,8 +48,8 @@ describe('useMembers setMemberRoles', () => {
 
     it('no toca a los demás miembros', async () => {
         const members: ServerMember[] = [
-            { user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [] },
-            { user_id: 'u2', joined_at: '2026-10-01T00:00:00Z', roles: [ALTO] },
+            { user_id: 'u1', joined_at: '2026-10-01T00:00:00Z', roles: [], muted_until: null },
+            { user_id: 'u2', joined_at: '2026-10-01T00:00:00Z', roles: [ALTO], muted_until: null },
         ];
         vi.mocked(membersService.listMembers).mockResolvedValue(members);
         const { result } = renderHook(() => useMembers('srv'));
