@@ -1,6 +1,6 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 import { MessageComposer } from './MessageComposer';
-import type { RealtimeStatus, RejectedMessage } from '@discordia/core';
+import { PERMISSION_COPY, formatMutedUntil, type RealtimeStatus, type RejectedMessage } from '@discordia/core';
 
 jest.useFakeTimers();
 
@@ -10,6 +10,7 @@ const renderComposer = async (
     maxLength: number;
     rejected: RejectedMessage | null;
     canSendMessages: boolean;
+    mutedUntil: string | null;
   }> = {},
 ) => {
   const onSend = jest.fn();
@@ -211,5 +212,23 @@ describe('MessageComposer editing', () => {
     expect(await screen.findByText('No tenés permiso para editar este mensaje.')).toBeOnTheScreen();
     expect(screen.getByDisplayValue('hola!')).toBeOnTheScreen();
     expect(saveButton()).toBeEnabled();
+  });
+});
+
+describe('MessageComposer muted by a moderator (SCRUM-71)', () => {
+  const UNTIL = '2099-01-01T15:30:00Z';
+
+  it('says until when instead of inviting to write, and blocks the input', async () => {
+    await renderComposer({ canSendMessages: false, mutedUntil: UNTIL });
+
+    const placeholder = PERMISSION_COPY.mutedComposer(formatMutedUntil(UNTIL));
+    expect(screen.getByPlaceholderText(placeholder)).toBeDisabled();
+    expect(sendButton()).toBeDisabled();
+  });
+
+  it('goes back to its usual placeholder without the mute', async () => {
+    await renderComposer({ canSendMessages: true, mutedUntil: null });
+
+    expect(input()).toBeEnabled();
   });
 });

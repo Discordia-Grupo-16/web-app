@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import { PERMISSION_COPY, editErrorText, type RealtimeStatus, type RejectedMessage } from '@discordia/core';
+import { PERMISSION_COPY, editErrorText, formatMutedUntil, type RealtimeStatus, type RejectedMessage } from '@discordia/core';
 
 interface MessageComposerProps {
   channelName: string;
@@ -11,6 +11,8 @@ interface MessageComposerProps {
   onRejectedHandled: () => void;
   /** SEND_MESSAGES, resolved by `community`. The backend checks it too: this only hides it. */
   canSendMessages: boolean;
+  /** The end of a moderator's mute while it is on (SCRUM-71): it takes the place of the permission's placeholder. */
+  mutedUntil?: string | null;
   /**
    * Edit mode (SCRUM-44): the composer holds the text of an own message and saves it instead of
    * sending. The parent keys the composer by the message, so the initial text is read only once.
@@ -34,6 +36,7 @@ export const MessageComposer = ({
   rejected,
   onRejectedHandled,
   canSendMessages,
+  mutedUntil = null,
   editing,
 }: MessageComposerProps) => {
   const [content, setContent] = useState(editing?.initialContent ?? '');
@@ -108,9 +111,11 @@ export const MessageComposer = ({
           }}
           editable={canSendMessages && !saving}
           placeholder={
-            canSendMessages
-              ? PERMISSION_COPY.sendMessage(channelName)
-              : PERMISSION_COPY.cannotSendMessage(channelName)
+            mutedUntil
+              ? PERMISSION_COPY.mutedComposer(formatMutedUntil(mutedUntil))
+              : canSendMessages
+                ? PERMISSION_COPY.sendMessage(channelName)
+                : PERMISSION_COPY.cannotSendMessage(channelName)
           }
           placeholderTextColor="#72767d"
         />

@@ -2,6 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { canRejoin, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS } from '@discordia/core';
+import { serverMutedText } from './serverMutedText';
 import { MicIcon } from './MicIcon';
 import { MicOffIcon } from './MicOffIcon';
 import { PhoneOffIcon } from './PhoneOffIcon';
@@ -47,7 +48,7 @@ export const VoiceBar = () => {
   // Leaving does not cancel a join in progress: the button waits until it ends.
   const joining = attempt?.status === 'connecting';
   const noMic = !call.micAvailable;
-  const micDisabled = call.micPending || joining;
+  const micDisabled = call.micPending || joining || call.serverMuted;
   const micColor = noMic ? '#faa61a' : call.muted ? '#ed4245' : '#b9bbbe';
 
   return (
@@ -73,11 +74,16 @@ export const VoiceBar = () => {
         <Text numberOfLines={1} className="text-xs text-[#b9bbbe]">
           {channel.name}
         </Text>
+        {call.serverMuted && (
+          <Text accessibilityRole="alert" className="text-xs text-[#faa61a]">
+            {serverMutedText(call.serverMutedUntil)}
+          </Text>
+        )}
       </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={call.muted ? VOICE_TEXTS.unmute : VOICE_TEXTS.mute}
-        accessibilityHint={noMic ? VOICE_TEXTS.noMic : undefined}
+        accessibilityHint={call.serverMuted ? serverMutedText(call.serverMutedUntil) : noMic ? VOICE_TEXTS.noMic : undefined}
         accessibilityState={{ selected: call.muted, disabled: micDisabled, busy: call.micPending }}
         disabled={micDisabled}
         onPress={toggleMute}

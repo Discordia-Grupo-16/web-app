@@ -2,5 +2,6 @@ export { BanMemberDialog } from './BanMemberDialog';
 export { BansSection } from './BansSection';
 export { KickMemberDialog } from './KickMemberDialog';
 export { MembersSection } from './MembersSection';
+export { MuteMemberDialog } from './MuteMemberDialog';
 export { useBans } from './useBans';
 export { useMembers } from './useMembers';

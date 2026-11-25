@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { act, render, screen } from '@testing-library/react-native';
 import { Text as MockText } from 'react-native';
 import type { Channel, Server } from '@discordia/api';
 import { SEND_MESSAGES, UnreadContext, VIEW_CHANNEL } from '@discordia/core';
@@ -12,9 +12,23 @@ jest.mock('expo-router', () => ({
   useRouter: () => ({ back: jest.fn() }),
 }));
 jest.mock('@/shared/api', () => ({ serversService: { getServer: jest.fn() } }));
-jest.mock('@/shared/hooks/useLiveRefresh', () => ({ useLiveRefresh: () => undefined }));
+// The refresh the screen gives for the notices of the server, so a test can say one arrived.
+let mockRefresh: () => void = () => undefined;
+jest.mock('@/shared/hooks/useLiveRefresh', () => ({
+  useLiveRefresh: (options: { resources: string[]; refresh: () => void }) => {
+    if (options.resources.includes('permissions')) mockRefresh = options.refresh;
+  },
+}));
 jest.mock('@/shared/hooks/useScreenVisible', () => ({ useScreenVisible: () => mockVisible }));
-jest.mock('../components/ChatScreen', () => ({ ChatScreen: () => <MockText>chat</MockText> }));
+jest.mock('../components/ChatScreen', () => ({
+  ChatScreen: ({ canSendMessages, mutedUntil }: { canSendMessages: boolean; mutedUntil?: string | null }) => (
+    <>
+      <MockText>chat</MockText>
+      <MockText>{canSendMessages ? 'puede escribir' : 'no puede escribir'}</MockText>
+      {mutedUntil ? <MockText>{`silenciado hasta ${mutedUntil}`}</MockText> : null}
+    </>
+  ),
+}));
 
 const channel: Channel = {
   id: 'c1',
@@ -74,5 +88,52 @@ describe('ChannelScreen marks the channel as read (CA1 de SCRUM-76)', () => {
 
     expect(setActiveChannel).not.toHaveBeenCalledWith('c1', true);
     expect(setActiveChannel).toHaveBeenCalledWith('c1', false);
+  });
+});
+
+describe('ChannelScreen and a moderator mute (SCRUM-71)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockVisible = true;
+  });
+
+  it('with the mute on, blocks the composer even with SEND_MESSAGES and gives it the hour', async () => {
+    const until = '2099-01-01T15:30:00Z';
+    jest.mocked(serversService.getServer).mockResolvedValue({ ...server, my_muted_until: until });
+
+    await renderScreen();
+
+    expect(screen.getByText('no puede escribir')).toBeOnTheScreen();
+    expect(screen.getByText(`silenciado hasta ${until}`)).toBeOnTheScreen();
+  });
+
+  it('with the mute already over, the composer is usable', async () => {
+    jest.mocked(serversService.getServer).mockResolvedValue({ ...server, my_muted_until: '2020-01-01T15:30:00Z' });
+
+    await renderScreen();
+
+    expect(screen.getByText('puede escribir')).toBeOnTheScreen();
+    expect(screen.queryByText(/silenciado hasta/)).toBeNull();
+  });
+
+  it('frees the composer by itself when the mute ends, with nothing from the server', async () => {
+    const until = new Date(Date.now() + 1200).toISOString();
+    jest.mocked(serversService.getServer).mockResolvedValue({ ...server, my_muted_until: until });
+    await renderScreen();
+    expect(screen.getByText('no puede escribir')).toBeOnTheScreen();
+
+    expect(await screen.findByText('puede escribir', {}, { timeout: 3000 })).toBeOnTheScreen();
+    expect(screen.queryByText(/silenciado hasta/)).toBeNull();
+  });
+
+  it('gets muted when the permissions notice arrives, without leaving the channel', async () => {
+    jest.mocked(serversService.getServer).mockResolvedValue(server);
+    await renderScreen();
+    expect(screen.getByText('puede escribir')).toBeOnTheScreen();
+
+    jest.mocked(serversService.getServer).mockResolvedValue({ ...server, my_muted_until: '2099-01-01T15:30:00Z' });
+    await act(async () => mockRefresh());
+
+    expect(await screen.findByText('no puede escribir')).toBeOnTheScreen();
   });
 });

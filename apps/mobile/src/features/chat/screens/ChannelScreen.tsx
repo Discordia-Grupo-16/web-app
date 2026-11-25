@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { NONE, MANAGE_MESSAGES, SEND_MESSAGES, hasPermission, useMarkChannelRead } from '@discordia/core';
+import { NONE, MANAGE_MESSAGES, SEND_MESSAGES, hasPermission, useMarkChannelRead, useMuteStatus } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import { isGoneError } from '@discordia/api';
 import { ChatScreen } from '../components/ChatScreen';
@@ -16,6 +16,10 @@ export function ChannelScreen() {
   // null while unknown. The chat is not drawn until it is: a composer that appears usable and
   // then blocks itself looks broken, and the web does not do that either.
   const [permissions, setPermissions] = useState<number | null>(null);
+  // A moderator's mute (SCRUM-71), from the same getServer as the permissions. Nothing arrives
+  // when it ends, so the hook turns it off by itself.
+  const [myMutedUntil, setMyMutedUntil] = useState<string | null>(null);
+  const mute = useMuteStatus(myMutedUntil);
   const goneRef = useRef(false);
 
   useEffect(() => {
@@ -33,6 +37,7 @@ export function ChannelScreen() {
         if (!channel) throw new Error('channel not found');
         setChannelName(channel.name);
         setPermissions(server.my_permissions ?? NONE);
+        setMyMutedUntil(server.my_muted_until ?? null);
       })
       .catch(() => {
         if (cancelled) return;
@@ -62,6 +67,7 @@ export function ChannelScreen() {
           return;
         }
         setPermissions(server.my_permissions ?? NONE);
+        setMyMutedUntil(server.my_muted_until ?? null);
       })
       .catch((err) => {
         if (isGoneError(err)) leave('Este servidor fue eliminado o ya no sos miembro.', true);
@@ -101,7 +107,8 @@ export function ChannelScreen() {
     <ChatScreen
       channelId={channelId}
       channelName={channelName}
-      canSendMessages={hasPermission(permissions, SEND_MESSAGES)}
+      canSendMessages={hasPermission(permissions, SEND_MESSAGES) && !mute.muted}
+      mutedUntil={mute.until}
       canManageMessages={hasPermission(permissions, MANAGE_MESSAGES)}
     />
   );

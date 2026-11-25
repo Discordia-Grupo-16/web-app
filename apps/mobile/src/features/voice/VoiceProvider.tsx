@@ -33,6 +33,7 @@ export const VoiceProvider = ({ children }: { children: ReactNode }) => {
   const { value, speakingIds, disconnectWithReason } = useVoiceController({
     adapter,
     requestToken: voiceService.createVoiceToken,
+    refreshPermissions: voiceService.refreshVoicePermissions,
   });
 
   const cut = useCallback(() => disconnectWithReason('app_backgrounded'), [disconnectWithReason]);

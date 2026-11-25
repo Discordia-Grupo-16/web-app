@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
+import { PERMISSION_COPY, authorView, formatMutedUntil, useAuth, useMuteStatus, usePublicProfiles } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 import { BanMemberDialog } from './BanMemberDialog';
 import { KickMemberDialog } from './KickMemberDialog';
 import { MemberRolesModal } from './MemberRolesModal';
+import { MuteMemberDialog } from './MuteMemberDialog';
 
 interface MembersSectionProps {
   serverId: string;
@@ -15,13 +16,46 @@ interface MembersSectionProps {
   canManage: boolean;
   canKick: boolean;
   canBan: boolean;
+  /** MODERATE_MEMBERS, resolved by `community`. The backend checks it too: this only shows the button. */
+  canModerate: boolean;
   onRolesChange: (userId: string, roles: Role[]) => void;
   onMemberKicked: (userId: string) => void;
   onMemberBanned: (userId: string) => void;
+  /** A member was muted or unmuted: the list has to be read again (SCRUM-71). */
+  onMuteChanged: () => void;
   /** Extra actions drawn at the end of each row, such as transferring the ownership. */
   renderMemberActions?: (member: ServerMember) => ReactNode;
   /** A 404 when giving or taking a role: the lists are out of date (SCRUM-64). */
   onStale?: () => void;
+}
+
+// Both read the clock through useMuteStatus: nothing arrives when a mute ends (SCRUM-71), so the mark
+// and the meaning of the button have to turn off by themselves instead of waiting for the next read of the list.
+function MutedBadge({ mutedUntil }: { mutedUntil: string | null }) {
+  const { until } = useMuteStatus(mutedUntil);
+  if (!until) return null;
+  return <Text className="text-[#faa61a] text-xs ml-2">{PERMISSION_COPY.mutedBadge(formatMutedUntil(until))}</Text>;
+}
+
+function MuteButton({
+  mutedUntil,
+  memberName,
+  onPress,
+}: {
+  mutedUntil: string | null;
+  memberName: string;
+  onPress: () => void;
+}) {
+  const { muted } = useMuteStatus(mutedUntil);
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityLabel={muted ? PERMISSION_COPY.unmuteMember(memberName) : PERMISSION_COPY.muteMember(memberName)}
+      className="pl-3"
+    >
+      <Text className="text-[#faa61a] text-xs">{muted ? 'Levantar ›' : 'Silenciar ›'}</Text>
+    </TouchableOpacity>
+  );
 }
 
 export function MembersSection({
@@ -32,9 +66,11 @@ export function MembersSection({
   canManage,
   canKick,
   canBan,
+  canModerate,
   onRolesChange,
   onMemberKicked,
   onMemberBanned,
+  onMuteChanged,
   renderMemberActions,
   onStale,
 }: MembersSectionProps) {
@@ -43,6 +79,7 @@ export function MembersSection({
   const [editing, setEditing] = useState<string | null>(null);
   const [kicking, setKicking] = useState<string | null>(null);
   const [banning, setBanning] = useState<string | null>(null);
+  const [muting, setMuting] = useState<string | null>(null);
 
   // `community` only returns ids: the names are `identity`'s, resolved in one request.
   const profiles = usePublicProfiles(members.map(member => member.user_id));
@@ -50,6 +87,7 @@ export function MembersSection({
   const nameOf = (userId: string) => authorView(userId, user, profiles.get(userId)).name;
 
   const editingMember = members.find(m => m.user_id === editing);
+  const mutingMember = members.find(m => m.user_id === muting);
 
   return (
     <>
@@ -92,6 +130,7 @@ export function MembersSection({
                 {nameOf(user_id)}
               </Text>
               {topRole && <Text className="text-[#72767d] text-xs ml-2">{topRole.name}</Text>}
+              <MutedBadge mutedUntil={rowMember.muted_until} />
             </TouchableOpacity>
 
             {/* El dueño nunca es blanco: el backend lo rechaza, porque nadie está
@@ -132,6 +171,14 @@ export function MembersSection({
               </TouchableOpacity>
             )}
 
+            {canModerate && !isOwner && user_id !== user?.id && (
+              <MuteButton
+                mutedUntil={rowMember.muted_until}
+                memberName={nameOf(user_id)}
+                onPress={() => setMuting(user_id)}
+              />
+            )}
+
             {renderMemberActions?.(rowMember)}
           </View>
         );
@@ -158,6 +205,18 @@ export function MembersSection({
           memberName={nameOf(kicking)}
           onClose={() => setKicking(null)}
           onKicked={onMemberKicked}
+        />
+      )}
+
+      {mutingMember && (
+        <MuteMemberDialog
+          visible
+          serverId={serverId}
+          userId={mutingMember.user_id}
+          memberName={nameOf(mutingMember.user_id)}
+          mutedUntil={mutingMember.muted_until}
+          onClose={() => setMuting(null)}
+          onChanged={onMuteChanged}
         />
       )}
 
