@@ -16,6 +16,7 @@ import { consumeLoginNotice } from '@/shared/session/loginNotice';
 import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { getApiErrorMessage, isMfaChallenge } from '@discordia/api';
 import { MfaStep, RecoveryNotice } from './MfaStep';
+import { GoogleSignIn } from './GoogleSignIn';
 import {
   buildAuthHref,
   FORGOT_PASSWORD_ROUTE,
@@ -197,6 +198,11 @@ export function LoginScreen() {
                 {loading ? 'Iniciando sesión…' : 'Iniciar Sesión'}
               </Text>
             </TouchableOpacity>
+
+            {/* Continuar con Google */}
+            <View className="mt-4">
+              <GoogleSignIn onStart={() => setError(null)} onError={setError} />
+            </View>
 
             {/* Enlace Registro */}
             <View className="mt-4 flex-row items-center">

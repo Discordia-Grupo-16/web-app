@@ -15,6 +15,8 @@ import { DiscordiaMark, EyeIcon, EyeOffIcon } from '@discordia/ui';
 import { getApiErrorMessage } from '@discordia/api';
 import { authService } from '@/shared/api';
 import { buildAuthHref, HOME_ROUTE, LOGIN_ROUTE, useReturnTo } from '../returnTo';
+import { GoogleSignIn } from './GoogleSignIn';
+import { MfaStep } from './MfaStep';
 
 export function RegisterScreen() {
   const [name, setName] = useState('');
@@ -23,7 +25,7 @@ export function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signIn } = useAuth();
+  const { signIn, pendingMfa } = useAuth();
   const router = useRouter();
   const returnTo = useReturnTo();
 
@@ -52,6 +54,22 @@ export function RegisterScreen() {
       setLoading(false);
     }
   };
+
+  // Google found an existing account with 2FA: the same second step as in the login.
+  if (pendingMfa) {
+    return (
+      <SafeAreaView className="flex-1 bg-[#23272a]">
+        <StatusBar style="light" />
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+          className="px-6 py-8"
+          keyboardShouldPersistTaps="handled"
+        >
+          <MfaStep onVerified={() => router.replace((returnTo ?? HOME_ROUTE) as Href)} />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-[#23272a]">
@@ -170,6 +188,11 @@ export function RegisterScreen() {
                 {loading ? 'Creando cuenta…' : 'Continuar'}
               </Text>
             </TouchableOpacity>
+
+            {/* Continuar con Google */}
+            <View className="mt-4">
+              <GoogleSignIn onStart={() => setError(null)} onError={setError} />
+            </View>
 
             {/* Enlace Login */}
             <View className="mt-4 flex-row items-center">

@@ -152,6 +152,20 @@ Igual que en web, cada test vive junto al archivo que prueba. La configuración 
 
 #### APKs generadas con EAS (sin Android Studio)
 
+#### Login con Google
+
+El botón "Continuar con Google" aparece solo si `apps/mobile/.env` tiene el client ID de tipo *Android* de
+Google Cloud (es público, no un secreto). Sin la variable el botón no se muestra y queda el formulario de correo:
+
+```
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=<id>.apps.googleusercontent.com
+```
+
+Ese client ID se crea con el paquete `com.discordia.mobile` y el SHA-1 del keystore de EAS
+(`eas credentials`), y tiene que estar también en `GOOGLE_CLIENT_IDS` de `identity`. Agregar
+`expo-web-browser` a `app.json` es un cambio nativo: hay que generar de nuevo la APK. Para la APK `preview`,
+la variable va en el bloque `env` de ese perfil en `eas.json`, junto a las URLs de AWS.
+
 Hay dos APKs, para dos usos distintos:
 
 | | App de desarrollo (`development`) | App de la demo (`preview`) |
@@ -190,6 +204,16 @@ La web app se comunica con el backend a través del API Gateway. Creá el archiv
 ```
 VITE_API_URL=http://localhost:8080/api/v1
 ```
+
+Para el botón "Continuar con Google" agregá además el client ID de tipo *Web* de Google Cloud (es público,
+no un secreto). Sin esta variable el botón no se muestra y queda solo el formulario de correo:
+
+```
+VITE_GOOGLE_CLIENT_ID=<id>.apps.googleusercontent.com
+```
+
+El origen `http://localhost:5173` tiene que estar entre los orígenes autorizados de ese client ID, y el mismo
+ID tiene que estar en `GOOGLE_CLIENT_IDS` de `identity`.
 
 ### Token de desarrollo
 
