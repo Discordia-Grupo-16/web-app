@@ -26,7 +26,7 @@ const toLoginResult = (body: AuthResult | MfaChallenge): LoginResult => {
     };
 };
 
-export const createAuthService =(apiClient: AxiosInstance) => ({
+export const createAuthService = (apiClient: AxiosInstance) => ({
     async login(credentials: LoginCredentials): Promise<LoginResult> {
         const { data } = await apiClient.post<AuthApiResponse | { data: MfaChallenge }>(
             '/api/v1/sessions',
