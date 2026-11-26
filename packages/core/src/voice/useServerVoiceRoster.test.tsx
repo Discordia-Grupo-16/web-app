@@ -432,12 +432,12 @@ describe('useVoiceRosterViews', () => {
 
         await waitFor(() => expect(result.current.get(VOICE_B)?.[1].loading).toBe(false));
         expect(result.current.get(VOICE_A)).toEqual([
-            { userId: ME, name: 'Milton', loading: false, isSelf: true },
-            { userId: ANA, name: 'Ana', loading: false, isSelf: false },
+            { userId: ME, name: 'Milton', userAvatar: '', loading: false, isSelf: true },
+            { userId: ANA, name: 'Ana', userAvatar: '', loading: false, isSelf: false },
         ]);
         expect(result.current.get(VOICE_B)).toEqual([
-            { userId: ANA, name: 'Ana', loading: false, isSelf: false },
-            { userId: BETO, name: UNAVAILABLE_USER_NAME, loading: false, isSelf: false },
+            { userId: ANA, name: 'Ana', userAvatar: '', loading: false, isSelf: false },
+            { userId: BETO, name: UNAVAILABLE_USER_NAME, userAvatar: '', loading: false, isSelf: false },
         ]);
         expect(result.current.get(VOICE_A)?.every((view) => view.muted === undefined)).toBe(true);
         expect(source.getPublicProfiles).toHaveBeenCalledTimes(1);
@@ -450,7 +450,7 @@ describe('useVoiceRosterViews', () => {
         const { result } = renderHook(() => useVoiceRosterViews(roster), { wrapper });
 
         expect(result.current.get(VOICE_A)).toEqual([
-            { userId: ANA, name: VOICE_NAME_PLACEHOLDER, loading: true, isSelf: false },
+            { userId: ANA, name: VOICE_NAME_PLACEHOLDER, userAvatar: '', loading: true, isSelf: false },
         ]);
     });
 
