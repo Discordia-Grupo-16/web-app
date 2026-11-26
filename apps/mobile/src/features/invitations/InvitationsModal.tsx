@@ -8,6 +8,7 @@ import { buildInviteUrl } from '@discordia/core';
 import { invitationsService } from '@/shared/api';
 import { getErrorDetail } from '@discordia/api';
 import { WEB_URL } from '@/shared/config/env';
+import { KeyboardAvoidingView } from '@/shared/ui/keyboard';
 
 const EXPIRY_OPTIONS: { label: string; value: number | undefined }[] = [
   { label: 'Sin exp.', value: undefined },
@@ -66,7 +67,7 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View className="flex-1 justify-end bg-black/60">
+      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/60">
         <View className="bg-[#36393f] rounded-t-2xl p-6" style={{ maxHeight: '80%' }}>
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-white font-black text-xl">Invitaciones</Text>
@@ -156,7 +157,7 @@ export function InvitationsModal({ visible, serverId, invitations, onClose, onRe
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </Modal>
   );

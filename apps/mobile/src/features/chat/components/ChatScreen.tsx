@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView } from 'react-native';
+import { KeyboardAvoidingView } from '@/shared/ui/keyboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useAuth, useChannelMessages } from '@discordia/core';

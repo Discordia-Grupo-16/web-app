@@ -4,6 +4,7 @@ import { ArrowRightLeft } from 'lucide-react';
 import type { Channel, ServerMember } from '@discordia/api';
 import {
     BAN_MEMBERS,
+    CREATE_INVITE,
     KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
@@ -137,6 +138,8 @@ export const ServerPanel = () => {
     // members load, so it does not flash.
     const offerLeave = !isOwner || (!loadingMembers && members.length > 1);
     const canManageServer = hasPermission(permissions, MANAGE_SERVER);
+    // "Generar invitación": invita quien tiene CREATE_INVITE. El owner lo tiene siempre.
+    const canInvite = hasPermission(permissions, CREATE_INVITE);
 
     // Only the owner transfers the ownership, whatever its permissions (SCRUM-35).
     const transfer = useOutgoingOwnershipTransfer({
@@ -198,7 +201,7 @@ export const ServerPanel = () => {
                 iconUrl={server?.avatar_url}
                 actions={serverId && (
                     <>
-                        {isOwner && <InviteButton serverId={serverId} />}
+                        {canInvite && <InviteButton serverId={serverId} />}
                         {canManageServer && (
                             <button
                                 onClick={() => setShowSettings(true)}
