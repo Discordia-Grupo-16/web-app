@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { OwnershipTransfer, Server, ServerMember } from '@discordia/api';
-import { ADMINISTRATOR, PERMISSION_COPY, PublicProfilesProvider, VIEW_CHANNEL } from '@discordia/core';
+import { ADMINISTRATOR, CREATE_INVITE, PERMISSION_COPY, PublicProfilesProvider, VIEW_CHANNEL } from '@discordia/core';
 import { membersService, ownershipSource, serversService } from '@/shared/api';
 import ServerScreen from '@/app/(app)/server/[serverId]/index';
 
@@ -48,7 +48,12 @@ jest.mock('@/features/roles', () => ({
   RolesSection: () => null,
   useRoles: () => ({ roles: [], loading: false, addRole: jest.fn(), updateRole: jest.fn() }),
 }));
-jest.mock('@/features/invitations', () => ({ InvitationsSection: () => null }));
+jest.mock('@/features/invitations', () => {
+  const { Text } = jest.requireActual('react-native');
+  return {
+    InvitationsSection: ({ canManage }: { canManage: boolean }) => (canManage ? <Text>Gestionar invitaciones</Text> : null),
+  };
+});
 jest.mock('@/features/voice', () => ({ VoiceParticipantList: () => null }));
 
 const metrics = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
@@ -149,5 +154,24 @@ describe('la pantalla del servidor: transferir la propiedad (SCRUM-35, Transferi
     await renderScreen(VIEW_CHANNEL, 'owner', [member('owner'), member(ME)]);
 
     expect(screen.getByText('Abandonar servidor')).toBeOnTheScreen();
+  });
+});
+
+describe('la pantalla del servidor: invitar (Generar invitación)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.mocked(ownershipSource.getServerTransfer).mockRejectedValue({ isAxiosError: true, response: { status: 404 } });
+  });
+
+  it('quien tiene CREATE_INVITE gestiona las invitaciones, aunque no sea el dueño', async () => {
+    await renderScreen(VIEW_CHANNEL | CREATE_INVITE, 'owner');
+
+    expect(screen.getByText('Gestionar invitaciones')).toBeOnTheScreen();
+  });
+
+  it('sin CREATE_INVITE no se le ofrece, aunque sea miembro', async () => {
+    await renderScreen(VIEW_CHANNEL, 'owner');
+
+    expect(screen.queryByText('Gestionar invitaciones')).not.toBeOnTheScreen();
   });
 });

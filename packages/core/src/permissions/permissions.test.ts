@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
+    ADD_REACTIONS,
     ADMINISTRATOR,
+    ATTACH_FILES,
     BAN_MEMBERS,
+    CREATE_INVITE,
     MANAGE_MESSAGES,
     MANAGE_ROLES,
+    MENTION_EVERYONE,
+    MODERATE_MEMBERS,
     PERMISSION_BY_NAME,
     PERMISSION_HINT,
     PERMISSION_LABEL,
     PERMISSION_ORDER,
     SEND_MESSAGES,
+    VIEW_AUDIT_LOG,
     VIEW_CHANNEL,
     fromPermissionNames,
     hasPermission,
@@ -29,6 +35,12 @@ describe('the permission table', () => {
         expect(SEND_MESSAGES).toBe(2);
         expect(ADMINISTRATOR).toBe(256);
         expect(MANAGE_MESSAGES).toBe(512);
+        expect(CREATE_INVITE).toBe(1024);
+        expect(ADD_REACTIONS).toBe(2048);
+        expect(MENTION_EVERYONE).toBe(4096);
+        expect(ATTACH_FILES).toBe(8192);
+        expect(MODERATE_MEMBERS).toBe(16384);
+        expect(VIEW_AUDIT_LOG).toBe(32768);
     });
 
     it('has a label, a hint and a position for every permission', () => {
