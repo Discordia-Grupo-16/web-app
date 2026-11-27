@@ -111,7 +111,7 @@ export const MessageItem = ({
                 className="px-3 py-2 rounded"
                 style={{ backgroundColor: '#2f3136' }}
               >
-                <Text className="text-xs text-[#7289da] underline">{a.filename}</Text>
+                <Text className="text-xs text-[#7289da] underline">📄 {a.filename}</Text>
               </TouchableOpacity>
             ),
           )}

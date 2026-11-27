@@ -1,4 +1,17 @@
 import { useState } from 'react';
+
+async function downloadFile(url: string, filename: string) {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+}
 import type { MessageAttachment } from '@discordia/api';
 import { MessageEditor } from './MessageEditor';
 
@@ -184,16 +197,15 @@ export const MessageItem = ({
                                             />
                                         </button>
                                     ) : (
-                                        <a
+                                        <button
                                             key={i}
-                                            href={a.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                                            type="button"
+                                            onClick={() => void downloadFile(a.url, a.filename)}
                                             className="flex items-center gap-1 px-3 py-2 rounded text-xs underline"
                                             style={{ backgroundColor: '#2f3136', color: '#7289da' }}
                                         >
-                                            {a.filename}
-                                        </a>
+                                            📄 {a.filename}
+                                        </button>
                                     )
                                 ))}
                             </div>
