@@ -14,6 +14,7 @@ const createFakeClient = () => {
         connect: vi.fn(),
         disconnect: vi.fn(),
         sendMessage: vi.fn(),
+        sendActivity: vi.fn(),
         getState: () => state,
         on<K extends keyof RealtimeEventMap>(event: K, handler: RealtimeEventMap[K]) {
             handlers.set(event, [...(handlers.get(event) ?? []), handler]);
@@ -442,6 +443,36 @@ describe('useRealtimeController', () => {
 
         expect(unsubscribed).not.toHaveBeenCalled();
         expect(healthy).toHaveBeenCalledTimes(1);
+    });
+
+    describe('presence (SCRUM-27)', () => {
+        it('hands the presence frames to whoever subscribes, until they leave', () => {
+            const { result } = render();
+            const handler = vi.fn();
+            const off = result.current.value.onPresence(handler);
+            const frame = { type: 'presence', userId: 'u1', status: 'idle', updatedAt: '2026-11-23T12:00:00Z' } as const;
+
+            fake.emit('presence', frame);
+            off();
+            fake.emit('presence', frame);
+
+            expect(handler).toHaveBeenCalledExactlyOnceWith(frame);
+        });
+
+        it('passes the activity on to the client', () => {
+            const { result } = render();
+
+            result.current.value.sendActivity(true);
+
+            expect(fake.client.sendActivity).toHaveBeenCalledWith(true);
+        });
+
+        it('does nothing without a client', () => {
+            const { result } = render({ client: null });
+
+            expect(() => result.current.value.sendActivity(true)).not.toThrow();
+            expect(() => result.current.value.onPresence(vi.fn())()).not.toThrow();
+        });
     });
 
     describe('editing messages', () => {

@@ -1,5 +1,6 @@
 import type { ReactionDto } from '../messages/types';
 import type { VoiceRosterParticipant } from '../voice/types';
+import type { PresenceStatus } from '../presence/types';
 
 export interface MessageSendFrame {
     type: 'message.send';
@@ -128,6 +129,27 @@ export interface ReadStateUpdatedFrame {
     states: ReadStateEntry[];
 }
 
+/**
+ * The activity status of someone who shares a server with the user changed (SCRUM-27). It carries the
+ * data. Apply it only if `updatedAt` is newer than the one held for that user. It may arrive more
+ * than once, one per server in common.
+ */
+export interface PresenceFrame {
+    type: 'presence';
+    userId: string;
+    status: PresenceStatus;
+    updatedAt: string;
+}
+
+/**
+ * Sent by the client: the user stopped interacting, or came back. It counts for the connection that
+ * sends it, and a new connection starts as active. It has no answer.
+ */
+export interface PresenceActivityFrame {
+    type: 'presence.activity';
+    idle: boolean;
+}
+
 export type RealtimeErrorCode =
     | 'CHANNEL_NOT_FOUND'
     | 'FORBIDDEN'
@@ -154,4 +176,5 @@ export type ServerFrame =
     | InvalidateFrame
     | ReadStateUpdatedFrame
     | VoiceParticipantsUpdatedFrame
+    | PresenceFrame
     | ErrorFrame;

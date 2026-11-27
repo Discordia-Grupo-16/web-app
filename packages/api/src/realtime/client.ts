@@ -6,6 +6,7 @@ import type {
     MessageUpdatedFrame,
     MessageDeletedFrame,
     MessageReactionsFrame,
+    PresenceFrame,
     ReadStateUpdatedFrame,
     ServerFrame,
     VoiceParticipantsUpdatedFrame,
@@ -75,6 +76,7 @@ export interface RealtimeEventMap {
     invalidate: (frame: InvalidateFrame) => void;
     voiceParticipants: (frame: VoiceParticipantsUpdatedFrame) => void;
     readStateUpdated: (frame: ReadStateUpdatedFrame) => void;
+    presence: (frame: PresenceFrame) => void;
     errorFrame: (frame: ErrorFrame) => void;
     terminated: (event: { code: number; reason: string }) => void;
 }
@@ -83,6 +85,12 @@ export interface RealtimeClient {
     connect(): void;
     disconnect(): void;
     sendMessage(input: SendMessageInput): void;
+    /**
+     * Says whether the user is idle (SCRUM-27). Safe to call without an open socket: the client
+     * remembers it and tells each new connection, which the server considers active. `disconnect()`
+     * forgets it.
+     */
+    sendActivity(idle: boolean): void;
     getState(): ConnectionState;
     on<K extends keyof RealtimeEventMap>(event: K, handler: RealtimeEventMap[K]): () => void;
 }
@@ -127,6 +135,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
     let reconnectTimer: number | null = null;
     let deliberateClose = false;
     let connectAttemptId = 0;
+    let idle = false;
 
     const listeners: { [K in keyof RealtimeEventMap]: Set<RealtimeEventMap[K]> } = {
         stateChange: new Set(),
@@ -138,6 +147,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         invalidate: new Set(),
         voiceParticipants: new Set(),
         readStateUpdated: new Set(),
+        presence: new Set(),
         errorFrame: new Set(),
         terminated: new Set(),
     };
@@ -182,6 +192,8 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         ws.onopen = () => {
             if (attemptId !== connectAttemptId) return;
             backoffMs = minBackoffMs;
+            // A new connection starts as active on the server.
+            if (idle) writeActivity();
             setState('open');
         };
 
@@ -249,6 +261,16 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
                     // Without a list there is nothing to apply.
                     if (Array.isArray(frame.states)) emit('readStateUpdated', frame);
                     break;
+                case 'presence':
+                    // Without these fields it cannot be placed or ordered.
+                    if (
+                        typeof frame.userId === 'string' &&
+                        typeof frame.status === 'string' &&
+                        typeof frame.updatedAt === 'string'
+                    ) {
+                        emit('presence', frame);
+                    }
+                    break;
                 case 'error':
                     emit('errorFrame', frame);
                     break;
@@ -312,6 +334,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
     function disconnect(): void {
         deliberateClose = true;
         connectAttemptId += 1;
+        idle = false;
         clearReconnectTimer();
         if (socket) {
             socket.close(1000, 'client disconnect');
@@ -334,6 +357,17 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         );
     }
 
+    function writeActivity(): void {
+        if (!socket || socket.readyState !== READY_STATE_OPEN) return;
+        socket.send(JSON.stringify({ type: 'presence.activity', idle }));
+    }
+
+    function sendActivity(next: boolean): void {
+        if (next === idle) return;
+        idle = next;
+        writeActivity();
+    }
+
     function getState(): ConnectionState {
         return state;
     }
@@ -348,7 +382,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         };
     }
 
-    return { connect, disconnect, sendMessage, getState, on };
+    return { connect, disconnect, sendMessage, sendActivity, getState, on };
 }
 
 export type { WebSocketConstructor, WebSocketLike };

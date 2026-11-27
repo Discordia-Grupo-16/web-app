@@ -4,6 +4,7 @@ import type {
     ConnectionState,
     InvalidateFrame,
     MessageCreatedFrame,
+    PresenceFrame,
     ReadStateUpdatedFrame,
     VoiceParticipantsUpdatedFrame,
 } from '@discordia/api';
@@ -58,6 +59,13 @@ export interface RealtimeContextValue {
      * server and by `syncedAt`. Returns the unsubscribe function.
      */
     onVoiceParticipants: (handler: (frame: VoiceParticipantsUpdatedFrame) => void) => () => void;
+    /**
+     * Subscribes to the changes of activity status (SCRUM-27) of whoever shares a server with the
+     * user. The subscriber orders them by `updatedAt`. Returns the unsubscribe function.
+     */
+    onPresence: (handler: (frame: PresenceFrame) => void) => () => void;
+    /** Says whether the user is idle (SCRUM-27). Safe to call with the socket closed. */
+    sendActivity: (idle: boolean) => void;
     /**
      * Subscribes to the messages other sessions and users send, for what is not the message list
      * itself (the unread indicators). Returns the unsubscribe function.

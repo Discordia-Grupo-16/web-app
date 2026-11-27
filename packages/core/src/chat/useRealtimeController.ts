@@ -471,6 +471,16 @@ export const useRealtimeController = ({
         [client],
     );
 
+    const onPresence = useCallback<RealtimeContextValue['onPresence']>(
+        (handler) => (client ? client.on('presence', handler) : () => {}),
+        [client],
+    );
+
+    const sendActivity = useCallback<RealtimeContextValue['sendActivity']>(
+        (idle) => client?.sendActivity(idle),
+        [client],
+    );
+
     const onMessageCreated = useCallback<RealtimeContextValue['onMessageCreated']>(
         (handler) => (client ? client.on('messageCreated', handler) : () => {}),
         [client],
@@ -492,12 +502,12 @@ export const useRealtimeController = ({
         () => ({
             status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage,
             setReaction, loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
-            onVoiceParticipants, onReconnect,
+            onVoiceParticipants, onPresence, sendActivity, onReconnect,
         }),
         [
             status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage,
             setReaction, loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
-            onVoiceParticipants, onReconnect,
+            onVoiceParticipants, onPresence, sendActivity, onReconnect,
         ],
     );
 
