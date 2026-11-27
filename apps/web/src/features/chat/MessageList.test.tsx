@@ -63,6 +63,8 @@ const renderList = (
                     onEdit={overrides.onEdit ?? vi.fn(async () => {})}
                     canManageMessages={overrides.canManageMessages ?? false}
                     onDelete={overrides.onDelete ?? vi.fn(async () => {})}
+                    canAddReactions={false}
+                    onReact={vi.fn(async () => {})}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
@@ -206,6 +208,8 @@ describe('MessageList scroll behavior', () => {
                     onEdit={vi.fn(async () => {})}
                     canManageMessages={false}
                     onDelete={vi.fn(async () => {})}
+                    canAddReactions={false}
+                    onReact={vi.fn(async () => {})}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>
@@ -296,6 +300,8 @@ describe('MessageList editing', () => {
                     onEdit={onEdit}
                     canManageMessages={false}
                     onDelete={vi.fn(async () => {})}
+                    canAddReactions={false}
+                    onReact={vi.fn(async () => {})}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>
@@ -478,6 +484,8 @@ describe('MessageList deleting', () => {
                     onEdit={vi.fn(async () => {})}
                     canManageMessages={canManageMessages}
                     onDelete={onDelete}
+                    canAddReactions={false}
+                    onReact={vi.fn(async () => {})}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>

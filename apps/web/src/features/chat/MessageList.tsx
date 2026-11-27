@@ -2,7 +2,15 @@ import { useEffect, useMemo, useLayoutEffect, useRef, useState } from 'react';
 import { Hash } from 'lucide-react';
 import type { User } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from '@discordia/core';
-import { authorView, deleteErrorText, ERROR_TEXTS, isRetryable, usePublicProfiles } from '@discordia/core';
+import {
+    authorView,
+    deleteErrorText,
+    ERROR_TEXTS,
+    isRetryable,
+    reactionErrorText,
+    reactionSummary,
+    usePublicProfiles,
+} from '@discordia/core';
 import { ConfirmModal } from '@/shared/ui/ConfirmModal';
 import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
 import { MessageItem } from './MessageItem';
@@ -33,6 +41,10 @@ interface MessageListProps {
     canManageMessages: boolean;
     /** Rejects with the HTTP error if the server refuses. */
     onDelete: (messageId: string) => Promise<void>;
+    /** ADD_REACTIONS: the user may add reactions. Taking back their own never needs it (SCRUM-49). */
+    canAddReactions: boolean;
+    /** Adds (`reacted: true`) or takes back a reaction. Rejects with the HTTP error if the server refuses. */
+    onReact: (messageId: string, emoji: string, reacted: boolean) => Promise<void>;
 }
 
 const STICK_TO_BOTTOM_PX = 100;
@@ -60,6 +72,8 @@ export const MessageList = ({
     onEdit,
     canManageMessages,
     onDelete,
+    canAddReactions,
+    onReact,
 }: MessageListProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const nearBottomRef = useRef(true);
@@ -89,6 +103,16 @@ export const MessageList = ({
             await onDelete(messageId);
         } catch (err) {
             setDeleteError({ messageId, text: deleteErrorText(err) });
+        }
+    };
+
+    const [reactionError, setReactionError] = useState<{ messageId: string; text: string } | null>(null);
+    const react = async (messageId: string, emoji: string, reacted: boolean) => {
+        setReactionError(null);
+        try {
+            await onReact(messageId, emoji, reacted);
+        } catch (err) {
+            setReactionError({ messageId, text: reactionErrorText(err) });
         }
     };
 
@@ -211,6 +235,10 @@ export const MessageList = ({
                                 canDelete={canDelete(message)}
                                 onRequestDelete={() => setPendingDelete(message)}
                                 deleteError={deleteError?.messageId === message.messageId ? deleteError.text : null}
+                                reactions={reactionSummary(message.reactions, currentUser?.id)}
+                                canAddReactions={canAddReactions}
+                                onReact={(emoji, reacted) => void react(message.messageId, emoji, reacted)}
+                                reactionError={reactionError?.messageId === message.messageId ? reactionError.text : null}
                                 onSelectAuthor={() => openProfile(message.authorId)}
                             />
                         );
