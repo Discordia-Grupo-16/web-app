@@ -82,11 +82,13 @@ describe('MfaStep', () => {
     });
 
     it('goes back to the login on request', async () => {
-        render(<MfaStep onVerified={vi.fn()} />);
+        const onCancel = vi.fn();
+        render(<MfaStep onVerified={vi.fn()} onCancel={onCancel} />);
 
         await userEvent.setup().click(screen.getByRole('button', { name: 'Volver al inicio de sesión' }));
 
         expect(cancelMfa).toHaveBeenCalledOnce();
+        expect(onCancel).toHaveBeenCalledOnce();
     });
 });
 

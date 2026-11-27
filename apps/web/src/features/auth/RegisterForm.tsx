@@ -5,13 +5,15 @@ import { useAuth, validateRegisterInput } from "@discordia/core";
 import { getApiErrorMessage } from "@discordia/api";
 import { authService } from '@/shared/api';
 import { useReturnTo } from './returnTo';
+import { GoogleSignIn } from './GoogleSignIn';
+import { MfaStep } from './MfaStep';
 
 export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
     const [form, setForm] = useState({ email: '', name: '', password: '' })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const { signIn } = useAuth()
+    const { signIn, pendingMfa } = useAuth()
     const navigate = useNavigate()
     const returnTo = useReturnTo()
 
@@ -40,6 +42,11 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
         } finally {
             setLoading(false)
         }
+    }
+
+    // Google found an existing account with 2FA: the same second step as in the login.
+    if (pendingMfa) {
+        return <MfaStep onVerified={() => navigate(returnTo, { replace: true })} onCancel={onSwitch} />
     }
 
     const inputStyle = {
@@ -152,14 +159,10 @@ export const RegisterForm = ({ onSwitch }: { onSwitch: () => void }) => {
                     </button>
                 </form>
 
-                <div className="flex items-center gap-3 my-5">
-                    <div className="flex-1 h-px" style={{ background: 'rgba(153,170,181,0.2)' }} />
-                    <span className="text-xs" style={{ color: '#99aab5', fontFamily: 'Open Sans, sans-serif' }}>o</span>
-                    <div className="flex-1 h-px" style={{ background: 'rgba(153,170,181,0.2)' }} />
-                </div>
+                <GoogleSignIn disabled={loading} onStart={() => setError(null)} onError={setError} />
 
                 <p
-                    className="text-center text-sm"
+                    className="mt-5 text-center text-sm"
                     style={{ fontFamily: 'Open Sans, sans-serif', color: '#99aab5' }}
                 >
                     ¿Ya tienes una cuenta?{' '}

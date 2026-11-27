@@ -83,6 +83,20 @@ describe('MfaStep', () => {
   });
 });
 
+describe('MfaStep abandoned', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('cancels the second step and lets the screen leave for the login', async () => {
+    const onCancel = jest.fn();
+    await render(<MfaStep onVerified={jest.fn()} onCancel={onCancel} />);
+
+    await fireEvent.press(screen.getByText('Volver al inicio de sesión'));
+
+    expect(mockCancelMfa).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('RecoveryNotice', () => {
   it('tells how many codes are left and recommends generating new ones', async () => {
     const onContinue = jest.fn();

@@ -6,6 +6,7 @@ import { getApiErrorMessage, isMfaChallenge } from "@discordia/api";
 import { authService } from '@/shared/api';
 import { useReturnTo } from './returnTo';
 import { MfaStep, RecoveryNotice } from './MfaStep';
+import { GoogleSignIn } from './GoogleSignIn';
 
 interface LoginFormProps {
     onSwitch: () => void
@@ -238,18 +239,18 @@ export const LoginForm = ({ onSwitch, onForgotPassword, notice, noticeTone, onSu
                     </button>
                 </form>
 
-                {/* Divider */}
-                <div className="flex items-center gap-3 my-5">
-                    <div className="flex-1 h-px" style={{ background: 'rgba(153,170,181,0.2)' }} />
-                    <span className="text-xs" style={{ color: '#99aab5', fontFamily: 'Open Sans, sans-serif' }}>
-                        o
-                    </span>
-                    <div className="flex-1 h-px" style={{ background: 'rgba(153,170,181,0.2)' }} />
-                </div>
+                <GoogleSignIn
+                    disabled={loading}
+                    onStart={() => {
+                        onSubmitAttempt?.()
+                        setError(null)
+                    }}
+                    onError={setError}
+                />
 
                 {/* Register prompt */}
                 <p
-                    className="text-center text-sm"
+                    className="mt-5 text-center text-sm"
                     style={{ fontFamily: 'Open Sans, sans-serif', color: '#99aab5' }}
                 >
                     ¿No tienes una cuenta?{' '}
