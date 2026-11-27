@@ -12,6 +12,8 @@ interface ChatPanelProps {
     mutedUntil?: string | null;
     /** MANAGE_MESSAGES, resolved by `community`. The backend checks it too: this only shows the option. */
     canManageMessages: boolean;
+    /** ADD_REACTIONS, resolved by `community`. The backend checks it too: this only shows the option. */
+    canAddReactions: boolean;
 }
 
 export const ChatPanel = ({
@@ -21,11 +23,12 @@ export const ChatPanel = ({
     canSendMessages,
     mutedUntil = null,
     canManageMessages,
+    canAddReactions,
 }: ChatPanelProps) => {
     const { user } = useAuth();
     const {
         messages, pending, status, maxLength,
-        send, retry, discard, editMessage, deleteMessage,
+        send, retry, discard, editMessage, deleteMessage, setReaction,
         historyLoaded, historyError, retryHistory,
         hasMore, loadingMore, loadMoreError, loadMore,
         rejected, clearRejected,
@@ -58,6 +61,8 @@ export const ChatPanel = ({
                 onEdit={editMessage}
                 canManageMessages={canManageMessages}
                 onDelete={deleteMessage}
+                canAddReactions={canAddReactions}
+                onReact={setReaction}
             />
             <MessageComposer
                 channelName={channelName}

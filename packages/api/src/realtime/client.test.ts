@@ -377,6 +377,40 @@ describe('receiving', () => {
         expect(onDeleted).not.toHaveBeenCalled();
     });
 
+    it('emits messageReactions with the parsed frame', async () => {
+        const { client, socket } = await openClient();
+        const onReactions = vi.fn();
+        client.on('messageReactions', onReactions);
+
+        const frame = {
+            type: 'message.reactions',
+            messageId: 'm1',
+            channelId: 'c1',
+            serverId: 's1',
+            reactions: [{ emoji: '👍', userIds: ['u1', 'u2'] }],
+            reactionsVersion: 3,
+        };
+        socket.message(frame);
+
+        expect(onReactions).toHaveBeenCalledTimes(1);
+        expect(onReactions).toHaveBeenCalledWith(frame);
+    });
+
+    it.each([
+        ['messageId', { channelId: 'c1', reactions: [], reactionsVersion: 1 }],
+        ['channelId', { messageId: 'm1', reactions: [], reactionsVersion: 1 }],
+        ['reactions', { messageId: 'm1', channelId: 'c1', reactionsVersion: 1 }],
+        ['reactionsVersion', { messageId: 'm1', channelId: 'c1', reactions: [] }],
+    ])('drops a message.reactions without %s: there is nothing to apply it to or to order it by', async (_field, rest) => {
+        const { client, socket } = await openClient();
+        const onReactions = vi.fn();
+        client.on('messageReactions', onReactions);
+
+        expect(() => socket.message({ type: 'message.reactions', serverId: 's1', ...rest })).not.toThrow();
+
+        expect(onReactions).not.toHaveBeenCalled();
+    });
+
     it('emits readStateUpdated with the parsed frame', async () => {
         const { client, socket } = await openClient();
         const onReadState = vi.fn();

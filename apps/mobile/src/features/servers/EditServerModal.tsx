@@ -4,6 +4,7 @@ import { ActivityIndicator, Modal, Text, TextInput, TouchableOpacity, View } fro
 import type { Server } from '@discordia/api';
 import { getErrorDetail } from '@discordia/api';
 import { serversService } from '@/shared/api';
+import { KeyboardAvoidingView } from '@/shared/ui/keyboard';
 
 type ImageFile = { uri: string; name: string; type: string };
 
@@ -75,7 +76,7 @@ export function EditServerModal({ server, onClose, onUpdated }: Props) {
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 justify-end bg-black/60">
+      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/60">
         <View className="bg-[#36393f] rounded-t-2xl p-6">
           <Text className="text-white font-black text-xl mb-5">
             Configuración del servidor
@@ -145,7 +146,7 @@ export function EditServerModal({ server, onClose, onUpdated }: Props) {
             <Text className="text-[#99aab5]">Cancelar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

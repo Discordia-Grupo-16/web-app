@@ -48,3 +48,20 @@ export const deleteErrorText = (error: unknown): string => {
             return 'No se pudo eliminar el mensaje.';
     }
 };
+
+// Why a reaction was refused, from the HTTP status of the PUT or DELETE (SCRUM-49).
+export const reactionErrorText = (error: unknown): string => {
+    const status = (error as { response?: { status?: number } } | null)?.response?.status;
+    switch (status) {
+        case 400:
+            return 'Ese emoji no se puede usar.';
+        case 403:
+            return 'No tenés permiso para reaccionar en este canal.';
+        case 404:
+            return 'El mensaje ya no existe.';
+        case 409:
+            return 'Este mensaje ya tiene 20 emojis distintos.';
+        default:
+            return 'No se pudo reaccionar. Probá de nuevo.';
+    }
+};

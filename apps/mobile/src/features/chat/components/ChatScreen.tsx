@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView } from 'react-native';
+import { KeyboardAvoidingView } from '@/shared/ui/keyboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { useAuth, useChannelMessages } from '@discordia/core';
@@ -15,6 +15,8 @@ interface ChatScreenProps {
   mutedUntil?: string | null;
   /** MANAGE_MESSAGES, resolved by `community`. The backend checks it too: this only shows the option. */
   canManageMessages: boolean;
+  /** ADD_REACTIONS, resolved by `community`. The backend checks it too: this only shows the option. */
+  canAddReactions: boolean;
 }
 
 export const ChatScreen = ({
@@ -23,12 +25,13 @@ export const ChatScreen = ({
   canSendMessages,
   mutedUntil = null,
   canManageMessages,
+  canAddReactions,
 }: ChatScreenProps) => {
   const { user } = useAuth();
   const headerHeight = useHeaderHeight();
   const {
     messages, pending, status, maxLength,
-    send, retry, discard, editMessage, deleteMessage,
+    send, retry, discard, editMessage, deleteMessage, setReaction,
     historyLoaded, historyError, retryHistory,
     hasMore, loadingMore, loadMoreError, loadMore,
     rejected, clearRejected,
@@ -66,6 +69,8 @@ export const ChatScreen = ({
           onStartEdit={setEditingId}
           canManageMessages={canManageMessages}
           onDelete={deleteMessage}
+          canAddReactions={canAddReactions}
+          onReact={setReaction}
         />
         <MessageComposer
           // Keyed by the message: starting or leaving an edit gives the composer a fresh state.

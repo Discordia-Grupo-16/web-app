@@ -15,10 +15,11 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
 }));
 jest.mock('@/shared/api', () => ({ serversService: { getServer: jest.fn() } }));
-// The notice and the polling are useLiveRefresh's: here the refresh is called by hand.
+// The notice and the polling are useLiveRefresh's: here the refresh is called by hand. The hook
+// subscribes twice (the server itself, and the list of servers); this test is about the first one.
 jest.mock('@/shared/hooks/useLiveRefresh', () => ({
-  useLiveRefresh: ({ refresh }: { refresh: () => void }) => {
-    mockRefresh = refresh;
+  useLiveRefresh: ({ resources, refresh }: { resources: string[]; refresh: () => void }) => {
+    if (resources.includes('server')) mockRefresh = refresh;
   },
 }));
 

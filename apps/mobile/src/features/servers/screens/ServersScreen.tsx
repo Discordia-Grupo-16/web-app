@@ -11,6 +11,7 @@ import { useMarkAllRead, useServerUnread } from '@discordia/core';
 import { UnreadMarks } from '@/shared/ui/UnreadMarks';
 import { useLiveRefresh } from '@/shared/hooks/useLiveRefresh';
 import { getErrorDetail } from '@discordia/api';
+import { KeyboardAvoidingView } from '@/shared/ui/keyboard';
 
 // The row of a server, in its own component because the unread hook is per server.
 function ServerRow({ server, onOpen }: { server: Server; onOpen: () => void }) {
@@ -158,7 +159,7 @@ function CreateServerModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View className="flex-1 justify-end bg-black/60">
+      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-end bg-black/60">
         <View className="bg-[#36393f] rounded-t-2xl p-6">
           <Text className="text-white font-black text-xl mb-1">Crear servidor</Text>
           <Text className="text-[#99aab5] text-sm mb-5">Dale un nombre a tu comunidad.</Text>
@@ -199,7 +200,7 @@ function CreateServerModal({
             <Text className="text-[#99aab5]">Cancelar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

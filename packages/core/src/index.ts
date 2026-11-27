@@ -11,6 +11,7 @@ export * from './chat/useChannelMessages';
 export * from './chat/useRealtimeController';
 export * from './chat/useServerEvents';
 export * from './chat/errorMessages';
+export * from './chat/reactions';
 export * from './chat/authorName';
 export * from './profiles/PublicProfilesProvider';
 export * from './profiles/usePublicProfiles';

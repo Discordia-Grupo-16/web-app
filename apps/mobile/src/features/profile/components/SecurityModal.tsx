@@ -13,6 +13,7 @@ import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 import { getApiErrorMessage } from '@discordia/api';
 import { mfaService } from '@/shared/api';
+import { KeyboardAvoidingView } from '@/shared/ui/keyboard';
 
 type Step =
   | { name: 'menu' }
@@ -171,7 +172,7 @@ export function SecurityModal({ visible, onClose }: SecurityModalProps) {
       animationType="fade"
       onRequestClose={() => canDismiss && close()}
     >
-      <View className="flex-1 justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+      <KeyboardAvoidingView behavior="padding" className="flex-1 justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
         <ScrollView
           className="rounded-2xl bg-[#2c2f33] max-h-[90%]"
           contentContainerStyle={{ padding: 24, gap: 14 }}
@@ -297,7 +298,7 @@ export function SecurityModal({ visible, onClose }: SecurityModalProps) {
             </TouchableOpacity>
           )}
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

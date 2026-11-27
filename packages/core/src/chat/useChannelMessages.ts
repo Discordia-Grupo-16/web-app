@@ -24,12 +24,17 @@ export interface ChannelMessages {
     editMessage: (messageId: string, content: string) => Promise<void>;
     /** Deletes a message of this channel. Rejects if the server refuses. */
     deleteMessage: (messageId: string) => Promise<void>;
+    /**
+     * Adds (`reacted: true`) or removes the user's reaction to a message of this channel (SCRUM-49).
+     * Rejects if the server refuses; a repeated call while one is in flight sends nothing.
+     */
+    setReaction: (messageId: string, emoji: string, reacted: boolean) => Promise<void>;
 }
 
 const NO_MESSAGES: ChatMessage[] = [];
 
 export const useChannelMessages = (channelId: string): ChannelMessages => {
-    const { state, status, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage, loadHistory, retryHistory, loadMoreHistory } =
+    const { state, status, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage, setReaction, loadHistory, retryHistory, loadMoreHistory } =
         useRealtime();
 
     useEffect(() => {
@@ -72,6 +77,11 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
         [deleteMessage, channelId],
     );
 
+    const reactInChannel = useCallback(
+        (messageId: string, emoji: string, reacted: boolean) => setReaction(channelId, messageId, emoji, reacted),
+        [setReaction, channelId],
+    );
+
     const rejected = lastRejected && lastRejected.channelId === channelId ? lastRejected : null;
 
     return {
@@ -93,5 +103,6 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
         clearRejected,
         editMessage: editInChannel,
         deleteMessage: deleteInChannel,
+        setReaction: reactInChannel,
     };
 };

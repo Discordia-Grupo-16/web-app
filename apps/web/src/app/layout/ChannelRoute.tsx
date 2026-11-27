@@ -1,6 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
 import {
+    ADD_REACTIONS,
     MANAGE_MESSAGES,
     NONE,
     SEND_MESSAGES,
@@ -72,6 +73,7 @@ export const ChannelRoute = () => {
                     canSendMessages={hasPermission(server?.my_permissions ?? NONE, SEND_MESSAGES) && !mute.muted}
                     mutedUntil={mute.until}
                     canManageMessages={hasPermission(server?.my_permissions ?? NONE, MANAGE_MESSAGES)}
+                    canAddReactions={hasPermission(server?.my_permissions ?? NONE, ADD_REACTIONS)}
                 />
             )}
         </div>

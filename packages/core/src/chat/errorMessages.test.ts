@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deleteErrorText, editErrorText, ERROR_TEXTS, isRetryable } from './errorMessages';
-
+import { deleteErrorText, editErrorText, ERROR_TEXTS, isRetryable, reactionErrorText } from './errorMessages';
 const httpError = (status: number) => Object.assign(new Error('http'), { response: { status } });
 
 describe('editErrorText', () => {
@@ -43,5 +42,22 @@ describe('MUTED', () => {
 
     it('is not retryable: it would fail again until the mute ends', () => {
         expect(isRetryable('MUTED')).toBe(false);
+    });
+});
+
+describe('reactionErrorText', () => {
+    it.each([
+        [400, 'Ese emoji no se puede usar.'],
+        [403, 'No tenés permiso para reaccionar en este canal.'],
+        [404, 'El mensaje ya no existe.'],
+        [409, 'Este mensaje ya tiene 20 emojis distintos.'],
+        [500, 'No se pudo reaccionar. Probá de nuevo.'],
+    ])('explains an HTTP %i', (status, text) => {
+        expect(reactionErrorText(httpError(status))).toBe(text);
+    });
+
+    it('falls back to the generic text without an HTTP answer', () => {
+        expect(reactionErrorText(new Error('Network Error'))).toBe('No se pudo reaccionar. Probá de nuevo.');
+        expect(reactionErrorText(undefined)).toBe('No se pudo reaccionar. Probá de nuevo.');
     });
 });

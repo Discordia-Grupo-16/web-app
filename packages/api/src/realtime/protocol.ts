@@ -1,3 +1,4 @@
+import type { ReactionDto } from '../messages/types';
 import type { VoiceRosterParticipant } from '../voice/types';
 
 export interface MessageSendFrame {
@@ -51,6 +52,20 @@ export interface MessageDeletedFrame {
     channelId: string;
     serverId: string;
     deletedAt: string;
+}
+
+/**
+ * The reactions of a message changed (SCRUM-49). It carries the whole list, not a delta, so applying
+ * it twice changes nothing. The client applies it only if `reactionsVersion` is greater than the one
+ * the message already has: a repeated frame, or one that arrives after a newer state, is ignored.
+ */
+export interface MessageReactionsFrame {
+    type: 'message.reactions';
+    messageId: string;
+    channelId: string;
+    serverId: string;
+    reactions: ReactionDto[];
+    reactionsVersion: number;
 }
 
 /**
@@ -136,6 +151,7 @@ export type ServerFrame =
     | MessageCreatedFrame
     | MessageUpdatedFrame
     | MessageDeletedFrame
+    | MessageReactionsFrame
     | InvalidateFrame
     | ReadStateUpdatedFrame
     | VoiceParticipantsUpdatedFrame
