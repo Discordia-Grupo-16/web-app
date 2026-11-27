@@ -11,6 +11,7 @@ const renderComposer = (canSendMessages: boolean) => {
             status="open"
             maxLength={2000}
             onSend={onSend}
+            onUpload={vi.fn()}
             rejected={null}
             onRejectedHandled={vi.fn()}
             canSendMessages={canSendMessages}
@@ -46,6 +47,6 @@ describe('MessageComposer with SEND_MESSAGES', () => {
 
         await user.type(box(), 'hola{Enter}');
 
-        expect(onSend).toHaveBeenCalledWith('hola');
+        expect(onSend).toHaveBeenCalledWith('hola', undefined);
     });
 });

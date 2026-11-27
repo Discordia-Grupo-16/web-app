@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo } from 'react';
+import type { MessageAttachment } from '@discordia/api';
 import type { ChatMessage, PendingMessage } from './chatStore';
 import type { RealtimeStatus, RejectedMessage } from './realtimeContext';
 import { useRealtime } from './useRealtime';
@@ -13,7 +14,7 @@ export interface ChannelMessages {
     hasMore: boolean;
     loadingMore: boolean;
     loadMoreError: boolean;
-    send: (content: string) => void;
+    send: (content: string, attachments?: MessageAttachment[]) => void;
     retry: (clientMessageId: string) => void;
     discard: (clientMessageId: string) => void;
     loadMore: () => void;
@@ -57,7 +58,10 @@ export const useChannelMessages = (channelId: string): ChannelMessages => {
         [state.pendingOrder, state.pending, channelId],
     );
 
-    const sendToChannel = useCallback((content: string) => send(channelId, content), [send, channelId]);
+    const sendToChannel = useCallback(
+        (content: string, attachments?: MessageAttachment[]) => send(channelId, content, attachments),
+        [send, channelId],
+    );
 
     const loadMore = useCallback(() => {
         const firstMessage = messages[0];

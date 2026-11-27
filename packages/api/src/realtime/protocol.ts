@@ -1,11 +1,13 @@
 import type { ReactionDto } from '../messages/types';
 import type { VoiceRosterParticipant } from '../voice/types';
+import type { MessageAttachment } from '../messages/types';
 
 export interface MessageSendFrame {
     type: 'message.send';
     channelId: string;
     content: string;
     clientMessageId: string;
+    attachments?: MessageAttachment[];
 }
 
 export interface MessageAckFrame {
@@ -24,6 +26,7 @@ export interface MessageCreatedFrame {
     content: string;
     createdAt: string;
     clientMessageId: string;
+    attachments?: MessageAttachment[];
 }
 
 /**

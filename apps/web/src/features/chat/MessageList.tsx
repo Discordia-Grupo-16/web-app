@@ -223,6 +223,7 @@ export const MessageList = ({
                                 content={message.content}
                                 createdAt={message.createdAt}
                                 editedAt={message.editedAt}
+                                attachments={message.attachments}
                                 canEdit={canEdit}
                                 editing={canEdit && editingId === message.messageId}
                                 maxLength={maxLength}
@@ -250,6 +251,7 @@ export const MessageList = ({
                             authorName={currentUser?.name || 'Vos'}
                             authorAvatarUrl={currentUser?.avatarUrl ?? null}
                             content={message.content}
+                            attachments={message.attachments}
                             sending={message.status === 'sending'}
                             failed={message.status === 'failed'}
                             errorText={message.errorCode && ERROR_TEXTS[message.errorCode]}

@@ -1,4 +1,5 @@
-import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, Image, Linking, Pressable, TouchableOpacity } from 'react-native';
+import type { MessageAttachment } from '@discordia/api';
 import type { ReactionChip } from '@discordia/core';
 import { ReactionBar } from './ReactionBar';
 
@@ -18,6 +19,7 @@ interface MessageItemProps {
   retryDisabled?: boolean;
   onDiscard?: () => void;
   onSelectAuthor?: () => void;
+  attachments?: MessageAttachment[];
   /** The reactions of the message (SCRUM-49), already summarised for the user. */
   reactions?: ReactionChip[];
   /** ADD_REACTIONS: shows "＋" and lets the user join others' chips. Their own never needs it. */
@@ -58,6 +60,7 @@ export const MessageItem = ({
   retryDisabled = false,
   onDiscard,
   onSelectAuthor,
+  attachments,
   reactions = NO_REACTIONS,
   canAddReactions = false,
   onReact,
@@ -97,10 +100,38 @@ export const MessageItem = ({
         {createdAt && <Text className="text-xs text-[#72767d]">{formatTime(createdAt)}</Text>}
       </View>
       {/* Content comes from other users: always rendered as plain text. Not selectable when failed so the long-press reaches the row. */}
-      <Text selectable={!failed} className="text-sm text-[#dcddde]">
-        {content}
-        {editedAt && <Text className="text-xs text-[#72767d]"> (editado)</Text>}
-      </Text>
+      {!!content && (
+        <Text selectable={!failed} className="text-sm text-[#dcddde]">
+          {content}
+          {editedAt && <Text className="text-xs text-[#72767d]"> (editado)</Text>}
+        </Text>
+      )}
+      {attachments && attachments.length > 0 && (
+        <View className="flex-row flex-wrap gap-1 mt-1">
+          {attachments.map((a, i) =>
+            a.contentType.startsWith('image/') ? (
+              <TouchableOpacity key={i} onPress={() => void Linking.openURL(a.url)} accessibilityLabel={a.filename}>
+                <Image
+                  source={{ uri: a.url }}
+                  className="rounded"
+                  style={{ width: 200, height: 150 }}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                key={i}
+                onPress={() => void Linking.openURL(a.url)}
+                accessibilityLabel={a.filename}
+                className="px-3 py-2 rounded"
+                style={{ backgroundColor: '#2f3136' }}
+              >
+                <Text className="text-xs text-[#7289da] underline">📄 {a.filename}</Text>
+              </TouchableOpacity>
+            ),
+          )}
+        </View>
+      )}
       {onReact && onOpenReactionPicker && (
         <ReactionBar
           chips={reactions}

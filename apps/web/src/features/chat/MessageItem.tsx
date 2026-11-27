@@ -1,5 +1,19 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import type { MessageAttachment } from '@discordia/api';
 import type { ReactionChip } from '@discordia/core';
+
+async function downloadFile(url: string, filename: string) {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+}
 import { MessageEditor } from './MessageEditor';
 import { ReactionBar } from './ReactionBar';
 import { ReactionPicker } from './ReactionPicker';
@@ -40,6 +54,7 @@ interface MessageItemProps {
     retryDisabled?: boolean;
     onDiscard?: () => void;
     onSelectAuthor?: () => void;
+    attachments?: MessageAttachment[];
 }
 
 const NO_REACTIONS: ReactionChip[] = [];
@@ -86,7 +101,9 @@ export const MessageItem = ({
     retryDisabled = false,
     onDiscard,
     onSelectAuthor,
+    attachments,
 }: MessageItemProps) => {
+    const [lightbox, setLightbox] = useState<string | null>(null);
     const mineEmojis = useMemo(
         () => new Set(reactions.filter((chip) => chip.mine).map((chip) => chip.emoji)),
         [reactions],
@@ -180,14 +197,56 @@ export const MessageItem = ({
                     />
                 ) : (
                     /* Content comes from other users: always rendered as text, never as HTML. */
-                    <p className="text-sm whitespace-pre-wrap break-words" style={{ color: '#dcddde' }}>
-                        {content}
-                        {editedAt && (
-                            <span className="ml-1 text-xs" style={{ color: '#72767d' }} title={formatFullDate(editedAt)}>
-                                (editado)
-                            </span>
+                    <>
+                        {content && (
+                            <p className="text-sm whitespace-pre-wrap break-words" style={{ color: '#dcddde' }}>
+                                {content}
+                                {editedAt && (
+                                    <span className="ml-1 text-xs" style={{ color: '#72767d' }} title={formatFullDate(editedAt)}>
+                                        (editado)
+                                    </span>
+                                )}
+                            </p>
                         )}
-                    </p>
+                        {attachments && attachments.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-1">
+                                {attachments.map((a, i) => (
+                                    a.contentType.startsWith('image/') ? (
+                                        <button key={i} type="button" onClick={() => setLightbox(a.url)}>
+                                            <img
+                                                src={a.url}
+                                                alt={a.filename}
+                                                className="max-h-60 max-w-xs rounded object-contain cursor-zoom-in"
+                                            />
+                                        </button>
+                                    ) : (
+                                        <button
+                                            key={i}
+                                            type="button"
+                                            onClick={() => void downloadFile(a.url, a.filename)}
+                                            className="flex items-center gap-1 px-3 py-2 rounded text-xs underline"
+                                            style={{ backgroundColor: '#2f3136', color: '#7289da' }}
+                                        >
+                                            📄 {a.filename}
+                                        </button>
+                                    )
+                                ))}
+                            </div>
+                        )}
+                        {lightbox && (
+                            <div
+                                className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+                                onClick={() => setLightbox(null)}
+                            >
+                                <img
+                                    src={lightbox}
+                                    alt=""
+                                    className="max-h-[90vh] max-w-[90vw] rounded object-contain"
+                                    onClick={e => e.stopPropagation()}
+                                />
+                            </div>
+                        )}
+                    </>
                 )}
                 {onReact && (
                     <ReactionBar chips={reactions} canAddReactions={canAddReactions} onToggle={onReact} />

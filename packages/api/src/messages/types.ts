@@ -1,3 +1,9 @@
+export interface MessageAttachment {
+    url: string;
+    filename: string;
+    contentType: string;
+}
+
 /**
  * Un mensaje tal como lo devuelve `chat` por HTTP. Es lo mismo que trae el historial.
  */
@@ -11,6 +17,7 @@ export interface MessageDto {
     /** Última edición, o `null` si nunca se editó. */
     editedAt: string | null;
     clientMessageId: string;
+    attachments?: MessageAttachment[];
     /** One entry per emoji, in the order each emoji was first added (SCRUM-49). Never null. */
     reactions: ReactionDto[];
     /** Goes up by one with every change of `reactions`, and is 0 if it never had any. */

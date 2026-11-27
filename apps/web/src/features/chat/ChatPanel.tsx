@@ -1,4 +1,5 @@
 import { useAuth, useChannelMessages } from '@discordia/core';
+import { messagesService } from '@/shared/api';
 import { ConnectionBanner } from './ConnectionBanner';
 import { MessageComposer } from './MessageComposer';
 import { MessageList } from './MessageList';
@@ -66,6 +67,7 @@ export const ChatPanel = ({
                 status={status}
                 maxLength={maxLength}
                 onSend={send}
+                onUpload={messagesService.uploadAttachment}
                 rejected={rejected}
                 onRejectedHandled={clearRejected}
                 canSendMessages={canSendMessages}

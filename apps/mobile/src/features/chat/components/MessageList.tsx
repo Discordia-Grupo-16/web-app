@@ -233,6 +233,7 @@ export const MessageList = ({
               authorName={currentUser?.name || 'Vos'}
               authorAvatarUrl={currentUser?.avatarUrl ?? null}
               content={item.message.content}
+              attachments={item.message.attachments}
               sending={item.message.status === 'sending'}
               failed={item.message.status === 'failed'}
               errorText={item.message.errorCode && ERROR_TEXTS[item.message.errorCode]}
