@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { UNAVAILABLE_USER_NAME, useAuth, usePublicProfile } from '@discordia/core';
+import { PRESENCE_LABELS, UNAVAILABLE_USER_NAME, useAuth, usePresence, usePublicProfile } from '@discordia/core';
+import { presenceService } from '@/shared/api';
+import { PresenceDot } from '@/shared/ui/PresenceDot';
 import { useCommonServers } from './useCommonServers';
 
 interface PublicProfileModalProps {
@@ -76,12 +79,17 @@ const CommonServers = ({ userId }: { userId: string }) => {
     );
 };
 
-// Public profile of another user: only public data (name, photo, bio) and the servers in common.
-// The activity status is not shown: it depends on the optional presence story (#37).
+// Public profile of another user: only public data (name, photo, bio), the activity status and the
+// servers in common.
 export const PublicProfileModal = ({ userId, onClose }: PublicProfileModalProps) => {
     const { user } = useAuth();
     const { state, retry } = usePublicProfile(userId);
     const isOwnProfile = user?.id === userId;
+    // A profile is opened from a server, and its snapshot is where the status comes from (SCRUM-27).
+    // Null while it is not known: nothing is shown rather than a "disconnected" that may be false.
+    const { serverId } = useParams();
+    const statuses = usePresence(serverId, presenceService.getServerPresence);
+    const status = statuses ? (statuses.get(userId) ?? 'offline') : null;
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
@@ -138,8 +146,14 @@ export const PublicProfileModal = ({ userId, onClose }: PublicProfileModalProps)
                 {state.status === 'ready' && state.profile && (
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center gap-4 pr-6">
-                            <Avatar name={state.profile.name} avatarUrl={state.profile.avatarUrl} />
-                            <h2 className="text-lg font-black text-white break-words min-w-0">{state.profile.name}</h2>
+                            <span className="relative shrink-0">
+                                <Avatar name={state.profile.name} avatarUrl={state.profile.avatarUrl} />
+                                {status && <PresenceDot status={status} ring="#36393f" size="lg" />}
+                            </span>
+                            <div className="min-w-0">
+                                <h2 className="text-lg font-black text-white break-words">{state.profile.name}</h2>
+                                {status && <p className="text-sm" style={{ color: MUTED }}>{PRESENCE_LABELS[status]}</p>}
+                            </div>
                         </div>
                         {state.profile.bio && (
                             <section aria-label="Sobre mí">

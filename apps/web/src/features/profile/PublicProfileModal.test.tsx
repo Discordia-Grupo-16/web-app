@@ -1,12 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, PublicUser, Server } from '@discordia/api';
-import { serversService } from '@/shared/api';
+import { presenceService, serversService } from '@/shared/api';
 import { PublicProfileModal } from './PublicProfileModal';
 
-vi.mock('@/shared/api', () => ({ serversService: { getServers: vi.fn() } }));
+vi.mock('@/shared/api', () => ({ serversService: { getServers: vi.fn() }, presenceService: { getServerPresence: vi.fn() } }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
     useAuth: () => ({ user: { id: 'me', name: 'Felipe' } }),
@@ -31,7 +32,11 @@ const renderModal = (getPublicProfiles: PublicProfileSource['getPublicProfiles']
     const source: PublicProfileSource = { getPublicProfiles, peekPublicProfile: () => undefined };
     render(
         <PublicProfilesProvider source={source}>
-            <PublicProfileModal userId={userId} onClose={onClose} />
+            <MemoryRouter initialEntries={['/servers/s1']}>
+                <Routes>
+                    <Route path="/servers/:serverId" element={<PublicProfileModal userId={userId} onClose={onClose} />} />
+                </Routes>
+            </MemoryRouter>
         </PublicProfilesProvider>,
     );
     return { onClose };
@@ -43,6 +48,7 @@ describe('PublicProfileModal', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.mocked(serversService.getServers).mockResolvedValue([]);
+        vi.mocked(presenceService.getServerPresence).mockResolvedValue([]);
     });
 
     it('shows the name, photo and bio of the user', async () => {
@@ -51,6 +57,37 @@ describe('PublicProfileModal', () => {
         expect(await screen.findByRole('heading', { name: 'Milton' })).toBeInTheDocument();
         expect(screen.getByRole('img', { name: 'Milton' })).toHaveAttribute('src', 'https://cdn/milton.png');
         expect(screen.getByText('Hago el backend')).toBeInTheDocument();
+    });
+
+    it.each([
+        ['online', 'En línea'],
+        ['idle', 'Ausente'],
+        ['dnd', 'No molestar'],
+    ] as const)('shows the activity status %s', async (status, label) => {
+        vi.mocked(presenceService.getServerPresence).mockResolvedValue([
+            { userId: 'milton', status, updatedAt: '2026-11-27T12:00:00Z' },
+        ]);
+
+        renderModal(found(milton));
+
+        expect(await screen.findByRole('img', { name: label })).toBeInTheDocument();
+        expect(screen.getByText(label)).toBeInTheDocument();
+        expect(presenceService.getServerPresence).toHaveBeenCalledWith('s1');
+    });
+
+    it('shows as disconnected who is not in the snapshot', async () => {
+        renderModal(found(milton));
+
+        expect(await screen.findByRole('img', { name: 'Desconectado' })).toBeInTheDocument();
+    });
+
+    it('shows no status when it cannot be known', async () => {
+        vi.mocked(presenceService.getServerPresence).mockRejectedValue(new Error('chat down'));
+
+        renderModal(found(milton));
+
+        await screen.findByRole('heading', { name: 'Milton' });
+        expect(screen.queryByText('Desconectado')).not.toBeInTheDocument();
     });
 
     it('shows a loading state until the profile arrives', async () => {

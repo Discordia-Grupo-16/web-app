@@ -11,6 +11,7 @@ export * from './chat/useRealtimeController';
 export * from './chat/useServerEvents';
 export * from './presence/usePresence';
 export * from './presence/useIdleDetector';
+export * from './presence/useManualPresence';
 export * from './presence/texts';
 export * from './chat/errorMessages';
 export * from './chat/reactions';

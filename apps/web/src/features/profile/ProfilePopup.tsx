@@ -1,7 +1,9 @@
 import type { User } from "@discordia/api";
-import { useAuth } from "@discordia/core";
+import { useAuth, type ManualPresenceState } from "@discordia/core";
+import { PresenceDot } from "@/shared/ui/PresenceDot";
+import { PresenceSelector } from "./PresenceSelector";
 
-export const ProfilePopup = ({ user, onClose, onEditProfile, onOpenSecurity }: { user: User; onClose: () => void; onEditProfile: () => void; onOpenSecurity?: () => void }) => {
+export const ProfilePopup = ({ user, presence, onClose, onEditProfile, onOpenSecurity }: { user: User; presence: ManualPresenceState; onClose: () => void; onEditProfile: () => void; onOpenSecurity?: () => void }) => {
     const { signOut } = useAuth();
 
     return (
@@ -11,36 +13,37 @@ export const ProfilePopup = ({ user, onClose, onEditProfile, onOpenSecurity }: {
                 onClick={onClose}
             />
             <div
-                className="absolute bottom-16 left-2 z-50 w-72 rounded-2xl overflow-hidden shadow-2xl"
+                className="absolute bottom-16 left-2 z-50 w-72 max-h-[calc(100dvh-5rem)] rounded-2xl overflow-x-hidden overflow-y-auto shadow-2xl"
                 style={{ background: '#18191c', border: '1px solid rgba(255,255,255,0.08)' }}
             >
                 <div
                     className="h-20 w-full relative"
                     style={{ background: 'linear-gradient(135deg, #7289da 0%, #5b6eae 50%, #4e5d94 100%)' }}
                 >
-                    <div
-                        className="absolute flex items-center justify-center font-extrabold text-white overflow-hidden"
-                        style={{
-                            bottom: '-32px',
-                            left: '16px',
-                            width: '64px',
-                            height: '64px',
-                            borderRadius: '50%',
-                            border: '4px solid #18191c',
-                            background: user.avatarUrl ? 'transparent' : '#7289da',
-                            fontSize: '24px',
-                            fontFamily: 'Nunito, sans-serif',
-                        }}
-                    >
-                        {user.avatarUrl ? (
-                            <img
-                                src={user.avatarUrl}
-                                alt={user.name}
-                                className="w-full h-full object-cover"
-                            />
-                        ) : (
-                            user.name[0].toUpperCase()
-                        )}
+                    <div className="absolute" style={{ bottom: '-32px', left: '16px' }}>
+                        <div
+                            className="flex items-center justify-center font-extrabold text-white overflow-hidden"
+                            style={{
+                                width: '64px',
+                                height: '64px',
+                                borderRadius: '50%',
+                                border: '4px solid #18191c',
+                                background: user.avatarUrl ? 'transparent' : '#7289da',
+                                fontSize: '24px',
+                                fontFamily: 'Nunito, sans-serif',
+                            }}
+                        >
+                            {user.avatarUrl ? (
+                                <img
+                                    src={user.avatarUrl}
+                                    alt={user.name}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                user.name[0].toUpperCase()
+                            )}
+                        </div>
+                        <PresenceDot status={presence.status} ring="#18191c" size="lg" />
                     </div>
                 </div>
 
@@ -53,6 +56,9 @@ export const ProfilePopup = ({ user, onClose, onEditProfile, onOpenSecurity }: {
                             {user?.name}
                         </p>
                     </div>
+
+                    <div className="my-3 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
+                    <PresenceSelector presence={presence} />
 
                     {user.bio && (<div className="mb-2">
                         <div className="my-3 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />

@@ -1,10 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { ManualPresence } from "@discordia/api";
 import { ProfilePopup } from './ProfilePopup';
 import { UserProfileEditModal } from './UserProfileEditModal';
 import { SecurityModal } from './SecurityModal';
-import { useAuth } from "@discordia/core";
+import { PRESENCE_LABELS, useAuth, useManualPresence, usePresence } from "@discordia/core";
+import { useParams } from "react-router-dom";
 import { LogoutIcon } from "@discordia/ui";
-import { userService } from "@/shared/api";
+import { presenceService, userService } from "@/shared/api";
+import { readManualPresence, saveManualPresence } from "@/shared/session/manualPresence";
+import { PresenceDot } from "@/shared/ui/PresenceDot";
 import { useLiveRefresh } from "@/shared/hooks/useLiveRefresh"
 
 export const UserProfileSection = () => {
@@ -12,6 +16,20 @@ export const UserProfileSection = () => {
     const [showEditModal, setShowEditModal] = useState(false)
     const [showSecurity, setShowSecurity] = useState(false)
     const { user, signOut, updateUser } = useAuth();
+
+    // The own status is only published to the members of a server, so it is read from the open one.
+    const { serverId } = useParams();
+    const statuses = usePresence(serverId, presenceService.getServerPresence);
+    // ProtectedRoute mounts the layout only with a user.
+    const userId = user?.id ?? "";
+    const rememberPresence = useCallback((manual: ManualPresence) => saveManualPresence(userId, manual), [userId]);
+    const presence = useManualPresence({
+        initial: readManualPresence(userId),
+        observed: statuses ? (statuses.get(userId) ?? "offline") : null,
+        save: presenceService.setManual,
+        remember: rememberPresence,
+    });
+    const statusLabel = presence.manual === "invisible" ? "Invisible" : PRESENCE_LABELS[presence.status];
 
     const localChangeRef = useRef(0);
 
@@ -40,6 +58,7 @@ export const UserProfileSection = () => {
         {showProfile &&
             <ProfilePopup
                 user={user}
+                presence={presence}
                 onClose={() => setShowProfile(false)}
                 onEditProfile={() => setShowEditModal(true)}
                 onOpenSecurity={() => setShowSecurity(true)}
@@ -58,25 +77,28 @@ export const UserProfileSection = () => {
             onMouseLeave={e => { if (!showProfile) e.currentTarget.style.background = 'transparent' }}
             title="Ver perfil"
         >
-            <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 overflow-hidden"
-                style={{ background: user.avatarUrl ? 'transparent' : '#7289da' }}
-            >
-                {user.avatarUrl ? (
-                    <img
-                        src={user.avatarUrl}
-                        alt={user.name}
-                        className="w-full h-full object-cover"
-                    />
-                ) : (
-                    user.name[0].toUpperCase()
-                )}
-            </div>
+            <span className="relative flex-shrink-0">
+                <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white overflow-hidden"
+                    style={{ background: user.avatarUrl ? 'transparent' : '#7289da' }}
+                >
+                    {user.avatarUrl ? (
+                        <img
+                            src={user.avatarUrl}
+                            alt={user.name}
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        user.name[0].toUpperCase()
+                    )}
+                </div>
+                <PresenceDot status={presence.status} ring="#292b2f" />
+            </span>
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate" style={{ fontFamily: 'Nunito, sans-serif' }}>
                     {user.name}
                 </p>
-                <p className="text-xs" style={{ color: '#43b581' }}>● En línea</p>
+                <p className="text-xs truncate" style={{ color: '#b9bbbe' }}>{statusLabel}</p>
             </div>
             <button
                 onClick={e => { e.stopPropagation(); signOut() }}
