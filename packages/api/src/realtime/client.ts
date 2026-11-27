@@ -5,6 +5,7 @@ import type {
     MessageCreatedFrame,
     MessageUpdatedFrame,
     MessageDeletedFrame,
+    MessageReactionsFrame,
     ReadStateUpdatedFrame,
     ServerFrame,
     VoiceParticipantsUpdatedFrame,
@@ -71,6 +72,7 @@ export interface RealtimeEventMap {
     messageCreated: (frame: MessageCreatedFrame) => void;
     messageUpdated: (frame: MessageUpdatedFrame) => void;
     messageDeleted: (frame: MessageDeletedFrame) => void;
+    messageReactions: (frame: MessageReactionsFrame) => void;
     invalidate: (frame: InvalidateFrame) => void;
     voiceParticipants: (frame: VoiceParticipantsUpdatedFrame) => void;
     readStateUpdated: (frame: ReadStateUpdatedFrame) => void;
@@ -133,6 +135,7 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
         messageCreated: new Set(),
         messageUpdated: new Set(),
         messageDeleted: new Set(),
+        messageReactions: new Set(),
         invalidate: new Set(),
         voiceParticipants: new Set(),
         readStateUpdated: new Set(),
@@ -213,6 +216,17 @@ export function createRealtimeClient(config: RealtimeClientConfig): RealtimeClie
                     // Without these there is nothing to remove.
                     if (typeof frame.messageId === 'string' && typeof frame.channelId === 'string') {
                         emit('messageDeleted', frame);
+                    }
+                    break;
+                case 'message.reactions':
+                    // Without these fields there is nothing to apply the list to or to order it by.
+                    if (
+                        typeof frame.messageId === 'string' &&
+                        typeof frame.channelId === 'string' &&
+                        Array.isArray(frame.reactions) &&
+                        typeof frame.reactionsVersion === 'number'
+                    ) {
+                        emit('messageReactions', frame);
                     }
                     break;
                 case 'invalidate':

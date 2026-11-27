@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     ADMINISTRATOR,
     BAN_MEMBERS,
+    CREATE_INVITE,
     KICK_MEMBERS,
     MANAGE_CHANNELS,
     MANAGE_ROLES,
@@ -288,13 +289,13 @@ describe('ServerPanel: invitar', () => {
         vi.clearAllMocks();
     });
 
-    it('el dueño ve el botón de invitar', async () => {
-        await renderPanel(VIEW_CHANNEL, ME);
+    it('quien tiene CREATE_INVITE ve el botón de invitar, aunque no sea el dueño', async () => {
+        await renderPanel(VIEW_CHANNEL | CREATE_INVITE);
 
         expect(screen.getByRole('button', { name: 'Invitar' })).toBeInTheDocument();
     });
 
-    it('un miembro que no es dueño no lo ve', async () => {
+    it('sin CREATE_INVITE no lo ve, aunque sea miembro', async () => {
         await renderPanel(VIEW_CHANNEL);
 
         expect(screen.queryByRole('button', { name: 'Invitar' })).not.toBeInTheDocument();

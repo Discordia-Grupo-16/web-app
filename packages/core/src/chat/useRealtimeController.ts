@@ -33,8 +33,8 @@ export interface RealtimeControllerOptions {
     newClientMessageId: () => string;
     /** Axios-compatible client for history and resync HTTP calls. */
     api: HttpClient;
-    /** Edits and deletes messages over HTTP (SCRUM-44 and SCRUM-45). */
-    messagesService: Pick<MessagesService, 'editMessage' | 'deleteMessage'>;
+    /** Edits, deletes and reacts to messages over HTTP (SCRUM-44, SCRUM-45 and SCRUM-49). */
+    messagesService: Pick<MessagesService, 'editMessage' | 'deleteMessage' | 'addReaction' | 'removeReaction'>;
     /** Error reporter. Pass `console` from the platform provider. */
     logger: Logger;
 }
@@ -76,6 +76,9 @@ export const useRealtimeController = ({
     const historyFetching = useRef(new Set<string>());
     const loadMoreFetching = useRef(new Set<string>());
     const syncAbortRef = useRef<AbortController | null>(null);
+    // One request per message and emoji at a time: a double click would otherwise send PUT and PUT,
+    // or a PUT and a DELETE that cross and leave the chip the other way round.
+    const reactionsInFlight = useRef(new Map<string, Promise<void>>());
     const MAX_RESYNC_PAGES = 20;
 
     useEffect(() => {
@@ -233,6 +236,15 @@ export const useRealtimeController = ({
         const offDeleted = client.on('messageDeleted', (frame) => {
             dispatch({ type: 'deleted', channelId: frame.channelId, messageId: frame.messageId });
         });
+        const offReactions = client.on('messageReactions', (frame) => {
+            dispatch({
+                type: 'reactions',
+                channelId: frame.channelId,
+                messageId: frame.messageId,
+                reactions: frame.reactions,
+                reactionsVersion: frame.reactionsVersion,
+            });
+        });
         const offError = client.on('errorFrame', (frame) => {
             const head = stateRef.current.awaitingResponse[0];
             clearTimer(head);
@@ -261,6 +273,7 @@ export const useRealtimeController = ({
             offCreated();
             offUpdated();
             offDeleted();
+            offReactions();
             offError();
             syncAbortRef.current?.abort();
         };
@@ -367,6 +380,36 @@ export const useRealtimeController = ({
         [messagesService],
     );
 
+    // No optimistic update: the answer already carries the state with its version, so it is applied
+    // as is and the frame that follows is ignored for not being newer. A guessed state would have no
+    // version to compare and would need a rollback.
+    const setReaction = useCallback<RealtimeContextValue['setReaction']>(
+        (channelId, messageId, emoji, reacted) => {
+            const key = `${messageId}:${emoji}`;
+            const inFlight = reactionsInFlight.current.get(key);
+            if (inFlight) return inFlight;
+            const request = (async () => {
+                try {
+                    const result = reacted
+                        ? await messagesService.addReaction(channelId, messageId, emoji)
+                        : await messagesService.removeReaction(channelId, messageId, emoji);
+                    dispatch({
+                        type: 'reactions',
+                        channelId,
+                        messageId: result.messageId,
+                        reactions: result.reactions,
+                        reactionsVersion: result.reactionsVersion,
+                    });
+                } finally {
+                    reactionsInFlight.current.delete(key);
+                }
+            })();
+            reactionsInFlight.current.set(key, request);
+            return request;
+        },
+        [messagesService],
+    );
+
     const loadHistory = useCallback(async (channelId: string) => {
         if (stateRef.current.historyByChannel[channelId]?.loaded) return;
         if (historyFetching.current.has(channelId)) return;
@@ -448,12 +491,12 @@ export const useRealtimeController = ({
     const value = useMemo<RealtimeContextValue>(
         () => ({
             status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage,
-            loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
+            setReaction, loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
             onVoiceParticipants, onReconnect,
         }),
         [
             status, state, maxLength, send, retry, discard, lastRejected, clearRejected, editMessage, deleteMessage,
-            loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
+            setReaction, loadHistory, retryHistory, loadMoreHistory, onInvalidate, onMessageCreated, onReadStateUpdated,
             onVoiceParticipants, onReconnect,
         ],
     );

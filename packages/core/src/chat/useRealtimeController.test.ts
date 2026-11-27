@@ -51,7 +51,7 @@ describe('useRealtimeController', () => {
                 token: 'token',
                 newClientMessageId: () => `msg-${++ids}`,
                 api: { get: vi.fn().mockResolvedValue({ data: { data: [], hasMore: false } }) },
-                messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn() },
+                messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn(), addReaction: vi.fn(), removeReaction: vi.fn() },
                 logger: { error: vi.fn() },
                 ...overrides,
             },
@@ -68,7 +68,7 @@ describe('useRealtimeController', () => {
         const { rerender } = render();
         expect(fake.client.connect).toHaveBeenCalledTimes(1);
 
-        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x', api: { get: vi.fn() }, messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn() }, logger: { error: vi.fn() } });
+        rerender({ client: fake.client, token: null, newClientMessageId: () => 'x', api: { get: vi.fn() }, messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn(), addReaction: vi.fn(), removeReaction: vi.fn() }, logger: { error: vi.fn() } });
         expect(fake.client.disconnect).toHaveBeenCalled();
     });
 
@@ -475,7 +475,7 @@ describe('useRealtimeController', () => {
 
         it('editMessage calls the service and shows the saved content without waiting for the frame', async () => {
             const editMessage = vi.fn().mockResolvedValue(stored({ content: 'corregido', editedAt: '2026-11-09T15:30:00Z' }));
-            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn() } });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn(), addReaction: vi.fn(), removeReaction: vi.fn() } });
             await loadChannel(result);
 
             await act(async () => { await result.current.value.editMessage(CHANNEL, 'm1', 'corregido'); });
@@ -488,7 +488,7 @@ describe('useRealtimeController', () => {
 
         it('the frame that follows the response changes nothing: its editedAt is not newer', async () => {
             const editMessage = vi.fn().mockResolvedValue(stored({ content: 'corregido', editedAt: '2026-11-09T15:30:00Z' }));
-            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn() } });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn(), addReaction: vi.fn(), removeReaction: vi.fn() } });
             await loadChannel(result);
             await act(async () => { await result.current.value.editMessage(CHANNEL, 'm1', 'corregido'); });
             const afterResponse = result.current.value.state;
@@ -503,7 +503,7 @@ describe('useRealtimeController', () => {
 
         it('editMessage with the same content leaves the message as it was', async () => {
             const editMessage = vi.fn().mockResolvedValue(stored());
-            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn() } });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn(), addReaction: vi.fn(), removeReaction: vi.fn() } });
             await loadChannel(result);
             const before = result.current.value.state;
 
@@ -515,7 +515,7 @@ describe('useRealtimeController', () => {
         it('editMessage rejects with the server error and leaves the message untouched', async () => {
             const failure = Object.assign(new Error('forbidden'), { response: { status: 403 } });
             const editMessage = vi.fn().mockRejectedValue(failure);
-            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn() } });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: { editMessage, deleteMessage: vi.fn(), addReaction: vi.fn(), removeReaction: vi.fn() } });
             await loadChannel(result);
 
             await act(async () => {
@@ -542,6 +542,141 @@ describe('useRealtimeController', () => {
             expect(result.current.value.state.byChannel[CHANNEL]?.[0]).toMatchObject({
                 content: 'corregido offline', editedAt: '2026-11-09T15:30:00Z',
             });
+        });
+    });
+
+    describe('reactions (SCRUM-49)', () => {
+        const stored = (overrides: Record<string, unknown> = {}) => ({
+            messageId: 'm1', clientMessageId: 'c-m1', channelId: CHANNEL, serverId: 's1', authorId: 'u1',
+            content: 'original', createdAt: '2026-11-21T12:00:00Z', editedAt: null,
+            reactions: [], reactionsVersion: 0, ...overrides,
+        });
+        const loadChannel = async (result: ReturnType<typeof render>['result']) => {
+            fake.emit('stateChange', 'open');
+            await act(async () => {
+                result.current.value.loadHistory(CHANNEL);
+                await Promise.resolve();
+            });
+        };
+        const history = (messages: unknown[]) =>
+            vi.fn().mockResolvedValue({ data: { data: messages, hasMore: false } });
+        const service = (overrides: Record<string, unknown> = {}) => ({
+            editMessage: vi.fn(), deleteMessage: vi.fn(), addReaction: vi.fn(), removeReaction: vi.fn(), ...overrides,
+        });
+        const message = (result: ReturnType<typeof render>['result']) => result.current.value.state.byChannel[CHANNEL]?.[0];
+
+        it('applies a message.reactions frame to the message in the list', async () => {
+            const { result } = render({ api: { get: history([stored()]) } });
+            await loadChannel(result);
+
+            fake.emit('messageReactions', {
+                type: 'message.reactions', messageId: 'm1', channelId: CHANNEL, serverId: 's1',
+                reactions: [{ emoji: '👍', userIds: ['u2'] }], reactionsVersion: 1,
+            });
+
+            expect(message(result)).toMatchObject({ reactions: [{ emoji: '👍', userIds: ['u2'] }], reactionsVersion: 1 });
+        });
+
+        it.each([
+            ['adds with a PUT', true, 'addReaction'],
+            ['removes with a DELETE', false, 'removeReaction'],
+        ] as const)('setReaction %s and applies the answer without waiting for the frame', async (_case, reacted, method) => {
+            const answer = { messageId: 'm1', reactions: [{ emoji: '👍', userIds: ['u2'] }], reactionsVersion: 4 };
+            const messagesService = service({ [method]: vi.fn().mockResolvedValue(answer) });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService });
+            await loadChannel(result);
+
+            await act(async () => { await result.current.value.setReaction(CHANNEL, 'm1', '👍', reacted); });
+
+            expect(messagesService[method]).toHaveBeenCalledWith(CHANNEL, 'm1', '👍');
+            const other = method === 'addReaction' ? 'removeReaction' : 'addReaction';
+            expect(messagesService[other]).not.toHaveBeenCalled();
+            expect(message(result)).toMatchObject({ reactions: answer.reactions, reactionsVersion: 4 });
+        });
+
+        it('the frame that follows the answer changes nothing: its version is not greater', async () => {
+            const answer = { messageId: 'm1', reactions: [{ emoji: '👍', userIds: ['u2'] }], reactionsVersion: 1 };
+            const { result } = render({
+                api: { get: history([stored()]) },
+                messagesService: service({ addReaction: vi.fn().mockResolvedValue(answer) }),
+            });
+            await loadChannel(result);
+            await act(async () => { await result.current.value.setReaction(CHANNEL, 'm1', '👍', true); });
+            const afterAnswer = result.current.value.state;
+
+            fake.emit('messageReactions', { type: 'message.reactions', channelId: CHANNEL, serverId: 's1', ...answer });
+
+            expect(result.current.value.state).toBe(afterAnswer);
+        });
+
+        it('a second call for the same emoji while the first is in flight sends nothing', async () => {
+            // A double click must not send PUT and DELETE crossed, which could leave the chip reversed.
+            let answer!: (value: unknown) => void;
+            const addReaction = vi.fn(() => new Promise((resolve) => { answer = resolve; }));
+            const removeReaction = vi.fn();
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: service({ addReaction, removeReaction }) });
+            await loadChannel(result);
+
+            let first!: Promise<void>;
+            let second!: Promise<void>;
+            act(() => {
+                first = result.current.value.setReaction(CHANNEL, 'm1', '👍', true);
+                second = result.current.value.setReaction(CHANNEL, 'm1', '👍', false);
+            });
+            await act(async () => {
+                answer({ messageId: 'm1', reactions: [{ emoji: '👍', userIds: ['u2'] }], reactionsVersion: 1 });
+                await Promise.all([first, second]);
+            });
+
+            expect(second).toBe(first);
+            expect(addReaction).toHaveBeenCalledTimes(1);
+            expect(removeReaction).not.toHaveBeenCalled();
+        });
+
+        it('once the first answer arrives the same emoji can be sent again', async () => {
+            const addReaction = vi.fn().mockResolvedValue({ messageId: 'm1', reactions: [], reactionsVersion: 1 });
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: service({ addReaction }) });
+            await loadChannel(result);
+
+            await act(async () => { await result.current.value.setReaction(CHANNEL, 'm1', '👍', true); });
+            await act(async () => { await result.current.value.setReaction(CHANNEL, 'm1', '👍', true); });
+
+            expect(addReaction).toHaveBeenCalledTimes(2);
+        });
+
+        it('setReaction rejects with the server error, leaves the message untouched and frees the emoji', async () => {
+            const failure = Object.assign(new Error('forbidden'), { response: { status: 403 } });
+            const addReaction = vi.fn().mockRejectedValue(failure);
+            const { result } = render({ api: { get: history([stored()]) }, messagesService: service({ addReaction }) });
+            await loadChannel(result);
+            const before = result.current.value.state;
+
+            await act(async () => {
+                await expect(result.current.value.setReaction(CHANNEL, 'm1', '👍', true)).rejects.toBe(failure);
+            });
+
+            expect(result.current.value.state).toBe(before);
+            await act(async () => {
+                await expect(result.current.value.setReaction(CHANNEL, 'm1', '👍', true)).rejects.toBe(failure);
+            });
+            expect(addReaction).toHaveBeenCalledTimes(2);
+        });
+
+        it('brings the reactions it missed while offline when the socket comes back', async () => {
+            const apiGet = vi.fn()
+                .mockResolvedValueOnce({ data: { data: [stored()], hasMore: false } }) // initial history
+                .mockResolvedValueOnce({ data: { data: [], hasMore: false } }) // ?after: nothing new
+                .mockResolvedValueOnce({ // the last page again
+                    data: { data: [stored({ reactions: [{ emoji: '🎉', userIds: ['u3'] }], reactionsVersion: 2 })], hasMore: false },
+                });
+            const { result } = render({ api: { get: apiGet } });
+            await loadChannel(result);
+
+            fake.emit('stateChange', 'reconnecting');
+            fake.emit('stateChange', 'open');
+            await act(async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); });
+
+            expect(message(result)).toMatchObject({ reactions: [{ emoji: '🎉', userIds: ['u3'] }], reactionsVersion: 2 });
         });
     });
 
@@ -573,7 +708,7 @@ describe('useRealtimeController', () => {
             const deleteMessage = vi.fn().mockResolvedValue(undefined);
             const { result } = render({
                 api: { get: vi.fn().mockResolvedValue({ data: { data: [stored('m1', 1), stored('m2', 2)], hasMore: false } }) },
-                messagesService: { editMessage: vi.fn(), deleteMessage },
+                messagesService: { editMessage: vi.fn(), deleteMessage, addReaction: vi.fn(), removeReaction: vi.fn() },
             });
             await loadChannel(result);
 
@@ -587,7 +722,7 @@ describe('useRealtimeController', () => {
             const failure = Object.assign(new Error('forbidden'), { response: { status: 403 } });
             const { result } = render({
                 api: { get: vi.fn().mockResolvedValue({ data: { data: [stored('m1', 1)], hasMore: false } }) },
-                messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn().mockRejectedValue(failure) },
+                messagesService: { editMessage: vi.fn(), deleteMessage: vi.fn().mockRejectedValue(failure), addReaction: vi.fn(), removeReaction: vi.fn() },
             });
             await loadChannel(result);
 

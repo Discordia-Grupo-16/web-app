@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { NONE, MANAGE_MESSAGES, SEND_MESSAGES, hasPermission, useMarkChannelRead } from '@discordia/core';
+import { ADD_REACTIONS, NONE, MANAGE_MESSAGES, SEND_MESSAGES, hasPermission, useMarkChannelRead } from '@discordia/core';
 import { serversService } from '@/shared/api';
 import { isGoneError } from '@discordia/api';
 import { ChatScreen } from '../components/ChatScreen';
@@ -103,6 +103,7 @@ export function ChannelScreen() {
       channelName={channelName}
       canSendMessages={hasPermission(permissions, SEND_MESSAGES)}
       canManageMessages={hasPermission(permissions, MANAGE_MESSAGES)}
+      canAddReactions={hasPermission(permissions, ADD_REACTIONS)}
     />
   );
 }
