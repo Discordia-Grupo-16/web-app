@@ -233,8 +233,6 @@ export const MessageList = ({
               authorName={currentUser?.name || 'Vos'}
               authorAvatarUrl={currentUser?.avatarUrl ?? null}
               content={item.message.content}
-              createdAt={item.message.createdAt}
-              editedAt={item.message.editedAt}
               attachments={item.message.attachments}
               sending={item.message.status === 'sending'}
               failed={item.message.status === 'failed'}
