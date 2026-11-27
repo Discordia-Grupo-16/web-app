@@ -21,12 +21,13 @@ import {
     UNAVAILABLE_USER_NAME,
     useVoice,
     useServerVoiceRoster,
+    usePresence,
     useVoiceCallParticipants,
     useVoiceRosterViews,
     type RoleDeletionActor,
     type VoiceParticipant,
 } from '@discordia/core';
-import { voiceService } from '@/shared/api';
+import { presenceService, voiceService } from '@/shared/api';
 import { ChannelList } from '@/features/channels';
 import { BansSection, MembersSection, useBans, useMembers } from '@/features/members';
 import { InviteButton } from '@/features/invitations';
@@ -108,6 +109,8 @@ export const ServerPanel = () => {
         voiceService.getServerVoiceParticipants,
     );
     const rosterViews = useVoiceRosterViews(roster);
+    // Any member may see it, like the member list: it does not ask for VIEW_CHANNEL (SCRUM-27).
+    const presence = usePresence(serverId, presenceService.getServerPresence);
     // The channel of the call shows LiveKit's list: it is instant and has the mute and who is speaking
     // (W14 and S7). The rest show the roster of `chat`, which does not know who is speaking, only when
     // someone is in it. Another server does not list the call's channel.
@@ -272,6 +275,7 @@ export const ServerPanel = () => {
                             <MembersSection
                                 serverId={serverId}
                                 members={members}
+                                presence={presence}
                                 roles={roles}
                                 ownerId={server?.owner_id}
                                 canManage={hasPermission(permissions, MANAGE_ROLES)}

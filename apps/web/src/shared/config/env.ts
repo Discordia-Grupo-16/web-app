@@ -8,3 +8,9 @@ export const API_TIMEOUT_MS: number | undefined = import.meta.env.VITE_API_TIMEO
     : undefined;
 
 export const WS_URL: string = import.meta.env.VITE_WS_URL ?? '';
+
+/** Minutes without interaction until the user shows as idle. Undefined keeps the default (5). */
+export const PRESENCE_IDLE_MINUTES: number | undefined =
+    Number(import.meta.env.VITE_PRESENCE_IDLE_MINUTES) > 0
+        ? Number(import.meta.env.VITE_PRESENCE_IDLE_MINUTES)
+        : undefined;

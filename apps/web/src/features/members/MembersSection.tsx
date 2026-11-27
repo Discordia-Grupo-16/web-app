@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { Ban, Crown, Pencil, UserMinus } from 'lucide-react';
-import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles } from '@discordia/core';
+import { PERMISSION_COPY, authorView, useAuth, usePublicProfiles, type PresenceMap } from '@discordia/core';
 import type { Role, ServerMember } from '@discordia/api';
 import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
+import { MemberAvatar } from './MemberAvatar';
 import { BanMemberDialog } from './BanMemberDialog';
 import { KickMemberDialog } from './KickMemberDialog';
 import { MemberRolesModal } from './MemberRolesModal';
@@ -10,6 +11,8 @@ import { MemberRolesModal } from './MemberRolesModal';
 interface MembersSectionProps {
     serverId: string;
     members: ServerMember[];
+    /** Status of who is not offline (SCRUM-27). Null or absent: not known yet, no dot is drawn. */
+    presence?: PresenceMap | null;
     roles: Role[];
     ownerId: string | undefined;
     canManage: boolean;
@@ -27,6 +30,7 @@ interface MembersSectionProps {
 export const MembersSection = ({
     serverId,
     members,
+    presence,
     roles,
     ownerId,
     canManage,
@@ -47,7 +51,8 @@ export const MembersSection = ({
     // `community` only returns ids: the names are `identity`'s, resolved in one request.
     const profiles = usePublicProfiles(members.map(member => member.user_id));
 
-    const nameOf = (userId: string) => authorView(userId, user, profiles.get(userId)).name;
+    const viewOf = (userId: string) => authorView(userId, user, profiles.get(userId));
+    const nameOf = (userId: string) => viewOf(userId).name;
 
     const member = members.find(m => m.user_id === editing);
 
@@ -83,6 +88,11 @@ export const MembersSection = ({
                             onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
                             onMouseLeave={e => (e.currentTarget.style.color = 'inherit')}
                         >
+                            <MemberAvatar
+                                name={nameOf(user_id)}
+                                avatarUrl={viewOf(user_id).avatarUrl}
+                                status={presence ? (presence.get(user_id) ?? 'offline') : null}
+                            />
                             {isOwner && (
                                 <span title={PERMISSION_COPY.ownerMark} style={{ display: 'flex', flexShrink: 0 }}>
                                     <Crown size={13} style={{ color: '#faa61a' }} />

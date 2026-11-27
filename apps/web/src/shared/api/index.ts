@@ -9,6 +9,7 @@ import {
     createMessagesService,
     createReadStatesService,
     createOwnershipService,
+    createPresenceService,
     createRolesService,
     createServersService,
     createUserService,
@@ -37,6 +38,7 @@ export const rolesService = createRolesService(api);
 export const membersService = createMembersService(api);
 export const invitationsService = createInvitationsService(api);
 export const voiceService = createVoiceService(api);
+export const presenceService = createPresenceService(api);
 export const readStatesService = createReadStatesService(api);
 export const messagesService = createMessagesService(api);
 export const ownershipService = createOwnershipService(api);
