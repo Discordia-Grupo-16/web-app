@@ -12,15 +12,22 @@ const statusOf = (err: unknown) => (err as { response?: { status?: number } })?.
 interface MfaStepProps {
     /** Called once the session is open. `recoveryCodesRemaining` is set when a recovery code was spent. */
     onVerified: (recoveryCodesRemaining?: number) => void;
+    /** Runs after the step is abandoned, for screens that must also leave for the login. */
+    onCancel?: () => void;
 }
 
-export const MfaStep = ({ onVerified }: MfaStepProps) => {
+export const MfaStep = ({ onVerified, onCancel }: MfaStepProps) => {
     const { completeMfa, cancelMfa } = useAuth();
     const [useRecovery, setUseRecovery] = useState(false);
     const [value, setValue] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [attempts, setAttempts] = useState(0);
+
+    const abandon = () => {
+        cancelMfa();
+        onCancel?.();
+    };
 
     const switchMode = () => {
         setUseRecovery((v) => !v);
@@ -59,7 +66,7 @@ export const MfaStep = ({ onVerified }: MfaStepProps) => {
             if (status === 400 || status === 401) {
                 if (used >= MAX_MFA_ATTEMPTS) {
                     // Back to the login: the server already threw the token away.
-                    cancelMfa();
+                    abandon();
                     return;
                 }
                 setError(INVALID_CODE);
@@ -137,7 +144,7 @@ export const MfaStep = ({ onVerified }: MfaStepProps) => {
                     <button type="button" onClick={switchMode} className="font-semibold hover:underline" style={{ color: '#7289da' }}>
                         {useRecovery ? 'Usar el código de la app' : 'Usar un código de recuperación'}
                     </button>
-                    <button type="button" onClick={cancelMfa} className="hover:underline" style={{ color: '#99aab5' }}>
+                    <button type="button" onClick={abandon} className="hover:underline" style={{ color: '#99aab5' }}>
                         Volver al inicio de sesión
                     </button>
                 </div>

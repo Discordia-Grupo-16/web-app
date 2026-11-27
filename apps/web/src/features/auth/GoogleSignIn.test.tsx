@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,10 +33,10 @@ vi.mock('@react-oauth/google', () => ({
 const loginWithGoogle = vi.mocked(authService.loginWithGoogle);
 const onError = vi.fn();
 
-const renderButton = () =>
+const renderButton = (disabled?: boolean) =>
     render(
         <MemoryRouter>
-            <GoogleSignIn onError={onError} />
+            <GoogleSignIn onError={onError} disabled={disabled} />
         </MemoryRouter>,
     );
 
@@ -90,6 +90,36 @@ describe('GoogleSignIn', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Continuar con Google' }));
 
         expect(onError).toHaveBeenCalledWith('No pudimos conectar con Google. Ingresá con tu correo y contraseña.');
+    });
+
+    it('shows that it is connecting and blocks the button while the backend answers', async () => {
+        loginWithGoogle.mockReturnValue(new Promise(() => {}) as never);
+        renderButton();
+
+        await userEvent.click(screen.getByRole('button', { name: 'Continuar con Google' }));
+
+        expect(screen.getByRole('status')).toHaveTextContent('Conectando con Google…');
+        expect(screen.getByTestId('google-sign-in')).toHaveAttribute('inert');
+    });
+
+    it('blocks the button while the email form is being sent', () => {
+        renderButton(true);
+
+        expect(screen.getByTestId('google-sign-in')).toHaveAttribute('inert');
+    });
+
+    it('does nothing with an answer that arrives after the form is gone', async () => {
+        let answer: (value: unknown) => void = () => {};
+        loginWithGoogle.mockReturnValue(new Promise((resolve) => (answer = resolve)) as never);
+        const { unmount } = renderButton();
+        await userEvent.click(screen.getByRole('button', { name: 'Continuar con Google' }));
+
+        unmount();
+        await act(async () => answer({ token: 't', refreshToken: 'r', user: { id: '1', name: 'Ana' } }));
+
+        expect(signIn).not.toHaveBeenCalled();
+        expect(navigate).not.toHaveBeenCalled();
+        expect(onError).not.toHaveBeenCalled();
     });
 
     it('reports an error when Google hands back no credential or fails by itself', async () => {

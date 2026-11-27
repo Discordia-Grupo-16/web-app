@@ -12,13 +12,14 @@ vi.mock('@/shared/config/env', () => ({ GOOGLE_CLIENT_ID: '' }));
 vi.mock('@react-oauth/google', () => ({ GoogleLogin: () => <button>Continuar con Google</button> }));
 
 describe('GoogleSignIn without a client ID', () => {
-    it('renders nothing, so the email form is all there is', () => {
-        render(
+    it('renders neither the button nor its divider, so the email form is all there is', () => {
+        const { container } = render(
             <MemoryRouter>
                 <GoogleSignIn onError={vi.fn()} />
             </MemoryRouter>,
         );
 
         expect(screen.queryByRole('button', { name: 'Continuar con Google' })).not.toBeInTheDocument();
+        expect(container).toBeEmptyDOMElement();
     });
 });

@@ -3,7 +3,7 @@
     "name": "Discordia",
     "slug": "discordia-mobile",
     "version": "1.0.0",
-    "scheme": "discordia",
+    "scheme": ["discordia", "com.discordia.mobile"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

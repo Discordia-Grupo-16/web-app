@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Text, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useRouter, type Href } from 'expo-router';
@@ -15,8 +15,10 @@ WebBrowser.maybeCompleteAuthSession();
 interface GoogleSignInProps {
   /** Text for the form error area: a rejected token, or Google not answering (503). */
   onError: (message: string) => void;
-  /** Fires when the user picks an account, before the backend answers. */
+  /** Fires when the button is pressed, before Google opens. */
   onStart?: () => void;
+  /** Blocks the button while the email form is being sent, so only one login runs at a time. */
+  disabled?: boolean;
 }
 
 const GOOGLE_UNAVAILABLE = 'No pudimos conectar con Google. Ingresá con tu correo y contraseña.';
@@ -24,8 +26,8 @@ const GOOGLE_INVALID = 'No pudimos validar tu cuenta de Google.';
 
 /**
  * "Continuar con Google". Google hands back an ID token and the backend verifies it, so the client
- * never decides who the user is. Without an Android client ID in the build nothing is rendered and
- * the email form is all there is. The hook lives in the inner component because
+ * never decides who the user is. Without an Android client ID in the build neither the button nor its
+ * "o" divider is rendered and the email form is all there is. The hook lives in the inner component because
  * `useIdTokenAuthRequest` throws when the client ID of the platform is missing.
  */
 export function GoogleSignIn(props: GoogleSignInProps) {
@@ -33,18 +35,27 @@ export function GoogleSignIn(props: GoogleSignInProps) {
   return <GoogleSignInButton {...props} />;
 }
 
-function GoogleSignInButton({ onError, onStart }: GoogleSignInProps) {
+function GoogleSignInButton({ onError, onStart, disabled = false }: GoogleSignInProps) {
   const { signIn, beginMfa } = useAuth();
   const router = useRouter();
   const returnTo = useReturnTo();
   const [busy, setBusy] = useState(false);
+  // True while the browser tab with Google is open: a second press would open a second prompt.
+  const [prompting, setPrompting] = useState(false);
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
     selectAccount: true,
   });
 
+  // The effect below must run once per Google answer, not every time a callback changes identity.
+  const latest = useRef({ onError, signIn, beginMfa, router, returnTo });
+  useEffect(() => {
+    latest.current = { onError, signIn, beginMfa, router, returnTo };
+  });
+
   useEffect(() => {
     if (!response) return;
+    const { onError, signIn, beginMfa, router, returnTo } = latest.current;
 
     if (response.type === 'error') {
       onError(GOOGLE_UNAVAILABLE);
@@ -81,25 +92,42 @@ function GoogleSignInButton({ onError, onStart }: GoogleSignInProps) {
     return () => {
       active = false;
     };
-    // The response is the only trigger: the rest are stable callbacks of this render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [response]);
+
+  const openPrompt = async () => {
+    setPrompting(true);
+    try {
+      await promptAsync();
+    } catch {
+      // No browser able to open the Google page, for instance.
+      onError(GOOGLE_UNAVAILABLE);
+    } finally {
+      setPrompting(false);
+    }
+  };
 
   const handlePress = () => {
     onStart?.();
-    void promptAsync();
+    void openPrompt();
   };
 
   return (
-    <TouchableOpacity
-      accessibilityRole="button"
-      className="w-full border border-[#99aab5]/40 active:bg-[#23272a] py-3.5 rounded-lg items-center justify-center"
-      onPress={handlePress}
-      disabled={!request || busy}
-    >
-      <Text className="text-white font-bold text-base">
-        {busy ? 'Conectando con Google…' : 'Continuar con Google'}
-      </Text>
-    </TouchableOpacity>
+    <View className="mt-4">
+      <View className="flex-row items-center gap-3 mb-4">
+        <View className="flex-1 h-px bg-[#99aab5]/20" />
+        <Text className="text-xs text-[#99aab5]">o</Text>
+        <View className="flex-1 h-px bg-[#99aab5]/20" />
+      </View>
+      <TouchableOpacity
+        accessibilityRole="button"
+        className="w-full border border-[#99aab5]/40 active:bg-[#23272a] py-3.5 rounded-lg items-center justify-center"
+        onPress={handlePress}
+        disabled={!request || busy || prompting || disabled}
+      >
+        <Text className="text-white font-bold text-base">
+          {busy ? 'Conectando con Google…' : 'Continuar con Google'}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }

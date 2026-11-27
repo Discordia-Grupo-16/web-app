@@ -74,6 +74,38 @@ describe('GoogleSignIn', () => {
     await renderButton();
 
     expect(screen.queryByText('Continuar con Google')).toBeNull();
+    expect(screen.queryByText('o')).toBeNull();
+  });
+
+  it('reports Google as unavailable when the prompt cannot be opened', async () => {
+    mockPrompt.mockRejectedValueOnce(new Error('no browser'));
+    await renderButton();
+
+    await fireEvent.press(screen.getByText('Continuar con Google'));
+
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith(
+        'No pudimos conectar con Google. Ingresá con tu correo y contraseña.',
+      ),
+    );
+  });
+
+  it('does not open a second prompt while the first one is on screen', async () => {
+    mockPrompt.mockReturnValueOnce(new Promise(() => {}));
+    await renderButton();
+
+    await fireEvent.press(screen.getByText('Continuar con Google'));
+    await fireEvent.press(screen.getByText('Continuar con Google'));
+
+    expect(mockPrompt).toHaveBeenCalledTimes(1);
+  });
+
+  it('cannot be pressed while the email form is being sent', async () => {
+    await render(<GoogleSignIn onError={onError} onStart={onStart} disabled />);
+
+    await fireEvent.press(screen.getByText('Continuar con Google'));
+
+    expect(mockPrompt).not.toHaveBeenCalled();
   });
 
   it('opens the Google prompt and clears the form error when pressed', async () => {

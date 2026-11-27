@@ -166,6 +166,11 @@ Ese client ID se crea con el paquete `com.discordia.mobile` y el SHA-1 del keyst
 `expo-web-browser` a `app.json` es un cambio nativo: hay que generar de nuevo la APK. Para la APK `preview`,
 la variable va en el bloque `env` de ese perfil en `eas.json`, junto a las URLs de AWS.
 
+Google devuelve el control a la app por `com.discordia.mobile:/oauthredirect`. Por eso `app.json` declara
+`com.discordia.mobile` entre los `scheme` (también es un cambio nativo), y el client ID de Android necesita
+**Enable custom URI scheme** activado en sus opciones avanzadas de Google Cloud.
+`src/app/+native-intent.ts` evita que `expo-router` trate ese enlace como una pantalla.
+
 Hay dos APKs, para dos usos distintos:
 
 | | App de desarrollo (`development`) | App de la demo (`preview`) |
