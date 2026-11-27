@@ -48,7 +48,7 @@ const own = (messageId: string, authorId = 'me'): ChatMessage =>
   ({ messageId, authorId, channelId: 'c1', content: `texto ${messageId}`, createdAt: '2026-11-09T12:00:00Z' }) as ChatMessage;
 
 const tree = (canSendMessages: boolean) => (
-  <ChatScreen channelId="c1" channelName="general" canSendMessages={canSendMessages} canManageMessages={false} />
+  <ChatScreen channelId="c1" channelName="general" canSendMessages={canSendMessages} canManageMessages={false} canAddReactions={false} />
 );
 
 describe('ChatScreen editing', () => {

@@ -1,4 +1,6 @@
 import { View, Text, Image, Pressable, TouchableOpacity } from 'react-native';
+import type { ReactionChip } from '@discordia/core';
+import { ReactionBar } from './ReactionBar';
 
 interface MessageItemProps {
   authorId: string;
@@ -16,7 +18,16 @@ interface MessageItemProps {
   retryDisabled?: boolean;
   onDiscard?: () => void;
   onSelectAuthor?: () => void;
+  /** The reactions of the message (SCRUM-49), already summarised for the user. */
+  reactions?: ReactionChip[];
+  /** ADD_REACTIONS: shows "＋" and lets the user join others' chips. Their own never needs it. */
+  canAddReactions?: boolean;
+  /** Adds (`true`) or takes back the user's reaction. Absent on a message still being sent. */
+  onReact?: (emoji: string, reacted: boolean) => void;
+  onOpenReactionPicker?: () => void;
 }
+
+const NO_REACTIONS: ReactionChip[] = [];
 
 const AVATAR_COLORS = ['#7289da', '#43b581', '#faa61a', '#f47fff', '#f04747', '#00b0f4', '#747f8d', '#e67e22'];
 
@@ -47,6 +58,10 @@ export const MessageItem = ({
   retryDisabled = false,
   onDiscard,
   onSelectAuthor,
+  reactions = NO_REACTIONS,
+  canAddReactions = false,
+  onReact,
+  onOpenReactionPicker,
 }: MessageItemProps) => (
   <Pressable
     className="flex-row px-4 py-1"
@@ -86,6 +101,14 @@ export const MessageItem = ({
         {content}
         {editedAt && <Text className="text-xs text-[#72767d]"> (editado)</Text>}
       </Text>
+      {onReact && onOpenReactionPicker && (
+        <ReactionBar
+          chips={reactions}
+          canAddReactions={canAddReactions}
+          onToggle={onReact}
+          onOpenPicker={onOpenReactionPicker}
+        />
+      )}
       {failed && (
         <View className="flex-row flex-wrap items-center mt-1">
           {errorText && <Text className="text-xs mr-3 text-[#ed4245]">{errorText}</Text>}

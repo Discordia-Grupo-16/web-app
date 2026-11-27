@@ -60,6 +60,8 @@ const renderList = async (
         onStartEdit={edit.onStartEdit ?? jest.fn()}
         canManageMessages={edit.canManageMessages ?? false}
         onDelete={edit.onDelete ?? jest.fn(async () => {})}
+        canAddReactions={false}
+        onReact={jest.fn(async () => {})}
       />
     </PublicProfilesProvider>,
   );
@@ -217,6 +219,8 @@ describe('MessageList deleting', () => {
         onStartEdit={jest.fn()}
         canManageMessages={canManageMessages}
         onDelete={onDelete}
+        canAddReactions={false}
+        onReact={jest.fn(async () => {})}
       />
     </PublicProfilesProvider>
   );
