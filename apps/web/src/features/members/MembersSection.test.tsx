@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
+import { PublicProfilesProvider, type PresenceMap, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
 import { membersService, rolesService } from '@/shared/api';
 import { ProfileViewerContext } from '@/shared/profile/ProfileViewerContext';
@@ -49,6 +49,8 @@ interface Options {
     canKick?: boolean;
     canBan?: boolean;
     renderMemberActions?: (member: ServerMember) => ReactNode;
+    presence?: PresenceMap | null;
+    people?: PublicProfiles;
 }
 
 const renderSection = ({
@@ -58,6 +60,8 @@ const renderSection = ({
     canKick = false,
     canBan = false,
     renderMemberActions,
+    presence,
+    people = profiles,
 }: Options = {}) => {
     const onRolesChange = vi.fn();
     const onMemberKicked = vi.fn();
@@ -65,7 +69,7 @@ const renderSection = ({
     const onStale = vi.fn();
     const openProfile = vi.fn();
     const source: PublicProfileSource = {
-        getPublicProfiles: async () => profiles,
+        getPublicProfiles: async () => people,
         peekPublicProfile: () => undefined,
     };
     render(
@@ -74,6 +78,7 @@ const renderSection = ({
                 <MembersSection
                     serverId="srv"
                     members={members}
+                    presence={presence}
                     roles={roles}
                     ownerId="owner"
                     canManage={canManage}
@@ -375,6 +380,57 @@ describe('MembersSection', () => {
         await user.click(await screen.findByText('Milton'));
 
         expect(openProfile).toHaveBeenCalledWith('milton');
+    });
+});
+
+describe('MembersSection photo and status', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    const withPhoto: PublicProfiles = new Map([
+        ['milton', { id: 'milton', name: 'Milton', avatarUrl: 'https://img.test/milton.png', bio: null }],
+    ]);
+
+    it('shows the photo of the member (SCRUM-157, CA1)', async () => {
+        renderSection({ people: withPhoto });
+        await screen.findByText('Milton');
+
+        // Decorative: the name is right next to it.
+        expect(screen.getByRole('presentation')).toHaveAttribute('src', 'https://img.test/milton.png');
+    });
+
+    it('shows the initial of whoever has no photo', async () => {
+        renderSection();
+        await screen.findByText('Milton');
+
+        expect(screen.getByText('M')).toBeInTheDocument();
+        expect(screen.queryByRole('presentation')).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ['online', 'En línea'],
+        ['idle', 'Ausente'],
+        ['dnd', 'No molestar'],
+    ] as const)('marks a member that is %s as "%s"', async (status, label) => {
+        renderSection({ presence: new Map([['milton', status]]) });
+        await screen.findByText('Milton');
+
+        expect(screen.getByRole('img', { name: label })).toBeInTheDocument();
+    });
+
+    it('marks as disconnected whoever is not in the presence map', async () => {
+        renderSection({ presence: new Map() });
+        await screen.findByText('Milton');
+
+        expect(screen.getByRole('img', { name: 'Desconectado' })).toBeInTheDocument();
+    });
+
+    it('draws no status while it is not known', async () => {
+        renderSection({ presence: null });
+        await screen.findByText('Milton');
+
+        expect(screen.queryByRole('img')).not.toBeInTheDocument();
     });
 });
 

@@ -5,7 +5,10 @@ import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/cor
 import { useProfileViewer } from '@/shared/profile/ProfileViewerContext';
 import { ProfileViewerProvider } from './ProfileViewerProvider';
 
-vi.mock('@/shared/api', () => ({ serversService: { getServers: vi.fn(async () => []) } }));
+vi.mock('@/shared/api', () => ({
+    serversService: { getServers: vi.fn(async () => []) },
+    presenceService: { getServerPresence: vi.fn(async () => []) },
+}));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
     useAuth: () => ({ user: { id: 'me', name: 'Felipe' } }),

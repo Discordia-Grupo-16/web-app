@@ -19,6 +19,7 @@ vi.mock('@/shared/api', () => ({
     channelsService: {},
     ownershipSource: {},
     voiceService: { getServerVoiceParticipants: vi.fn() },
+    presenceService: { getServerPresence: vi.fn(async () => []) },
 }));
 vi.mock('@/features/invitations', () => ({ InviteButton: () => null }));
 vi.mock('@/features/roles', () => ({

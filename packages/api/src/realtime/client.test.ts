@@ -534,6 +534,88 @@ describe('receiving', () => {
     });
 });
 
+describe('presence', () => {
+    const PRESENCE = { type: 'presence', userId: 'u1', status: 'idle', updatedAt: '2026-11-23T12:00:00Z' };
+
+    async function openClient() {
+        const client = createRealtimeClient(baseConfig());
+        client.connect();
+        await flush();
+        latestSocket().open();
+        return client;
+    }
+
+    const sentFrames = () => latestSocket().sent.map((s) => JSON.parse(s));
+
+    it('emits presence with the parsed frame', async () => {
+        const client = await openClient();
+        const onPresence = vi.fn();
+        client.on('presence', onPresence);
+
+        latestSocket().message(PRESENCE);
+
+        expect(onPresence).toHaveBeenCalledWith(PRESENCE);
+    });
+
+    it.each(['userId', 'status', 'updatedAt'])('ignores a presence frame without %s', async (field) => {
+        const client = await openClient();
+        const onPresence = vi.fn();
+        client.on('presence', onPresence);
+
+        latestSocket().message({ ...PRESENCE, [field]: undefined });
+
+        expect(onPresence).not.toHaveBeenCalled();
+    });
+
+    it('sendActivity sends the frame only when the value changes', async () => {
+        const client = await openClient();
+
+        client.sendActivity(false);
+        client.sendActivity(true);
+        client.sendActivity(true);
+        client.sendActivity(false);
+
+        expect(sentFrames()).toEqual([
+            { type: 'presence.activity', idle: true },
+            { type: 'presence.activity', idle: false },
+        ]);
+    });
+
+    it('tells a new connection that the user is still idle', async () => {
+        const client = await openClient();
+        client.sendActivity(true);
+
+        latestSocket().remoteClose(1006);
+        await vi.advanceTimersByTimeAsync(100);
+        latestSocket().open();
+
+        expect(sentFrames()).toEqual([{ type: 'presence.activity', idle: true }]);
+    });
+
+    it('keeps a change made while the socket is down and sends it on open', async () => {
+        const client = createRealtimeClient(baseConfig());
+        client.connect();
+
+        expect(() => client.sendActivity(true)).not.toThrow();
+        await flush();
+        latestSocket().open();
+
+        expect(sentFrames()).toEqual([{ type: 'presence.activity', idle: true }]);
+    });
+
+    it('forgets the idle mark on disconnect', async () => {
+        const client = await openClient();
+        client.sendActivity(true);
+
+        client.disconnect();
+        client.connect();
+        await flush();
+        latestSocket().open();
+
+        expect(sentFrames()).toEqual([]);
+    });
+});
+
 describe('reconnection', () => {
     it('an unrequested close (1006) goes reconnecting and reconnects after minBackoffMs, calling getTicket() again', async () => {
         const getTicket = vi.fn(async () => 'ticket-123');

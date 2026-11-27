@@ -7,7 +7,12 @@ import { ProfilePopup } from './ProfilePopup';
 const signOut = vi.fn();
 
 // The popup now reads signOut from the auth context, which these tests do not provide.
-vi.mock('@discordia/core', () => ({ useAuth: () => ({ signOut }) }));
+vi.mock('@discordia/core', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@discordia/core')>()),
+    useAuth: () => ({ signOut }),
+}));
+
+const presence = { manual: null, status: 'online' as const, saving: false, failed: false, choose: vi.fn() };
 
 describe('ProfilePopup', () => {
     const mockUser: User = {
@@ -22,6 +27,7 @@ describe('ProfilePopup', () => {
     it('renderiza la información del usuario correctamente', () => {
         render(
             <ProfilePopup
+                presence={presence}
                 user={mockUser}
                 onClose={vi.fn()}
                 onEditProfile={vi.fn()}
@@ -43,6 +49,7 @@ describe('ProfilePopup', () => {
 
         render(
             <ProfilePopup
+                presence={presence}
                 user={mockUser}
                 onClose={onClose}
                 onEditProfile={onEditProfile}
@@ -57,7 +64,7 @@ describe('ProfilePopup', () => {
     });
 
     it('muestra "Cerrar sesión" y cierra la sesión al hacer clic', async () => {
-        render(<ProfilePopup user={mockUser} onClose={vi.fn()} onEditProfile={vi.fn()} />);
+        render(<ProfilePopup presence={presence} user={mockUser} onClose={vi.fn()} onEditProfile={vi.fn()} />);
 
         await userEvent.setup().click(screen.getByRole('button', { name: 'Cerrar sesión' }));
 

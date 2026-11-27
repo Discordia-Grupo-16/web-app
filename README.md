@@ -191,6 +191,15 @@ La web app se comunica con el backend a través del API Gateway. Creá el archiv
 VITE_API_URL=http://localhost:8080/api/v1
 ```
 
+### Estado de actividad
+
+La web avisa que el usuario quedó ausente a los 5 minutos sin interacción. Para probarlo sin esperar,
+poné en `apps/web/.env.local`:
+
+```
+VITE_PRESENCE_IDLE_MINUTES=1
+```
+
 ### Token de desarrollo
 
 Mientras el servicio `identity` no esté levantado, el gateway acepta tokens JWT firmados con el secreto de desarrollo. Para generar uno, abrí las DevTools del browser (F12 → Console) y pegá:

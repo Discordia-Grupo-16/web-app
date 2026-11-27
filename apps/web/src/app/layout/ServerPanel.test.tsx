@@ -35,6 +35,7 @@ vi.mock('@/shared/api', () => ({
         getServers: vi.fn(),
     },
     serversService: { getServer: vi.fn(), updateServer: vi.fn() },
+    presenceService: { getServerPresence: vi.fn(async () => []) },
     rolesService: { listRoles: vi.fn(), deleteRole: vi.fn() },
     membersService: {
         listMembers: vi.fn(),

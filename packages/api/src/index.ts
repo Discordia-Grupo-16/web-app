@@ -44,5 +44,8 @@ export * from './realtime/client';
 export * from './realtime/ticket';
 export type * from './realtime/protocol';
 
+export * from './presence/service';
+export type * from './presence/types';
+
 export * from './voice/service';
 export type * from './voice/types';
