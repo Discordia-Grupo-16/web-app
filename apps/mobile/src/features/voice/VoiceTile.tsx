@@ -12,13 +12,14 @@ export interface VoiceTileProps {
   speaking: boolean;
   locallyMuted: boolean;
   width: number;
+  height: number;
   /** Mutes or unmutes this participant locally. The button shows only when it is given: not on the own tile. */
   onToggleLocalMute?: (userId: string) => void;
 }
 
 // One participant of the call: their video if they have a camera on, their avatar if not. Memoized like
 // the rows of the list: when who is speaking changes, only the tiles whose `speaking` flipped render again.
-export const VoiceTile = memo(({ participant: p, speaking, locallyMuted, width, onToggleLocalMute }: VoiceTileProps) => {
+export const VoiceTile = memo(({ participant: p, speaking, locallyMuted, width, height, onToggleLocalMute }: VoiceTileProps) => {
   const video = useContext(VoiceVideoContext);
   // cameraOn is "there is something to show", but the track can still be gone by the time this renders.
   const trackRef = p.cameraOn ? video?.cameraTrackRef(p.userId) : undefined;
@@ -26,7 +27,7 @@ export const VoiceTile = memo(({ participant: p, speaking, locallyMuted, width, 
     <View
       testID={`voice-tile-${p.userId}`}
       className="rounded-md overflow-hidden bg-[#2f3136]"
-      style={{ width, aspectRatio: 3 / 4 }}
+      style={{ width, height }}
     >
       {video && trackRef ? (
         <View testID={`voice-video-${p.userId}`} className="absolute inset-0">

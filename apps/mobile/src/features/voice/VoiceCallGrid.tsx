@@ -1,6 +1,6 @@
 import { useWindowDimensions, View } from 'react-native';
 import { useVoice, useVoiceSpeakers, type ChannelParticipantView } from '@discordia/core';
-import { tileWidth } from './gridLayout';
+import { tileHeight, tileWidth } from './gridLayout';
 import { VoiceTile } from './VoiceTile';
 
 // The call as a grid of tiles. Like VoiceCallParticipantList, it is the only reader of the speakers
@@ -11,7 +11,7 @@ export const VoiceCallGrid = ({ participants }: { participants: ChannelParticipa
   const { width } = useWindowDimensions();
   const size = tileWidth(width, participants.length);
   return (
-    <View accessibilityLabel="Participantes de la llamada" className="flex-row flex-wrap gap-2">
+    <View accessibilityLabel="Participantes de la llamada" className="flex-row flex-wrap items-start gap-2">
       {participants.map((p) => (
         <VoiceTile
           key={p.userId}
@@ -20,6 +20,7 @@ export const VoiceCallGrid = ({ participants }: { participants: ChannelParticipa
           speaking={!p.muted && speakingIds.has(p.userId)}
           locallyMuted={locallyMuted.has(p.userId)}
           width={size}
+          height={tileHeight(size)}
           // The handler is the controller's, stable: wrapping it per tile would break the memo.
           onToggleLocalMute={p.isSelf ? undefined : toggleLocalMute}
         />

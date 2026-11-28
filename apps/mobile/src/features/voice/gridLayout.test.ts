@@ -1,4 +1,4 @@
-import { gridColumns, tileWidth } from './gridLayout';
+import { gridColumns, tileHeight, tileWidth } from './gridLayout';
 import { participantInitial } from './participantInitial';
 
 describe('gridColumns', () => {
@@ -27,6 +27,17 @@ describe('tileWidth', () => {
 
   it('rounds down, so the row never overflows', () => {
     expect(tileWidth(401, 2)).toBe(180);
+  });
+});
+
+describe('tileHeight', () => {
+  it('is 3:4, vertical (C9)', () => {
+    expect(tileHeight(180)).toBe(240);
+    expect(tileHeight(368)).toBe(491);
+  });
+
+  it('rounds to a whole number', () => {
+    expect(tileHeight(185)).toBe(247);
   });
 });
 

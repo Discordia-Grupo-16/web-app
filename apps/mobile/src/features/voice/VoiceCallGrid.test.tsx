@@ -36,14 +36,14 @@ describe('VoiceCallGrid', () => {
   it('gives a tile alone the whole width of the screen', async () => {
     await render(<VoiceCallGrid participants={[view('u1', 'Ana')]} />);
 
-    expect(screen.getByTestId('voice-tile-u1')).toHaveStyle({ width: 368 });
+    expect(screen.getByTestId('voice-tile-u1')).toHaveStyle({ width: 368, height: 491 });
   });
 
   it('puts two tiles side by side', async () => {
     await render(<VoiceCallGrid participants={[view('u1', 'Ana'), view('u2', 'Beto')]} />);
 
-    expect(screen.getByTestId('voice-tile-u1')).toHaveStyle({ width: 180 });
-    expect(screen.getByTestId('voice-tile-u2')).toHaveStyle({ width: 180 });
+    expect(screen.getByTestId('voice-tile-u1')).toHaveStyle({ width: 180, height: 240 });
+    expect(screen.getByTestId('voice-tile-u2')).toHaveStyle({ width: 180, height: 240 });
   });
 
   it('marks who is speaking, and nobody who is muted (S8)', async () => {

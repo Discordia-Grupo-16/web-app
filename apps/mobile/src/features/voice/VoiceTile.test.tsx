@@ -38,16 +38,17 @@ const renderTile = (
         speaking={extra.speaking ?? false}
         locallyMuted={extra.locallyMuted ?? false}
         width={180}
+        height={240}
         onToggleLocalMute={extra.onToggleLocalMute}
       />
     </VoiceVideoContext.Provider>,
   );
 
 describe('VoiceTile', () => {
-  it('has the width it is given and a fixed ratio', async () => {
+  it('has the width and the height it is given', async () => {
     await renderTile(view());
 
-    expect(screen.getByTestId('voice-tile-u1')).toHaveStyle({ width: 180, aspectRatio: 3 / 4 });
+    expect(screen.getByTestId('voice-tile-u1')).toHaveStyle({ width: 180, height: 240 });
   });
 
   it('shows the initial in a tile without a camera', async () => {
@@ -62,7 +63,7 @@ describe('VoiceTile', () => {
     expect(screen.getByTestId('voice-avatar-u1').props.source).toEqual({ uri: 'https://cdn.example.com/ana.png' });
 
     await rerender(
-      <VoiceTile participant={view({ loading: true })} speaking={false} locallyMuted={false} width={180} />,
+      <VoiceTile participant={view({ loading: true })} speaking={false} locallyMuted={false} width={180} height={240} />,
     );
     expect(screen.queryByTestId('voice-avatar-u1')).toBeNull();
     expect(screen.queryByText('A')).toBeNull();
@@ -165,7 +166,7 @@ describe('VoiceTile', () => {
     expect(screen.getByRole('button', { name: VOICE_TEXTS.localMute })).not.toBeSelected();
 
     await rerender(
-      <VoiceTile participant={view()} speaking={false} locallyMuted width={180} onToggleLocalMute={jest.fn()} />,
+      <VoiceTile participant={view()} speaking={false} locallyMuted width={180} height={240} onToggleLocalMute={jest.fn()} />,
     );
     expect(screen.getByRole('button', { name: VOICE_TEXTS.localUnmute })).toBeSelected();
   });
