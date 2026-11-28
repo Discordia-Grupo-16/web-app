@@ -21,6 +21,9 @@ export const VOICE_TEXTS = {
     // A moderator took the microphone away for a while (SCRUM-71); `time` comes from formatMutedUntil.
     serverMuted: 'Un moderador te silenció: los demás no te escuchan.',
     serverMutedUntil: (time: string) => `Un moderador te silenció hasta ${time}: los demás no te escuchan.`,
+    // The short version for the call bar; the full phrase lives in the call panel and the mic button's description.
+    serverMutedShort: 'Silenciado por un moderador',
+    serverMutedShortUntil: (time: string) => `Silenciado hasta ${time}`,
 } as const;
 
 export const VOICE_JOIN_ERROR_TEXTS: Record<VoiceJoinError, string> = {

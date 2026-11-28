@@ -193,15 +193,24 @@ describe('VoiceBar with a moderator mute (SCRUM-71)', () => {
     );
     await render(<VoiceBar />);
 
-    expect(screen.getByRole('button', { name: 'Activar micrófono' })).toBeDisabled();
-    expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)));
+    const button = screen.getByRole('button', { name: 'Activar micrófono' });
+    expect(button).toBeDisabled();
+    // The bar only says the short text: the full phrase lives in the call screen.
+    expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.serverMutedShortUntil(formatMutedUntil(until)));
+    expect(screen.queryByText(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)))).toBeNull();
+    // The microphone button keeps describing itself with the full phrase.
+    expect(button).toHaveProp('accessibilityHint', VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)));
   });
 
   it('says it without the hour until chat answers', async () => {
     jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected({ muted: true, serverMuted: true }) }));
     await render(<VoiceBar />);
 
-    expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.serverMuted);
+    expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.serverMutedShort);
+    expect(screen.getByRole('button', { name: 'Activar micrófono' })).toHaveProp(
+      'accessibilityHint',
+      VOICE_TEXTS.serverMuted,
+    );
   });
 
   it('shows nothing of it, and leaves the microphone alone, without the mute', async () => {

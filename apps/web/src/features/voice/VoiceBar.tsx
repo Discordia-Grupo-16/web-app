@@ -2,7 +2,7 @@ import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { Mic, MicOff, PhoneOff, Signal, X } from 'lucide-react';
 import { canRejoin, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS } from '@discordia/core';
-import { serverMutedText } from './serverMutedText';
+import { serverMutedShortText, serverMutedText } from './serverMutedText';
 
 const channelPath = (serverId: string, channelId: string) => `/servers/${serverId}/channels/${channelId}`;
 
@@ -66,8 +66,8 @@ export const VoiceBar = () => {
                     {call.channel.name}
                 </Link>
                 {call.serverMuted && (
-                    <p id={serverMutedId} role="status" className="text-xs mt-0.5" style={{ color: '#faa61a' }}>
-                        {serverMutedText(call.serverMutedUntil)}
+                    <p role="status" className="text-xs mt-0.5 break-words" style={{ color: '#faa61a' }}>
+                        {serverMutedShortText(call.serverMutedUntil)}
                     </p>
                 )}
             </div>
@@ -84,6 +84,11 @@ export const VoiceBar = () => {
             >
                 {call.muted ? <MicOff size={18} /> : <Mic size={18} />}
             </button>
+            {call.serverMuted && (
+                <span id={serverMutedId} hidden>
+                    {serverMutedText(call.serverMutedUntil)}
+                </span>
+            )}
             {noMic && (
                 <span id={noMicId} hidden>
                     {VOICE_TEXTS.noMic}

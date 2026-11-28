@@ -27,4 +27,10 @@ describe('VOICE_TEXTS server mute', () => {
     it('adds the time the mute ends', () => {
         expect(VOICE_TEXTS.serverMutedUntil('18:30')).toContain('hasta 18:30');
     });
+
+    it('has a short version for the bars, shorter than the full phrase', () => {
+        expect(VOICE_TEXTS.serverMutedShort).toBe('Silenciado por un moderador');
+        expect(VOICE_TEXTS.serverMutedShortUntil('18:30')).toBe('Silenciado hasta 18:30');
+        expect(VOICE_TEXTS.serverMutedShortUntil('18:30').length).toBeLessThan(VOICE_TEXTS.serverMutedUntil('18:30').length);
+    });
 });

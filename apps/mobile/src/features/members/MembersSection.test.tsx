@@ -38,9 +38,12 @@ const member = (userId: string, roles: Role[] = []): ServerMember => ({
   roles,
 });
 
+const LONG_NAME = 'Un nombre de usuario larguisimo que no entra en ninguna fila de la lista';
+
 const profiles: PublicProfiles = new Map([
   ['milton', { id: 'milton', name: 'Milton', avatarUrl: null, bio: null }],
   ['owner', { id: 'owner', name: 'Bruno', avatarUrl: null, bio: null }],
+  ['verbose', { id: 'verbose', name: LONG_NAME, avatarUrl: null, bio: null }],
 ]);
 
 interface Options {
@@ -461,6 +464,36 @@ describe('MembersSection mutes (SCRUM-71)', () => {
     await screen.findByText('Bruno');
 
     expect(screen.queryByLabelText(/Silenciar a/)).toBeNull();
+  });
+
+  it('splits the row in two: name, role and mark above, the buttons below', async () => {
+    await renderSection({
+      members: [{ ...member('verbose', [MODERADOR]), muted_until: FUTURE }],
+      canKick: true,
+      canModerate: true,
+    });
+    const name = await screen.findByText(LONG_NAME);
+    const badge = screen.getByText(PERMISSION_COPY.mutedBadge(formatMutedUntil(FUTURE)));
+
+    // The name is the only thing that is cut; the mark is not.
+    expect(name).toHaveProp('numberOfLines', 1);
+    expect(badge.props.numberOfLines).toBeUndefined();
+    // The role shares the name's line; the mark goes under it.
+    expect(screen.getByText('Moderador').parent).toBe(name.parent);
+    expect(badge.parent).not.toBe(name.parent);
+    // The buttons live in their own row (its flex-wrap is a NativeWind class, which Jest does not compile).
+    const actions = screen.getByTestId('member-actions-verbose');
+    expect(actions).toContainElement(screen.getByLabelText(PERMISSION_COPY.kickMember(LONG_NAME)));
+    expect(actions).toContainElement(screen.getByLabelText(PERMISSION_COPY.unmuteMember(LONG_NAME)));
+    expect(actions).not.toContainElement(name);
+    expect(actions).not.toContainElement(badge);
+  });
+
+  it('does not draw the actions row when the member has no buttons', async () => {
+    await renderSection({ members: [member('milton')], canManage: false });
+    await screen.findByText('Milton');
+
+    expect(screen.queryByTestId('member-actions-milton')).toBeNull();
   });
 
   it('marks only the member who is muted, with the end of the mute', async () => {

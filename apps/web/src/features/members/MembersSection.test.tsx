@@ -38,9 +38,12 @@ const member = (userId: string, roles: Role[] = []): ServerMember => ({
     roles,
 });
 
+const LONG_NAME = 'Un nombre de usuario larguisimo que no entra en ninguna fila de la lista';
+
 const profiles: PublicProfiles = new Map([
     ['milton', { id: 'milton', name: 'Milton', avatarUrl: null, bio: null }],
     ['owner', { id: 'owner', name: 'Bruno', avatarUrl: null, bio: null }],
+    ['verbose', { id: 'verbose', name: LONG_NAME, avatarUrl: null, bio: null }],
 ]);
 
 interface Options {
@@ -449,6 +452,72 @@ describe('MembersSection with a deleted role', () => {
 
             expect(screen.getAllByText(/Silenciado hasta/)).toHaveLength(1);
             expect(screen.getByText(PERMISSION_COPY.mutedBadge(formatMutedUntil(FUTURE)))).toBeInTheDocument();
+        });
+
+        it('puts the mark on its own line, under a name that is too long, without cutting the role or the mark', async () => {
+            renderSection({ members: [{ ...member('verbose', [MODERADOR]), muted_until: FUTURE }] });
+            const name = await screen.findByText(LONG_NAME);
+            const badge = screen.getByTestId('muted-badge');
+            const role = screen.getByText('Moderador');
+
+            // Only the name gives way, with an ellipsis; the role and the mark are never truncated.
+            expect(name).toHaveClass('truncate');
+            expect(role).not.toHaveClass('truncate');
+            expect(role).toHaveClass('shrink-0');
+            expect(badge).not.toHaveClass('truncate');
+            expect(badge).toHaveTextContent(PERMISSION_COPY.mutedBadge(formatMutedUntil(FUTURE)));
+            // The mark is not on the name's line: it is a sibling of that line, right below it.
+            const nameLine = name.parentElement as HTMLElement;
+            expect(nameLine).toContainElement(role);
+            expect(nameLine).not.toContainElement(badge);
+            expect(nameLine.nextElementSibling).toBe(badge);
+        });
+
+        it('keeps the buttons out of the way of the name: a floating container, apart from it', async () => {
+            const { user } = renderSection({
+                members: [member('verbose', [MODERADOR])],
+                canKick: true,
+                canBan: true,
+                canModerate: true,
+            });
+            const name = await screen.findByText(LONG_NAME);
+            const actions = screen.getByTestId('member-actions-verbose');
+
+            // Not inside the profile button, so the name keeps the whole width of the row.
+            expect(actions).not.toContainElement(name);
+            expect(name.closest('button')).not.toContainElement(actions);
+            for (const title of [
+                PERMISSION_COPY.editMemberRoles(LONG_NAME),
+                PERMISSION_COPY.kickMember(LONG_NAME),
+                PERMISSION_COPY.banMember(LONG_NAME),
+                PERMISSION_COPY.muteMember(LONG_NAME),
+            ]) {
+                expect(actions).toContainElement(screen.getByTitle(title));
+            }
+            // Out of the flow, hidden and not clickable until hover or keyboard focus (jsdom cannot hover).
+            expect(actions).toHaveClass('absolute', 'opacity-0', 'pointer-events-none');
+            expect(actions).toHaveClass('group-hover/member:opacity-100', 'group-hover/member:pointer-events-auto');
+            expect(actions).toHaveClass('group-focus-within/member:opacity-100', 'group-focus-within/member:pointer-events-auto');
+            // Without hover (touch) they sit in a second line, wrapping.
+            expect(actions).toHaveClass('[@media(hover:none)]:static', '[@media(hover:none)]:flex-wrap');
+            // Still reachable: the buttons work.
+            await user.click(screen.getByTitle(PERMISSION_COPY.muteMember(LONG_NAME)));
+            expect(await screen.findByRole('button', { name: 'Silenciar' })).toBeInTheDocument();
+        });
+
+        it('does not draw the actions container when the row has no buttons', async () => {
+            renderSection({
+                members: [member('owner'), member('me')],
+                canManage: false,
+                canKick: true,
+                canBan: true,
+                canModerate: true,
+            });
+            await screen.findByText('Bruno');
+
+            // The owner and oneself are never a target.
+            expect(screen.queryByTestId('member-actions-owner')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('member-actions-me')).not.toBeInTheDocument();
         });
 
         it('does not mark a mute that already ended', async () => {

@@ -183,7 +183,10 @@ describe('VoiceBar', () => {
 
             const button = screen.getByRole('button', { name: 'Activar micrófono' });
             expect(button).toBeDisabled();
-            expect(screen.getByText(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)))).toBeInTheDocument();
+            expect(screen.getByText(VOICE_TEXTS.serverMutedShortUntil(formatMutedUntil(until)))).toBeInTheDocument();
+            // The full phrase lives in the call panel, so the bar does not repeat it...
+            expect(screen.queryByText(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)))).not.toBeVisible();
+            // ...but the microphone button keeps describing itself with it.
             expect(button).toHaveAccessibleDescription(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)));
         });
 
@@ -191,7 +194,10 @@ describe('VoiceBar', () => {
             vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connected({ muted: true, serverMuted: true }) }));
             renderBar();
 
-            expect(screen.getByText(VOICE_TEXTS.serverMuted)).toBeInTheDocument();
+            expect(screen.getByText(VOICE_TEXTS.serverMutedShort)).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Activar micrófono' })).toHaveAccessibleDescription(
+                VOICE_TEXTS.serverMuted,
+            );
         });
 
         it('shows nothing of it, and leaves the microphone alone, without the mute', () => {

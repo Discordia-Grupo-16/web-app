@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { canRejoin, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS } from '@discordia/core';
-import { serverMutedText } from './serverMutedText';
+import { serverMutedShortText, serverMutedText } from './serverMutedText';
 import { MicIcon } from './MicIcon';
 import { MicOffIcon } from './MicOffIcon';
 import { PhoneOffIcon } from './PhoneOffIcon';
@@ -76,7 +76,7 @@ export const VoiceBar = () => {
         </Text>
         {call.serverMuted && (
           <Text accessibilityRole="alert" className="text-xs text-[#faa61a]">
-            {serverMutedText(call.serverMutedUntil)}
+            {serverMutedShortText(call.serverMutedUntil)}
           </Text>
         )}
       </Pressable>

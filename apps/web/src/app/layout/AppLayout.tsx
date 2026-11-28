@@ -31,7 +31,9 @@ export const AppLayout = () => {
                                     <ServerPanel />
                                 </div>
                             </div>
-                            <div className="w-full bg-[#292b2f] shrink-0">
+                            {/* w-0 min-w-full: the bar takes the width of the column and adds none, so a long text wraps
+                                inside it instead of widening the column past the panel (w-60). */}
+                            <div className="w-0 min-w-full bg-[#292b2f] shrink-0">
                                 <VoiceBar />
                                 <UserProfileSection />
                             </div>

@@ -42,66 +42,82 @@ export const RolesGroup = ({
             )}
         </div>
 
-        {roles.map(role => (
-            <div
-                key={role.id}
-                className="group/role flex items-center gap-2 text-sm px-2 py-1.5 mx-1 rounded"
-                style={{ color: '#8e9297' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#34373c')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-                <Shield size={14} style={{ flexShrink: 0 }} />
-                <span className="truncate">{role.name}</span>
-                {role.is_default && (
-                    <span
-                        className="text-xs px-1.5 rounded shrink-0"
-                        style={{ background: '#40444b', color: '#99aab5' }}
-                    >
-                        {PERMISSION_COPY.defaultRoleBadge}
-                    </span>
-                )}
-                <span className="flex-1" />
+        {roles.map(role => {
+            const canDeleteRole = canDelete(role);
+            const hasActions = canManage || canDeleteRole;
 
-                {canManage && (
-                    <button
-                        onClick={() => onViewMembers(role)}
-                        className="opacity-0 group-hover/role:opacity-100 transition-opacity p-1 rounded shrink-0"
-                        style={{ color: '#8e9297' }}
-                        title={PERMISSION_COPY.viewRoleMembers(role.name)}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
-                    >
-                        <Users size={13} />
-                    </button>
-                )}
+            return (
+                <div
+                    key={role.id}
+                    className="group/role relative flex flex-col text-sm px-2 py-1.5 mx-1 rounded"
+                    style={{ color: '#8e9297' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#34373c')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                    {/* First line: the name gives way (ellipsis) before the "Por defecto" badge does. */}
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Shield size={14} style={{ flexShrink: 0 }} />
+                        <span className="truncate min-w-0">{role.name}</span>
+                        {role.is_default && (
+                            <span
+                                className="text-xs px-1.5 rounded shrink-0"
+                                style={{ background: '#40444b', color: '#99aab5' }}
+                            >
+                                {PERMISSION_COPY.defaultRoleBadge}
+                            </span>
+                        )}
+                    </div>
 
-                {canManage && (
-                    <button
-                        onClick={() => onEdit(role)}
-                        className="opacity-0 group-hover/role:opacity-100 transition-opacity p-1 rounded shrink-0"
-                        style={{ color: '#8e9297' }}
-                        title={PERMISSION_COPY.editRolePermissions(role.name)}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
-                    >
-                        <Pencil size={13} />
-                    </button>
-                )}
+                    {/* Out of the row's flow: with hover they float over its right side, so they take no
+                        width from the name. Without hover (touch), they sit in a second line. */}
+                    {hasActions && (
+                        <div
+                            data-testid={`role-actions-${role.id}`}
+                            className="absolute right-1 top-1.5 flex items-center gap-0.5 rounded px-1 bg-[#34373c] opacity-0 pointer-events-none transition-opacity group-hover/role:opacity-100 group-hover/role:pointer-events-auto group-focus-within/role:opacity-100 group-focus-within/role:pointer-events-auto [@media(hover:none)]:static [@media(hover:none)]:flex-wrap [@media(hover:none)]:mt-1 [@media(hover:none)]:px-0 [@media(hover:none)]:bg-transparent [@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
+                        >
+                            {canManage && (
+                                <button
+                                    onClick={() => onViewMembers(role)}
+                                    className="p-1 rounded shrink-0"
+                                    style={{ color: '#8e9297' }}
+                                    title={PERMISSION_COPY.viewRoleMembers(role.name)}
+                                    onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                >
+                                    <Users size={13} />
+                                </button>
+                            )}
 
-                {canDelete(role) && (
-                    <button
-                        onClick={() => onDelete(role)}
-                        className="opacity-0 group-hover/role:opacity-100 transition-opacity p-1 rounded shrink-0"
-                        style={{ color: '#8e9297' }}
-                        title={ROLE_DELETION_TEXTS.actionLabel(role.name)}
-                        aria-label={ROLE_DELETION_TEXTS.actionLabel(role.name)}
-                        onMouseEnter={e => (e.currentTarget.style.color = '#ed4245')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
-                    >
-                        <Trash2 size={13} />
-                    </button>
-                )}
-            </div>
-        ))}
+                            {canManage && (
+                                <button
+                                    onClick={() => onEdit(role)}
+                                    className="p-1 rounded shrink-0"
+                                    style={{ color: '#8e9297' }}
+                                    title={PERMISSION_COPY.editRolePermissions(role.name)}
+                                    onMouseEnter={e => (e.currentTarget.style.color = '#dcddde')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                >
+                                    <Pencil size={13} />
+                                </button>
+                            )}
+
+                            {canDeleteRole && (
+                                <button
+                                    onClick={() => onDelete(role)}
+                                    className="p-1 rounded shrink-0"
+                                    style={{ color: '#8e9297' }}
+                                    title={ROLE_DELETION_TEXTS.actionLabel(role.name)}
+                                    aria-label={ROLE_DELETION_TEXTS.actionLabel(role.name)}
+                                    onMouseEnter={e => (e.currentTarget.style.color = '#ed4245')}
+                                    onMouseLeave={e => (e.currentTarget.style.color = '#8e9297')}
+                                >
+                                    <Trash2 size={13} />
+                                </button>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        })}
     </div>
 );

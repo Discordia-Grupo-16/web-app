@@ -181,7 +181,7 @@ export const ServerPanel = () => {
                   <button
                       onClick={() => setProposingTo(member.user_id)}
                       disabled={pending}
-                      className="opacity-0 group-hover/member:opacity-100 transition-opacity p-1 rounded shrink-0"
+                      className="p-1 rounded shrink-0"
                       style={{ color: '#8e9297', cursor: pending ? 'not-allowed' : 'pointer' }}
                       title={OWNERSHIP_TEXTS.transfer}
                       aria-label={OWNERSHIP_TEXTS.transfer}

@@ -34,7 +34,7 @@ interface MembersSectionProps {
 function MutedBadge({ mutedUntil }: { mutedUntil: string | null }) {
   const { until } = useMuteStatus(mutedUntil);
   if (!until) return null;
-  return <Text className="text-[#faa61a] text-xs ml-2">{PERMISSION_COPY.mutedBadge(formatMutedUntil(until))}</Text>;
+  return <Text className="text-[#faa61a] text-xs">{PERMISSION_COPY.mutedBadge(formatMutedUntil(until))}</Text>;
 }
 
 function MuteButton({
@@ -51,7 +51,6 @@ function MuteButton({
     <TouchableOpacity
       onPress={onPress}
       accessibilityLabel={muted ? PERMISSION_COPY.unmuteMember(memberName) : PERMISSION_COPY.muteMember(memberName)}
-      className="pl-3"
     >
       <Text className="text-[#faa61a] text-xs">{muted ? 'Levantar ›' : 'Silenciar ›'}</Text>
     </TouchableOpacity>
@@ -104,10 +103,20 @@ export function MembersSection({
         // backend's hierarchy uses, and the list comes ordered by position.
         const topRole = memberRoles.at(-1);
 
+        // Neither the owner nor oneself is a valid target for kick, ban or mute. A row with no
+        // buttons at all does not draw the actions row, so it adds no empty space.
+        const isOther = !isOwner && user_id !== user?.id;
+        const showRoles = canManage && !isOwner;
+        const showKick = canKick && isOther;
+        const showBan = canBan && isOther;
+        const showMute = canModerate && isOther;
+        const extraActions = renderMemberActions?.(rowMember);
+        const hasActions = showRoles || showKick || showBan || showMute || Boolean(extraActions);
+
         return (
           <View
             key={user_id}
-            className="bg-[#2c2f33] rounded-lg px-4 py-3 flex-row items-center"
+            className="bg-[#2c2f33] rounded-lg px-4 py-3 gap-2"
           >
             {/* El nombre abre el perfil público, igual que en la web. El lápiz
                 va aparte, para que las dos acciones no compitan por el mismo
@@ -116,70 +125,76 @@ export function MembersSection({
               onPress={() =>
                 router.push({ pathname: '/user/[userId]', params: { userId: user_id } })
               }
-              className="flex-row items-center flex-1 min-w-0"
+              className="min-w-0"
             >
-              {isOwner && (
-                <Text
-                  className="text-[#faa61a] text-sm mr-1"
-                  accessibilityLabel={PERMISSION_COPY.ownerMark}
-                >
-                  👑
+              {/* Primera línea: el nombre se trunca solo si es muy largo; el rol no se corta. */}
+              <View className="flex-row items-center">
+                {isOwner && (
+                  <Text
+                    className="text-[#faa61a] text-sm mr-1"
+                    accessibilityLabel={PERMISSION_COPY.ownerMark}
+                  >
+                    👑
+                  </Text>
+                )}
+                <Text className="text-[#dcddde] text-sm flex-1" numberOfLines={1}>
+                  {nameOf(user_id)}
                 </Text>
-              )}
-              <Text className="text-[#dcddde] text-sm flex-1" numberOfLines={1}>
-                {nameOf(user_id)}
-              </Text>
-              {topRole && <Text className="text-[#72767d] text-xs ml-2">{topRole.name}</Text>}
+                {topRole && <Text className="text-[#72767d] text-xs ml-2">{topRole.name}</Text>}
+              </View>
+              {/* Segunda línea: la marca del silencio, sin cortar la hora. */}
               <MutedBadge mutedUntil={rowMember.muted_until} />
             </TouchableOpacity>
 
-            {/* El dueño nunca es blanco: el backend lo rechaza, porque nadie está
-                por encima suyo en la jerarquía. */}
-            {canManage && !isOwner && (
-              <TouchableOpacity
-                onPress={() => setEditing(user_id)}
-                accessibilityLabel={PERMISSION_COPY.editMemberRoles(nameOf(user_id))}
-                className="pl-3"
-              >
-                <Text className="text-[#8e9297] text-xs">Roles ›</Text>
-              </TouchableOpacity>
-            )}
+            {/* Los botones van abajo, en una fila que hace wrap si no entran. */}
+            {hasActions && (
+              <View testID={`member-actions-${user_id}`} className="flex-row flex-wrap items-center gap-x-4 gap-y-1">
+                {/* El dueño nunca es blanco: el backend lo rechaza, porque nadie está
+                    por encima suyo en la jerarquía. */}
+                {showRoles && (
+                  <TouchableOpacity
+                    onPress={() => setEditing(user_id)}
+                    accessibilityLabel={PERMISSION_COPY.editMemberRoles(nameOf(user_id))}
+                  >
+                    <Text className="text-[#8e9297] text-xs">Roles ›</Text>
+                  </TouchableOpacity>
+                )}
 
-            {/* Tampoco uno mismo: el backend lo rechaza, porque nadie está
-                estrictamente por encima de sí mismo. */}
-            {canKick && !isOwner && user_id !== user?.id && (
-              <TouchableOpacity
-                onPress={() => setKicking(user_id)}
-                accessibilityLabel={PERMISSION_COPY.kickMember(nameOf(user_id))}
-                className="pl-3"
-              >
-                {/* Ámbar y no rojo: expulsar es menos grave que banear, y la web
-                    lo distingue igual. */}
-                <Text className="text-[#faa61a] text-xs">Expulsar ›</Text>
-              </TouchableOpacity>
-            )}
+                {/* Tampoco uno mismo: el backend lo rechaza, porque nadie está
+                    estrictamente por encima de sí mismo. */}
+                {showKick && (
+                  <TouchableOpacity
+                    onPress={() => setKicking(user_id)}
+                    accessibilityLabel={PERMISSION_COPY.kickMember(nameOf(user_id))}
+                  >
+                    {/* Ámbar y no rojo: expulsar es menos grave que banear, y la web
+                        lo distingue igual. */}
+                    <Text className="text-[#faa61a] text-xs">Expulsar ›</Text>
+                  </TouchableOpacity>
+                )}
 
-            {canBan && !isOwner && user_id !== user?.id && (
-              <TouchableOpacity
-                onPress={() => setBanning(user_id)}
-                accessibilityLabel={PERMISSION_COPY.banMember(nameOf(user_id))}
-                className="pl-3"
-              >
-                {/* Con la flecha como "Roles ›": las dos acciones de la fila abren
-                    un modal, y el ícono de la web no tiene equivalente acá. */}
-                <Text className="text-[#ed4245] text-xs">Banear ›</Text>
-              </TouchableOpacity>
-            )}
+                {showBan && (
+                  <TouchableOpacity
+                    onPress={() => setBanning(user_id)}
+                    accessibilityLabel={PERMISSION_COPY.banMember(nameOf(user_id))}
+                  >
+                    {/* Con la flecha como "Roles ›": las dos acciones de la fila abren
+                        un modal, y el ícono de la web no tiene equivalente acá. */}
+                    <Text className="text-[#ed4245] text-xs">Banear ›</Text>
+                  </TouchableOpacity>
+                )}
 
-            {canModerate && !isOwner && user_id !== user?.id && (
-              <MuteButton
-                mutedUntil={rowMember.muted_until}
-                memberName={nameOf(user_id)}
-                onPress={() => setMuting(user_id)}
-              />
-            )}
+                {showMute && (
+                  <MuteButton
+                    mutedUntil={rowMember.muted_until}
+                    memberName={nameOf(user_id)}
+                    onPress={() => setMuting(user_id)}
+                  />
+                )}
 
-            {renderMemberActions?.(rowMember)}
+                {extraActions}
+              </View>
+            )}
           </View>
         );
       })}
