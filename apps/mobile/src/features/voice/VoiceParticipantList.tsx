@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { VOICE_TEXTS, type ChannelParticipantView } from '@discordia/core';
 import { MicOffIcon } from './MicOffIcon';
+import { participantInitial } from './participantInitial';
 import { VolumeIcon } from './VolumeIcon';
 import { VolumeOffIcon } from './VolumeOffIcon';
 
@@ -16,8 +17,6 @@ export interface VoiceParticipantListProps {
   /** Mutes or unmutes someone locally. The button shows only in the roomy list, on the rows of the others. */
   onToggleLocalMute?: (userId: string) => void;
 }
-
-const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?';
 
 interface ParticipantRowProps {
   participant: ChannelParticipantView;
@@ -48,7 +47,7 @@ const ParticipantRow = memo(({ participant: p, roomy, speaking, locallyMuted, on
             style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 }}
           />
         ) : !p.loading ? (
-          <Text className={`text-white font-bold ${roomy ? 'text-sm' : 'text-[10px]'}`}>{initial(p.name)}</Text>
+          <Text className={`text-white font-bold ${roomy ? 'text-sm' : 'text-[10px]'}`}>{participantInitial(p.name)}</Text>
         ) : null}
       </View>
       <Text

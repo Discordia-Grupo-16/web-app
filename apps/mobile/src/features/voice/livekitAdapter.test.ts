@@ -4,6 +4,7 @@ import {
   AUDIO_RESTART_GAP_MS,
   AUDIO_STOP_DELAY_MS,
   createLivekitAdapter,
+  requestCameraPermission,
   requestMicrophonePermission,
 } from './livekitAdapter';
 
@@ -21,6 +22,7 @@ class MockParticipant {
     public joinedAt?: Date,
   ) {}
   setMicrophoneEnabled = jest.fn<Promise<unknown>, [boolean]>(async () => undefined);
+  setCameraEnabled = jest.fn<Promise<unknown>, [boolean, { facingMode: string }?]>(async () => undefined);
   createTracks = jest.fn<Promise<unknown[]>, [{ audio: boolean }]>(async () => [new MockTrack()]);
   publishTrack = jest.fn<Promise<unknown>, [unknown]>(async () => undefined);
   getTrackPublication = jest.fn<unknown, [string]>(() => undefined);
@@ -55,13 +57,16 @@ class MockRoom {
   static instances: MockRoom[] = [];
   static connectError: unknown = null;
   handlers = new Map<string, Handler[]>();
+  // The options the Room was created with.
+  options: unknown;
   localParticipant = new MockParticipant('me', new Date(2000));
   remoteParticipants = new Map<string, MockParticipant>();
   connect = jest.fn(async () => {
     if (MockRoom.connectError) throw MockRoom.connectError;
   });
   disconnect = jest.fn(async () => undefined);
-  constructor() {
+  constructor(options?: unknown) {
+    this.options = options;
     MockRoom.instances.push(this);
   }
   on(event: string, handler: Handler) {
@@ -81,7 +86,7 @@ class MockConnectionError extends Error {
 
 jest.mock('livekit-client', () => ({
   Room: Object.assign(
-    jest.fn(() => new MockRoom()),
+    jest.fn((options?: unknown) => new MockRoom(options)),
     { getLocalDevices: (kind: string, requestPermissions?: boolean) => mockGetLocalDevices(kind, requestPermissions) },
   ),
   Track: { Kind: { Audio: 'audio', Video: 'video' }, Source: { Microphone: 'microphone', Camera: 'camera' } },
@@ -112,6 +117,7 @@ jest.mock('livekit-client', () => ({
     TrackPublished: 'trackPublished',
     TrackUnpublished: 'trackUnpublished',
     TrackSubscribed: 'trackSubscribed',
+    TrackUnsubscribed: 'trackUnsubscribed',
     TrackMuted: 'trackMuted',
     TrackUnmuted: 'trackUnmuted',
     LocalTrackPublished: 'localTrackPublished',
@@ -763,6 +769,214 @@ describe('createLivekitAdapter and the right to publish (SCRUM-71)', () => {
   });
 });
 
+describe('createLivekitAdapter and the camera (SCRUM-59, Video en llamada)', () => {
+  const live = { source: 'camera', track: { kind: 'video', stop: jest.fn() }, isMuted: false };
+  const connected = async () => {
+    const adapter = createLivekitAdapter();
+    await adapter.connect('wss://lk', 'jwt');
+    return { adapter, room: lastRoom() };
+  };
+  // A camera publication that LiveKit would return for the source 'camera'.
+  const cameraOf = (participant: MockParticipant, publication: unknown) =>
+    participant.getTrackPublication.mockImplementation((source) => (source === 'camera' ? publication : undefined));
+
+  beforeEach(() => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    jest.clearAllMocks();
+    MockRoom.instances = [];
+    MockRoom.connectError = null;
+    requestPermission.mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
+  });
+
+  afterEach(() => jest.useRealTimers());
+
+  it('creates the room with adaptiveStream and dynacast (C14)', async () => {
+    const { room } = await connected();
+
+    expect(room.options).toEqual({ adaptiveStream: true, dynacast: true });
+  });
+
+  describe('the snapshot', () => {
+    it.each(['trackSubscribed', 'trackUnsubscribed'])('is sent again on %s, so cameraOn follows the track (C3)', async (event) => {
+      const { adapter, room } = await connected();
+      const snapshots: VoiceParticipant[][] = [];
+      adapter.onParticipantsChanged((s) => snapshots.push(s));
+      const ana = new MockParticipant('ana', new Date(1000));
+      room.remoteParticipants.set('ana', ana);
+      room.emit('connected');
+      expect(snapshots.at(-1)?.find((p) => p.userId === 'ana')?.cameraOn).toBe(false);
+
+      if (event === 'trackSubscribed') ana.videoTrackPublications.set('TR_1', { source: 'camera', track: {}, isMuted: false });
+      room.emit(event, { kind: 'video' }, {}, ana);
+
+      expect(snapshots.at(-1)?.find((p) => p.userId === 'ana')?.cameraOn).toBe(event === 'trackSubscribed');
+    });
+  });
+
+  describe('enableCamera', () => {
+    it('asks for the permission, then turns the camera on facing the user, and says ok', async () => {
+      const { adapter, room } = await connected();
+      const order: string[] = [];
+      requestPermission.mockImplementationOnce(async () => {
+        order.push('permission');
+        return PermissionsAndroid.RESULTS.GRANTED;
+      });
+      room.localParticipant.setCameraEnabled.mockImplementationOnce(async () => {
+        order.push('camera');
+        return undefined;
+      });
+
+      expect(await adapter.enableCamera()).toBe('ok');
+
+      expect(order).toEqual(['permission', 'camera']);
+      expect(requestPermission).toHaveBeenCalledWith(PermissionsAndroid.PERMISSIONS.CAMERA);
+      expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true, { facingMode: 'user' });
+    });
+
+    it.each([
+      [PermissionsAndroid.RESULTS.DENIED, 'denied'],
+      [PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN, 'blocked'],
+    ])('does not touch the camera without the permission (%s)', async (answer, expected) => {
+      const { adapter, room } = await connected();
+      requestPermission.mockResolvedValueOnce(answer);
+
+      expect(await adapter.enableCamera()).toBe(expected);
+
+      expect(room.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
+    });
+
+    it('says unavailable when the camera fails to open', async () => {
+      const { adapter, room } = await connected();
+      room.localParticipant.setCameraEnabled.mockRejectedValueOnce(new Error('NotReadableError'));
+
+      expect(await adapter.enableCamera()).toBe('unavailable');
+    });
+
+    it('says unavailable without a room, and does not even ask for the permission', async () => {
+      const adapter = createLivekitAdapter();
+
+      expect(await adapter.enableCamera()).toBe('unavailable');
+      expect(requestPermission).not.toHaveBeenCalled();
+    });
+
+    it('says unavailable, and does not open the camera, if the call was left while Android was asking', async () => {
+      const { adapter, room } = await connected();
+      let answer: (result: string) => void = () => undefined;
+      requestPermission.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)) as never);
+
+      const result = adapter.enableCamera();
+      await adapter.disconnect();
+      answer(PermissionsAndroid.RESULTS.GRANTED);
+
+      expect(await result).toBe('unavailable');
+      expect(room.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
+    });
+
+    it('stops the camera that arrives after leaving the call, and says unavailable', async () => {
+      const { adapter, room } = await connected();
+      const track = { stop: jest.fn() };
+      let publish: (publication: unknown) => void = () => undefined;
+      room.localParticipant.setCameraEnabled.mockImplementationOnce(() => new Promise((resolve) => (publish = resolve)));
+
+      const result = adapter.enableCamera();
+      await new Promise<void>((resolve) => setImmediate(() => resolve()));
+      await adapter.disconnect();
+      publish({ track });
+
+      expect(await result).toBe('unavailable');
+      expect(track.stop).toHaveBeenCalledTimes(1);
+    });
+
+    it('survives a camera that arrives after leaving the call without a track', async () => {
+      const { adapter, room } = await connected();
+      let publish: (publication: unknown) => void = () => undefined;
+      room.localParticipant.setCameraEnabled.mockImplementationOnce(() => new Promise((resolve) => (publish = resolve)));
+
+      const result = adapter.enableCamera();
+      await new Promise<void>((resolve) => setImmediate(() => resolve()));
+      await adapter.disconnect();
+      publish(undefined);
+
+      expect(await result).toBe('unavailable');
+    });
+  });
+
+  describe('disableCamera', () => {
+    it('mutes the camera and leaves the microphone alone', async () => {
+      const { adapter, room } = await connected();
+
+      await adapter.disableCamera();
+
+      expect(room.localParticipant.setCameraEnabled).toHaveBeenCalledWith(false);
+      expect(room.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+    });
+
+    it('does nothing without a room', async () => {
+      await expect(createLivekitAdapter().disableCamera()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('cameraTrackRef', () => {
+    it('gives the camera of the local participant, with the source <VideoTrack> asks for', async () => {
+      const { adapter, room } = await connected();
+      cameraOf(room.localParticipant, live);
+
+      const ref = adapter.cameraTrackRef('me');
+
+      expect(ref).toEqual({ participant: room.localParticipant, publication: live, source: 'camera' });
+      expect(room.localParticipant.getTrackPublication).toHaveBeenCalledWith('camera');
+    });
+
+    it('gives the camera of a remote participant', async () => {
+      const { adapter, room } = await connected();
+      const ana = new MockParticipant('ana');
+      room.remoteParticipants.set('ana', ana);
+      cameraOf(ana, live);
+
+      const ref = adapter.cameraTrackRef('ana');
+
+      expect(ref?.participant).toBe(ana);
+      expect(ref?.publication).toBe(live);
+      expect(ref?.source).toBe('camera');
+    });
+
+    it('gives nothing for a muted camera', async () => {
+      const { adapter, room } = await connected();
+      cameraOf(room.localParticipant, { ...live, isMuted: true });
+
+      expect(adapter.cameraTrackRef('me')).toBeUndefined();
+    });
+
+    it('gives nothing for a camera without a track yet', async () => {
+      const { adapter, room } = await connected();
+      const ana = new MockParticipant('ana');
+      room.remoteParticipants.set('ana', ana);
+      cameraOf(ana, { ...live, track: undefined });
+
+      expect(adapter.cameraTrackRef('ana')).toBeUndefined();
+    });
+
+    it('gives nothing for a participant without a camera, or who is not in the room', async () => {
+      const { adapter } = await connected();
+
+      expect(adapter.cameraTrackRef('me')).toBeUndefined();
+      expect(adapter.cameraTrackRef('nobody')).toBeUndefined();
+    });
+
+    it('gives nothing without a room', () => {
+      expect(createLivekitAdapter().cameraTrackRef('me')).toBeUndefined();
+    });
+
+    it('does not need `this`, because the video context gets it loose', async () => {
+      const { adapter, room } = await connected();
+      cameraOf(room.localParticipant, live);
+      const { cameraTrackRef } = adapter;
+
+      expect(cameraTrackRef('me')?.publication).toBe(live);
+    });
+  });
+});
+
 describe('requestMicrophonePermission', () => {
   it.each([
     [PermissionsAndroid.RESULTS.GRANTED, 'ok'],
@@ -773,5 +987,18 @@ describe('requestMicrophonePermission', () => {
 
     await expect(requestMicrophonePermission()).resolves.toBe(expected);
     expect(requestPermission).toHaveBeenCalledWith(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+  });
+});
+
+describe('requestCameraPermission', () => {
+  it.each([
+    [PermissionsAndroid.RESULTS.GRANTED, 'ok'],
+    [PermissionsAndroid.RESULTS.DENIED, 'denied'],
+    [PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN, 'blocked'],
+  ])('maps %s to %s', async (result, expected) => {
+    requestPermission.mockResolvedValue(result);
+
+    await expect(requestCameraPermission()).resolves.toBe(expected);
+    expect(requestPermission).toHaveBeenCalledWith(PermissionsAndroid.PERMISSIONS.CAMERA);
   });
 });

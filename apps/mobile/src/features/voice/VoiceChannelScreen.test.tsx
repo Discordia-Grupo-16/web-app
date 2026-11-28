@@ -34,6 +34,8 @@ const connectedTo = (
   micBlocked: extra.micBlocked ?? false,
   muted: !(extra.micAvailable ?? true),
   micPending: false,
+  cameraPending: false,
+  cameraProblem: null,
   reconnecting: false,
   serverMuted: extra.serverMuted ?? false,
   serverMutedUntil: extra.serverMutedUntil ?? null,
@@ -112,6 +114,15 @@ describe('VoiceChannelScreen', () => {
     expect(screen.getByText('Estás en la llamada')).toBeTruthy();
     expect(screen.getByText('Ana')).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('draws the call as a grid of tiles, not as a list (SCRUM-59)', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+    await render(<VoiceChannelScreen channel={general} canJoin />);
+
+    expect(screen.getByLabelText('Participantes de la llamada')).toBeTruthy();
+    expect(screen.getByTestId('voice-tile-u1')).toBeTruthy();
+    expect(screen.queryByLabelText('Participantes del canal')).toBeNull();
   });
 
   it('highlights in the call who is speaking, and nobody who is muted (SCRUM-56)', async () => {

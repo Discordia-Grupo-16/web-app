@@ -3,13 +3,15 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { canRejoin, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS } from '@discordia/core';
 import { serverMutedText } from './serverMutedText';
+import { CameraIcon } from './CameraIcon';
+import { CameraOffIcon } from './CameraOffIcon';
 import { MicIcon } from './MicIcon';
 import { MicOffIcon } from './MicOffIcon';
 import { PhoneOffIcon } from './PhoneOffIcon';
 
 // The way back to the call, and out of it, from any screen, including another server.
 export const VoiceBar = () => {
-  const { call, attempt, rejoin, leave, toggleMute, dismiss } = useVoice();
+  const { call, attempt, rejoin, leave, toggleMute, toggleCamera, dismiss } = useVoice();
   const router = useRouter();
   const { bottom } = useSafeAreaInsets();
   if (call.status === 'idle') return null;
@@ -49,6 +51,9 @@ export const VoiceBar = () => {
   const joining = attempt?.status === 'connecting';
   const noMic = !call.micAvailable;
   const micDisabled = call.micPending || joining || call.serverMuted;
+  const cameraDisabled = call.cameraPending || joining || call.serverMuted;
+  // The state of the own camera is the one of the local participant (C4).
+  const cameraOn = call.participants.find((p) => p.isLocal)?.cameraOn ?? false;
   const micColor = noMic ? '#faa61a' : call.muted ? '#ed4245' : '#b9bbbe';
 
   return (
@@ -92,6 +97,19 @@ export const VoiceBar = () => {
         style={({ pressed }) => ({ opacity: micDisabled ? 0.4 : 1, backgroundColor: pressed ? '#ffffff1a' : 'transparent' })}
       >
         {call.muted ? <MicOffIcon size={20} color={micColor} /> : <MicIcon color={micColor} />}
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={cameraOn ? VOICE_TEXTS.disableCamera : VOICE_TEXTS.enableCamera}
+        accessibilityHint={call.serverMuted ? serverMutedText(call.serverMutedUntil) : undefined}
+        accessibilityState={{ selected: cameraOn, disabled: cameraDisabled, busy: call.cameraPending }}
+        disabled={cameraDisabled}
+        onPress={toggleCamera}
+        hitSlop={8}
+        className="rounded-full p-2"
+        style={({ pressed }) => ({ opacity: cameraDisabled ? 0.4 : 1, backgroundColor: pressed ? '#ffffff1a' : 'transparent' })}
+      >
+        {cameraOn ? <CameraIcon color="#3ba55d" /> : <CameraOffIcon color="#b9bbbe" />}
       </Pressable>
       <Pressable
         accessibilityRole="button"

@@ -1,10 +1,13 @@
 import { act, render, screen, userEvent } from '@testing-library/react-native';
+import { useContext } from 'react';
 import { AppState, Pressable, Text, type AppStateStatus } from 'react-native';
 import type { VoiceToken } from '@discordia/api';
 import { useVoice, useVoiceSpeakers, type VoiceParticipant, type VoiceRoomAdapter } from '@discordia/core';
 import { voiceService } from '@/shared/api';
 import { loadVoice } from './loadVoice';
+import type { LivekitVoiceAdapter } from './livekitAdapter';
 import { VoiceProvider } from './VoiceProvider';
+import { VoiceVideoContext } from './videoContext';
 
 jest.mock('@/shared/api', () => ({
   voiceService: {
@@ -21,6 +24,9 @@ const changeAppState = (state: AppStateStatus) => act(() => appStateListeners.fo
 let emitSpeakers: (ids: ReadonlySet<string>) => void = () => undefined;
 // Same for the participants of the call, so a test can put someone in it.
 let emitParticipants: (snapshot: VoiceParticipant[]) => void = () => undefined;
+
+const FakeCameraVideo = () => null;
+const loaded = (adapter: LivekitVoiceAdapter) => ({ adapter, CameraVideo: FakeCameraVideo });
 
 const makeAdapter = () =>
   ({
@@ -44,10 +50,13 @@ const makeAdapter = () =>
     onMicrophoneLost: () => () => undefined,
     canPublish: () => true,
     onPublishPermissionChanged: () => () => undefined,
-  }) satisfies VoiceRoomAdapter;
+    enableCamera: jest.fn<ReturnType<VoiceRoomAdapter['enableCamera']>, []>(async () => 'ok'),
+    disableCamera: jest.fn(async () => undefined),
+    cameraTrackRef: jest.fn(() => undefined),
+  }) satisfies LivekitVoiceAdapter;
 
 const Status = () => {
-  const { call, available, join, toggleMute } = useVoice();
+  const { call, available, join, toggleMute, toggleCamera } = useVoice();
   return (
     <>
       <Text>{available ? 'available' : 'unavailable'}</Text>
@@ -61,6 +70,9 @@ const Status = () => {
       </Pressable>
       <Pressable onPress={toggleMute}>
         <Text>Silenciar</Text>
+      </Pressable>
+      <Pressable onPress={toggleCamera}>
+        <Text>Cámara</Text>
       </Pressable>
     </>
   );
@@ -96,7 +108,7 @@ describe('VoiceProvider', () => {
 
   it('cuts the call when the app goes to the background', async () => {
     const adapter = makeAdapter();
-    jest.mocked(loadVoice).mockReturnValue(adapter);
+    jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
     await renderProvider();
     await userEvent.setup().press(screen.getByText('Unirse'));
     expect(await screen.findByText('c1 connected')).toBeTruthy();
@@ -110,7 +122,7 @@ describe('VoiceProvider', () => {
   it('does not cut the call while the microphone permission dialog is open', async () => {
     const adapter = makeAdapter();
     let answer: (result: 'ok') => void = () => undefined;
-    jest.mocked(loadVoice).mockReturnValue(adapter);
+    jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
     await renderProvider();
     const user = userEvent.setup();
     await user.press(screen.getByText('Unirse'));
@@ -128,7 +140,7 @@ describe('VoiceProvider', () => {
 
   it('cuts a join still waiting for its token when the app goes to the background', async () => {
     const adapter = makeAdapter();
-    jest.mocked(loadVoice).mockReturnValue(adapter);
+    jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
     let deliver: (token: VoiceToken) => void = () => undefined;
     jest
       .mocked(voiceService.createVoiceToken)
@@ -146,7 +158,7 @@ describe('VoiceProvider', () => {
 
   it('passes the muted option on to the adapter when switching rooms muted', async () => {
     const adapter = makeAdapter();
-    jest.mocked(loadVoice).mockReturnValue(adapter);
+    jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
     await renderProvider();
     const user = userEvent.setup();
     await user.press(screen.getByText('Unirse'));
@@ -162,7 +174,7 @@ describe('VoiceProvider', () => {
   it('does not cut the call while the muted microphone is being turned on', async () => {
     const adapter = makeAdapter();
     let answer: (result: 'ok') => void = () => undefined;
-    jest.mocked(loadVoice).mockReturnValue(adapter);
+    jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
     await renderProvider();
     const user = userEvent.setup();
     await user.press(screen.getByText('Unirse'));
@@ -179,7 +191,7 @@ describe('VoiceProvider', () => {
   });
 
   it('gives the speakers context who is speaking once connected (SCRUM-56)', async () => {
-    jest.mocked(loadVoice).mockReturnValue(makeAdapter());
+    jest.mocked(loadVoice).mockReturnValue(loaded(makeAdapter()));
     await renderProvider();
     expect(screen.getByTestId('speakers')).toHaveTextContent('');
     await userEvent.setup().press(screen.getByText('Unirse'));
@@ -192,7 +204,7 @@ describe('VoiceProvider', () => {
 
   it('sends the adapter who the user muted locally (SCRUM-57)', async () => {
     const adapter = makeAdapter();
-    jest.mocked(loadVoice).mockReturnValue(adapter);
+    jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
     const LocalMute = () => {
       const { toggleLocalMute, locallyMuted } = useVoice();
       return (
@@ -213,11 +225,80 @@ describe('VoiceProvider', () => {
     const user = userEvent.setup();
     await user.press(screen.getByText('Unirse'));
     expect(await screen.findByText('c1 connected')).toBeTruthy();
-    await act(async () => emitParticipants([{ userId: 'ana', isLocal: false, muted: false, joinedAt: 1, seenOrder: 0 }]));
+    await act(async () => emitParticipants([{ userId: 'ana', isLocal: false, muted: false, cameraOn: false, joinedAt: 1, seenOrder: 0 }]));
 
     await user.press(screen.getByText('Silenciar a Ana'));
 
     expect(adapter.setLocallyMuted).toHaveBeenLastCalledWith(new Set(['ana']));
     expect(screen.getByTestId('muted')).toHaveTextContent('ana');
+  });
+
+  describe('camera (SCRUM-59, Video en llamada)', () => {
+    it('does not cut the call while the camera permission dialog is open (C13)', async () => {
+      const adapter = makeAdapter();
+      let answer: (result: 'ok') => void = () => undefined;
+      jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
+      await renderProvider();
+      const user = userEvent.setup();
+      await user.press(screen.getByText('Unirse'));
+      expect(await screen.findByText('c1 connected')).toBeTruthy();
+      adapter.enableCamera.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+
+      await user.press(screen.getByText('Cámara'));
+      await changeAppState('background');
+      await act(async () => answer('ok'));
+
+      expect(screen.getByTestId('call-status')).toHaveTextContent('connected');
+      expect(adapter.disconnect).not.toHaveBeenCalled();
+    });
+
+    it('still cuts the call in the background when no dialog is open', async () => {
+      const adapter = makeAdapter();
+      jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
+      await renderProvider();
+      const user = userEvent.setup();
+      await user.press(screen.getByText('Unirse'));
+      expect(await screen.findByText('c1 connected')).toBeTruthy();
+      await user.press(screen.getByText('Cámara'));
+      expect(adapter.enableCamera).toHaveBeenCalledTimes(1);
+
+      await changeAppState('background');
+
+      expect(await screen.findByText('c1 app_backgrounded')).toBeTruthy();
+    });
+
+    it('gives the video context the lookup of the adapter and the CameraVideo that was loaded', async () => {
+      const adapter = makeAdapter();
+      jest.mocked(loadVoice).mockReturnValue(loaded(adapter));
+      const Reader = () => {
+        const video = useContext(VoiceVideoContext);
+        return (
+          <Text testID="video">
+            {video?.cameraTrackRef === adapter.cameraTrackRef && video.CameraVideo === FakeCameraVideo ? 'loaded' : 'other'}
+          </Text>
+        );
+      };
+
+      await render(
+        <VoiceProvider>
+          <Reader />
+        </VoiceProvider>,
+      );
+
+      expect(screen.getByTestId('video')).toHaveTextContent('loaded');
+    });
+
+    it('gives the video context nothing in Expo Go', async () => {
+      jest.mocked(loadVoice).mockReturnValue(null);
+      const Reader = () => <Text testID="video">{useContext(VoiceVideoContext) === null ? 'none' : 'something'}</Text>;
+
+      await render(
+        <VoiceProvider>
+          <Reader />
+        </VoiceProvider>,
+      );
+
+      expect(screen.getByTestId('video')).toHaveTextContent('none');
+    });
   });
 });

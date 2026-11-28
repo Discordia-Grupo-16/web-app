@@ -1,10 +1,12 @@
 const mockIsRunningInExpoGo = jest.fn();
 const mockRegisterGlobals = jest.fn();
 const mockCreateLivekitAdapter = jest.fn(() => ({ kind: 'adapter' }));
+const mockCameraVideo = () => null;
 
 jest.mock('expo', () => ({ isRunningInExpoGo: () => mockIsRunningInExpoGo() }));
 jest.mock('@livekit/react-native', () => ({ registerGlobals: () => mockRegisterGlobals() }));
 jest.mock('./livekitAdapter', () => ({ createLivekitAdapter: () => mockCreateLivekitAdapter() }));
+jest.mock('./CameraVideo', () => ({ CameraVideo: mockCameraVideo }));
 
 // Each test gets a fresh module, so the "register once" flag starts unset.
 const loadFresh = (): typeof import('./loadVoice') => {
@@ -27,11 +29,11 @@ describe('loadVoice', () => {
     expect(mockCreateLivekitAdapter).not.toHaveBeenCalled();
   });
 
-  it('returns the LiveKit adapter in a development build', () => {
+  it('returns the LiveKit adapter and the CameraVideo in a development build (C7)', () => {
     mockIsRunningInExpoGo.mockReturnValue(false);
     const { loadVoice } = loadFresh();
 
-    expect(loadVoice()).toEqual({ kind: 'adapter' });
+    expect(loadVoice()).toEqual({ adapter: { kind: 'adapter' }, CameraVideo: mockCameraVideo });
     expect(mockRegisterGlobals).toHaveBeenCalledTimes(1);
   });
 

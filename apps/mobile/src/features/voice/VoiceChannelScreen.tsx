@@ -9,7 +9,7 @@ import {
   type VoiceParticipant,
 } from '@discordia/core';
 import { MicOffIcon } from './MicOffIcon';
-import { VoiceCallParticipantList } from './VoiceCallParticipantList';
+import { VoiceCallGrid } from './VoiceCallGrid';
 import { serverMutedText } from './serverMutedText';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
@@ -70,7 +70,7 @@ export const VoiceChannelScreen = ({ channel, canJoin }: { channel: VoiceChannel
             </View>
           </View>
         )}
-        <VoiceCallParticipantList participants={participants} variant="roomy" />
+        <VoiceCallGrid participants={participants} />
       </ScrollView>
     );
   }

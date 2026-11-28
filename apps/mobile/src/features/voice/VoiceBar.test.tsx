@@ -20,6 +20,8 @@ const connected = (
     micAvailable?: boolean;
     muted?: boolean;
     micPending?: boolean;
+    cameraPending?: boolean;
+    cameraOn?: boolean;
     serverMuted?: boolean;
     serverMutedUntil?: string | null;
   } = {},
@@ -30,10 +32,12 @@ const connected = (
   micBlocked: false,
   muted: extra.muted ?? false,
   micPending: extra.micPending ?? false,
+  cameraPending: extra.cameraPending ?? false,
+  cameraProblem: null,
   reconnecting: extra.reconnecting ?? false,
   serverMuted: extra.serverMuted ?? false,
   serverMutedUntil: extra.serverMutedUntil ?? null,
-  participants: [],
+  participants: extra.cameraOn ? [{ userId: 'me', isLocal: true, muted: false, cameraOn: true, joinedAt: 1, seenOrder: 0 }] : [],
 });
 
 describe('VoiceBar', () => {
@@ -50,7 +54,7 @@ describe('VoiceBar', () => {
   it('takes you back to the call screen', async () => {
     jest.mocked(useVoice).mockReturnValue(
       voiceValue({
-        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, serverMuted: false, serverMutedUntil: null, participants: [] },
+        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, cameraPending: false, cameraProblem: null, reconnecting: false, serverMuted: false, serverMutedUntil: null, participants: [] },
       }),
     );
     await render(<VoiceBar />);
@@ -210,5 +214,86 @@ describe('VoiceBar with a moderator mute (SCRUM-71)', () => {
 
     expect(screen.queryByText(VOICE_TEXTS.serverMuted)).toBeNull();
     expect(screen.getByRole('button', { name: 'Silenciar micrófono' })).toBeEnabled();
+  });
+});
+
+describe('VoiceBar and the camera (SCRUM-59, Video en llamada)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it.each([
+    ['off', {}, VOICE_TEXTS.enableCamera, false],
+    ['on', { cameraOn: true }, VOICE_TEXTS.disableCamera, true],
+  ] as const)('shows the camera %s', async (_label, state, name, selected) => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected(state) }));
+    await render(<VoiceBar />);
+
+    const button = screen.getByRole('button', { name });
+    if (selected) expect(button).toBeSelected();
+    else expect(button).not.toBeSelected();
+    expect(button).toBeEnabled();
+  });
+
+  it('turns the camera on and off from the bar without opening the call', async () => {
+    const value = voiceValue({ call: connected() });
+    jest.mocked(useVoice).mockReturnValue(value);
+    await render(<VoiceBar />);
+
+    await userEvent.setup().press(screen.getByRole('button', { name: VOICE_TEXTS.enableCamera }));
+
+    expect(value.toggleCamera).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it('is between the microphone and the way out', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected() }));
+    await render(<VoiceBar />);
+
+    const names = screen.getAllByRole('button').map((b) => b.props.accessibilityLabel);
+    expect(names).toEqual([VOICE_TEXTS.mute, VOICE_TEXTS.enableCamera, VOICE_TEXTS.leave]);
+  });
+
+  it('waits while the camera is being turned on', async () => {
+    const value = voiceValue({ call: connected({ cameraPending: true }) });
+    jest.mocked(useVoice).mockReturnValue(value);
+    await render(<VoiceBar />);
+
+    const button = screen.getByRole('button', { name: VOICE_TEXTS.enableCamera });
+    expect(button).toBeDisabled();
+    expect(button).toBeBusy();
+    await userEvent.setup().press(button);
+    expect(value.toggleCamera).not.toHaveBeenCalled();
+  });
+
+  it('waits for a join in progress before turning the camera on', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected(), attempt: { status: 'connecting', channel: juegos } }));
+    await render(<VoiceBar />);
+
+    expect(screen.getByRole('button', { name: VOICE_TEXTS.enableCamera })).toBeDisabled();
+  });
+
+  it('blocks the camera of someone a moderator muted, and says why in the hint (C1)', async () => {
+    const until = '2099-01-01T15:30:00Z';
+    jest.mocked(useVoice).mockReturnValue(
+      voiceValue({ call: connected({ muted: true, serverMuted: true, serverMutedUntil: until }) }),
+    );
+    await render(<VoiceBar />);
+
+    const button = screen.getByRole('button', { name: VOICE_TEXTS.enableCamera });
+    expect(button).toBeDisabled();
+    expect(button.props.accessibilityHint).toBe(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)));
+  });
+
+  it('has no camera hint without the mute', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected() }));
+    await render(<VoiceBar />);
+
+    expect(screen.getByRole('button', { name: VOICE_TEXTS.enableCamera }).props.accessibilityHint).toBeUndefined();
+  });
+
+  it('has no camera button without a call', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue());
+    await render(<VoiceBar />);
+
+    expect(screen.queryByRole('button', { name: VOICE_TEXTS.enableCamera })).toBeNull();
   });
 });

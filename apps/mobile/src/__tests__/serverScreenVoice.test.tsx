@@ -124,10 +124,12 @@ const inCallAt = (channelId: string): Partial<VoiceContextValue> => ({
     micBlocked: false,
     muted: false,
     micPending: false,
+    cameraPending: false,
+    cameraProblem: null,
     reconnecting: false,
     serverMuted: false,
     serverMutedUntil: null,
-    participants: [{ userId: 'ana', isLocal: false, muted: false, joinedAt: 1, seenOrder: 0 }],
+    participants: [{ userId: 'ana', isLocal: false, muted: false, cameraOn: false, joinedAt: 1, seenOrder: 0 }],
   },
 });
 
