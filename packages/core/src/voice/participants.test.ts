@@ -10,12 +10,23 @@ import {
 } from './participants';
 import type { ParticipantLike, RoomLike } from './types';
 
-const participant = (identity: string, joinedAtSeconds?: number, isMicrophoneEnabled = true): ParticipantLike => ({
+type VideoPublications = ParticipantLike['videoTrackPublications'];
+
+const participant = (
+    identity: string,
+    joinedAtSeconds?: number,
+    isMicrophoneEnabled = true,
+    videoTrackPublications: VideoPublications = new Map(),
+): ParticipantLike => ({
     identity,
     joinedAt: joinedAtSeconds === undefined ? undefined : new Date(joinedAtSeconds * 1000),
     isMicrophoneEnabled,
+    videoTrackPublications,
     attributes: {},
 });
+
+const publications = (source: string, track: unknown, isMuted: boolean): VideoPublications =>
+    new Map([['TR_1', { source, track, isMuted }]]);
 
 const room = (local: ParticipantLike, ...remotes: ParticipantLike[]): RoomLike => ({
     localParticipant: local,
@@ -42,6 +53,43 @@ describe('buildParticipantSnapshot', () => {
             ['me', true],
             ['ana', false],
         ]);
+    });
+
+    describe('cameraOn (SCRUM-59, C3)', () => {
+        const cameraOf = (videoTrackPublications: VideoPublications) =>
+            buildParticipantSnapshot(room(participant('me', 1, true, videoTrackPublications)), new Map())[0].cameraOn;
+
+        it('is false without a camera publication', () => {
+            expect(cameraOf(new Map())).toBe(false);
+        });
+
+        it('is false with a camera track that is muted', () => {
+            expect(cameraOf(publications('camera', {}, true))).toBe(false);
+        });
+
+        it('is false with a publication that has no track yet, like a remote one not subscribed', () => {
+            expect(cameraOf(publications('camera', undefined, false))).toBe(false);
+        });
+
+        it('is true with a camera track that is not muted', () => {
+            expect(cameraOf(publications('camera', {}, false))).toBe(true);
+        });
+
+        it('does not count a screen share', () => {
+            expect(cameraOf(publications('screen_share', {}, false))).toBe(false);
+        });
+
+        it('is read for the remote participants too', () => {
+            const snapshot = buildParticipantSnapshot(
+                room(participant('me', 1), participant('ana', 2, true, publications('camera', {}, false))),
+                new Map(),
+            );
+
+            expect(snapshot.map((p) => [p.userId, p.cameraOn])).toEqual([
+                ['me', false],
+                ['ana', true],
+            ]);
+        });
     });
 
     it('sorts by joinedAt and breaks ties by the order seen, remembered across calls', () => {

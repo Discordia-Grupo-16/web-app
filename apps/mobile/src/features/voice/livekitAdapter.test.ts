@@ -14,6 +14,8 @@ class MockParticipant {
   attributes: Record<string, string> = {};
   permissions?: { canPublish: boolean };
   isMicrophoneEnabled = true;
+  // What buildParticipantSnapshot reads to know whether there is a camera to show.
+  videoTrackPublications = new Map<string, { source: string; track?: unknown; isMuted: boolean }>();
   constructor(
     public identity: string,
     public joinedAt?: Date,

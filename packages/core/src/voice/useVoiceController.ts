@@ -3,6 +3,7 @@ import { MAX_TIMEOUT_MS } from '../moderation/mute';
 import { NO_LOCAL_MUTES, NO_SPEAKERS, toggleId } from './participants';
 import { canRejoin } from './texts';
 import type {
+    CameraResult,
     MicResult,
     RoomConnectFailure,
     RoomDisconnectInfo,
@@ -85,6 +86,8 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
     const joinIdRef = useRef(0);
     // Each microphone request takes a number too, so a late answer does not touch a newer call.
     const micRequestRef = useRef(0);
+    // Each camera request takes a number too, so a late answer does not touch a newer call.
+    const cameraRequestRef = useRef(0);
     // Whether the call that was cut was muted on purpose: "Volver a unirse" keeps it.
     const rememberedMuteRef = useRef(false);
     // The timer that asks chat for the permission when a mute should be over, and the number of the
@@ -161,6 +164,7 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
                     return;
                 }
                 cancelPermissionRefresh();
+                cameraRequestRef.current += 1;
                 participantsRef.current = [];
                 rememberedMuteRef.current = intentionallyMuted(current);
                 updateCall({ status: 'disconnected', channel: current.channel, reason: disconnectReason(info) });
@@ -182,7 +186,9 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
                 }
                 // LiveKit already unpublished the track; an answer of the microphone still in flight must not turn it on.
                 micRequestRef.current += 1;
-                updateCall({ ...current, serverMuted: true, muted: true, micPending: false });
+                // LiveKit unpublished the camera too (C1): a camera answer still in flight must not count.
+                cameraRequestRef.current += 1;
+                updateCall({ ...current, serverMuted: true, muted: true, micPending: false, cameraPending: false });
                 refreshPermissions(current.channel.id);
             }),
             adapter.onReconnectingChanged((reconnecting) => {
@@ -201,6 +207,7 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
         () => () => {
             joinIdRef.current += 1;
             micRequestRef.current += 1;
+            cameraRequestRef.current += 1;
             cancelPermissionRefresh();
             if (adapter && callRef.current.status === 'connected') void adapter.disconnect();
         },
@@ -213,6 +220,7 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
             const previous = callRef.current;
             rememberedMuteRef.current = false;
             micRequestRef.current += 1;
+            cameraRequestRef.current += 1;
             const joinId = ++joinIdRef.current;
             const stopped = () => joinIdRef.current !== joinId;
             updateAttempt({ status: 'connecting', channel });
@@ -275,6 +283,9 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
                     participants: participantsRef.current,
                     serverMuted: false,
                     serverMutedUntil: null,
+                    // The camera always starts off, and nothing asks for it on joining (C11).
+                    cameraPending: false,
+                    cameraProblem: null,
                 };
                 // Muted by a moderator at the door: the token came without the right to publish, so there is
                 // nothing to ask the system for. No event will tell how long it lasts, so chat is asked.
@@ -363,6 +374,7 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
             if (!adapter || !channel) return;
             joinIdRef.current += 1;
             micRequestRef.current += 1;
+            cameraRequestRef.current += 1;
             switchingRef.current = false;
             cancelPermissionRefresh();
             if (joining) updateAttempt(null);
@@ -381,6 +393,7 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
         if (!adapter || current.status !== 'connected' || attemptRef.current?.status === 'connecting') return;
         participantsRef.current = [];
         micRequestRef.current += 1;
+        cameraRequestRef.current += 1;
         cancelPermissionRefresh();
         rememberedMuteRef.current = false;
         updateLocallyMuted(NO_LOCAL_MUTES);
@@ -411,6 +424,27 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
             });
     }, [adapter, updateCall]);
 
+    // On the server it is a mute of the camera track; the microphone and the room are not touched (C2).
+    // Turning it on waits for its answer, like the microphone; a muted-by-moderator call cannot (C1).
+    const toggleCamera = useCallback(() => {
+        const current = callRef.current;
+        if (!adapter || current.status !== 'connected' || current.cameraPending || current.serverMuted) return;
+        if (attemptRef.current?.status === 'connecting') return;
+        const cameraOn = current.participants.find((p) => p.isLocal)?.cameraOn ?? false;
+        const requestId = ++cameraRequestRef.current;
+        updateCall({ ...current, cameraPending: true, cameraProblem: null });
+        const request: Promise<CameraResult> = cameraOn
+            ? adapter.disableCamera().then((): CameraResult => 'ok')
+            : adapter.enableCamera();
+        void request
+            .catch((): CameraResult => 'unavailable')
+            .then((result) => {
+                const latest = callRef.current;
+                if (cameraRequestRef.current !== requestId || latest.status !== 'connected') return;
+                updateCall({ ...latest, cameraPending: false, cameraProblem: result === 'ok' ? null : result });
+            });
+    }, [adapter, updateCall]);
+
     // Only on this device: the adapter turns the volume of that participant down or back up.
     const toggleLocalMute = useCallback(
         (userId: string) => {
@@ -437,6 +471,7 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
             rejoin,
             leave,
             toggleMute,
+            toggleCamera,
             locallyMuted: connected ? locallyMuted : NO_LOCAL_MUTES,
             toggleLocalMute,
             retry,
@@ -452,6 +487,7 @@ export const useVoiceController = ({ adapter, requestToken, refreshPermissions: 
             rejoin,
             leave,
             toggleMute,
+            toggleCamera,
             connected,
             locallyMuted,
             toggleLocalMute,

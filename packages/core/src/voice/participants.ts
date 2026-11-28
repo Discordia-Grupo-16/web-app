@@ -1,6 +1,7 @@
 import type { ParticipantLike, RoomLike, VoiceParticipant, VoiceServerReason } from './types';
 
 const DISCONNECT_REASON_ATTRIBUTE = 'disconnectReason';
+const CAMERA_SOURCE = 'camera'; // Track.Source.Camera, without depending on livekit-client
 
 const SERVER_REASONS: ReadonlySet<string> = new Set<VoiceServerReason>([
     'other_device',
@@ -34,6 +35,13 @@ export const speakerIds =(speakers: readonly Pick<ParticipantLike, 'identity'>[]
 export const sameIds = (a: ReadonlySet<string>, b: ReadonlySet<string>): boolean =>
     a.size === b.size && [...a].every((id) => b.has(id));
 
+// A camera track there is something to draw for: published, not muted and, for a remote one, subscribed
+// (a publication without a track is a remote one that has not arrived yet).
+const hasLiveCamera = (p: ParticipantLike): boolean =>
+    [...p.videoTrackPublications.values()].some(
+        (publication) => publication.source === CAMERA_SOURCE && publication.track !== undefined && !publication.isMuted,
+    );
+
 // A participant whose joinedAt is not known yet goes after the rest.
 const sortKey = (p: VoiceParticipant): number => (p.joinedAt > 0 ? p.joinedAt : Number.MAX_SAFE_INTEGER);
 
@@ -49,6 +57,7 @@ export const buildParticipantSnapshot = (room: RoomLike, seen: Map<string, numbe
             userId: p.identity,
             isLocal,
             muted: !p.isMicrophoneEnabled,
+            cameraOn: hasLiveCamera(p),
             joinedAt: p.joinedAt?.getTime() ?? 0,
             seenOrder: seen.get(p.identity) ?? 0,
         });

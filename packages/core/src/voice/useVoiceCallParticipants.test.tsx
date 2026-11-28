@@ -15,10 +15,11 @@ const ME_ID = '11111111-1111-1111-1111-111111111111';
 const ANA_ID = '22222222-2222-2222-2222-222222222222';
 const GONE_ID = '33333333-3333-3333-3333-333333333333';
 
-const participant = (userId: string, muted = false): VoiceParticipant => ({
+const participant = (userId: string, muted = false, cameraOn = false): VoiceParticipant => ({
     userId,
     isLocal: userId === ME_ID,
     muted,
+    cameraOn,
     joinedAt: 1000,
     seenOrder: 0,
 });
@@ -52,9 +53,9 @@ describe('useVoiceCallParticipants', () => {
 
         await waitFor(() => expect(result.current[1].loading).toBe(false));
         expect(result.current).toEqual([
-            { userId: ME_ID, name: 'Milton', userAvatar: 'milton.png', loading: false, muted: false, isSelf: true },
-            { userId: ANA_ID, name: 'Ana', userAvatar: '', loading: false, muted: true, isSelf: false },
-            { userId: GONE_ID, name: UNAVAILABLE_USER_NAME, userAvatar: '', loading: false, muted: false, isSelf: false },
+            { userId: ME_ID, name: 'Milton', userAvatar: 'milton.png', loading: false, muted: false, cameraOn: false, isSelf: true },
+            { userId: ANA_ID, name: 'Ana', userAvatar: '', loading: false, muted: true, cameraOn: false, isSelf: false },
+            { userId: GONE_ID, name: UNAVAILABLE_USER_NAME, userAvatar: '', loading: false, muted: false, cameraOn: false, isSelf: false },
         ]);
         expect(source.getPublicProfiles).toHaveBeenCalledWith([ANA_ID, GONE_ID]);
     });
@@ -65,9 +66,29 @@ describe('useVoiceCallParticipants', () => {
         const { result } = renderHook(() => useVoiceCallParticipants([participant(ANA_ID)]), { wrapper });
 
         expect(result.current).toEqual([
-            { userId: ANA_ID, name: VOICE_NAME_PLACEHOLDER, userAvatar: '', loading: true, muted: false, isSelf: false },
+            { userId: ANA_ID, name: VOICE_NAME_PLACEHOLDER, userAvatar: '', loading: true, muted: false, cameraOn: false, isSelf: false },
         ]);
         result.current.forEach((view) => expect(view.name).not.toContain(view.userId.slice(0, 8)));
+    });
+
+    it('copies cameraOn in the three kinds of row, and leaves it absent in the roster (SCRUM-59)', async () => {
+        const { wrapper } = setup(
+            async (): Promise<PublicProfiles> =>
+                new Map([
+                    [ANA_ID, { id: ANA_ID, name: 'Ana', avatarUrl: null, bio: null }],
+                    [GONE_ID, null],
+                ]),
+        );
+        const participants = [participant(ME_ID, false, true), participant(ANA_ID, false, true), participant(GONE_ID, false, false)];
+
+        const { result } = renderHook(() => useVoiceCallParticipants(participants), { wrapper });
+
+        // Own row and rows still loading, then rows with their profile (or without one).
+        expect(result.current.map((view) => view.cameraOn)).toEqual([true, true, false]);
+        await waitFor(() => expect(result.current[2].loading).toBe(false));
+        expect(result.current.map((view) => view.cameraOn)).toEqual([true, true, false]);
+        const roster = renderHook(() => useVoiceCallParticipants([{ userId: ANA_ID }]), { wrapper });
+        expect(roster.result.current[0].cameraOn).toBeUndefined();
     });
 
     it('marks only the own row as self, even while the profiles load', () => {

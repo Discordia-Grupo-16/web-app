@@ -14,6 +14,9 @@ export type VoiceServerReason =
 export type VoiceClientReason = 'connection_lost' | 'app_backgrounded';
 export type VoiceDisconnectReason = VoiceServerReason | VoiceClientReason;
 export type MicResult = 'ok' | 'denied' | 'blocked' | 'no-device';
+// How turning the camera on ended. 'unavailable': busy, missing, or the room stopped being the current one.
+export type CameraResult = 'ok' | 'denied' | 'blocked' | 'unavailable';
+export type CameraProblem = Exclude<CameraResult, 'ok'>;
 // Why the microphone is gone: the permission was revoked ('blocked') or no input device is left.
 export type MicLossCause = 'blocked' | 'no-device';
 
@@ -32,6 +35,7 @@ export interface VoiceParticipant {
     userId: string; // LiveKit identity
     isLocal: boolean;
     muted: boolean; // no published and enabled microphone
+    cameraOn: boolean; // a camera track this client can show: published, not muted and, for a remote one, subscribed
     joinedAt: number; // ms epoch, with second resolution
     seenOrder: number; // tie-break: the order in which this client saw it
 }
@@ -45,6 +49,9 @@ export type VoiceCall =
           micBlocked: boolean;
           muted: boolean;
           micPending: boolean; // true while the microphone is being turned on (permission prompt or device)
+          // The own camera is not here: it is the cameraOn of the local participant (C4).
+          cameraPending: boolean; // true while the camera is being turned on or off
+          cameraProblem: CameraProblem | null; // why the last attempt failed; null from the next one
           reconnecting: boolean; // true while LiveKit is reconnecting; false when it connects
           participants: VoiceParticipant[];
           // A moderator took the right to publish away (SCRUM-71): the microphone is off and cannot be turned on.
@@ -80,6 +87,11 @@ export interface VoiceRoomAdapter {
     enableMicrophone(options?: EnableMicrophoneOptions): Promise<MicResult>;
     // Mutes the published microphone track and keeps it published. Does nothing without one.
     muteMicrophone(): Promise<void>;
+    // Publishes the camera, or unmutes it if it is already published. 'unavailable' if the room stopped
+    // being the current one meanwhile; then the camera is not left on.
+    enableCamera(): Promise<CameraResult>;
+    // Mutes the camera track, so LiveKit releases the device. The microphone is not touched. Does nothing without a room.
+    disableCamera(): Promise<void>;
     // Remote participants whose audio plays at volume 0 on this device, by LiveKit identity. The room
     // keeps sending it, so nothing changes for the others. Replaces the previous set, applies at once
     // to whoever is in the room and to every audio track subscribed later, in this room or the next.
@@ -113,6 +125,7 @@ export interface ParticipantLike {
     identity: string;
     joinedAt?: Date;
     isMicrophoneEnabled: boolean;
+    videoTrackPublications: ReadonlyMap<string, { source: string; track?: unknown; isMuted: boolean }>;
     attributes: Readonly<Record<string, string>>;
 }
 
@@ -139,6 +152,9 @@ export interface VoiceContextValue {
     // Mutes an active microphone at once, or turns it on (asking for the permission when needed).
     // Does nothing without a connected call, while a join is in progress or while micPending.
     toggleMute: () => void;
+    // Turns the own camera on (asking for the permission when needed) or off. Does nothing without a
+    // connected call, while a join is in progress, while cameraPending or while serverMuted.
+    toggleCamera: () => void;
     // Remote participants this user stopped hearing, by userId. NO_LOCAL_MUTES outside a connected
     // call. Kept on "Volver a unirse"; cleared on leave, on a join from scratch and on dismiss.
     locallyMuted: ReadonlySet<string>;

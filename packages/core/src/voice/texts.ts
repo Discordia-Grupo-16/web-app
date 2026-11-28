@@ -21,6 +21,13 @@ export const VOICE_TEXTS = {
     // A moderator took the microphone away for a while (SCRUM-71); `time` comes from formatMutedUntil.
     serverMuted: 'Un moderador te silenció: los demás no te escuchan.',
     serverMutedUntil: (time: string) => `Un moderador te silenció hasta ${time}: los demás no te escuchan.`,
+    enableCamera: 'Activar cámara',
+    disableCamera: 'Apagar cámara',
+    cameraDenied: 'No diste permiso para usar la cámara. Tocá el botón de la cámara para volver a intentarlo.',
+    cameraBlockedWeb:
+        'El navegador tiene bloqueada la cámara para este sitio. Habilitala desde el ícono del candado en la barra de direcciones y volvé a activar la cámara.',
+    cameraBlockedMobile: 'El permiso de la cámara está bloqueado. Habilitalo desde la configuración de la app.',
+    cameraUnavailable: 'No se pudo abrir la cámara. Fijate que ninguna otra app la esté usando.',
 } as const;
 
 export const VOICE_JOIN_ERROR_TEXTS: Record<VoiceJoinError, string> = {

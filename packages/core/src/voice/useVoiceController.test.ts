@@ -6,6 +6,7 @@ import { MAX_TIMEOUT_MS } from '../moderation/mute';
 import { NO_LOCAL_MUTES, NO_SPEAKERS } from './participants';
 import { useVoiceController } from './useVoiceController';
 import type {
+    CameraResult,
     EnableMicrophoneOptions,
     MicLossCause,
     MicResult,
@@ -27,9 +28,9 @@ const tokenFor = (channelId: string): VoiceToken => ({
     expiresAt: '2026-10-13T12:10:00Z',
 });
 
-const me: VoiceParticipant = { userId: 'me', isLocal: true, muted: false, joinedAt: 1000, seenOrder: 0 };
-const ana: VoiceParticipant = { userId: 'ana', isLocal: false, muted: true, joinedAt: 500, seenOrder: 1 };
-const bob: VoiceParticipant = { userId: 'bob', isLocal: false, muted: false, joinedAt: 700, seenOrder: 2 };
+const me: VoiceParticipant = { userId: 'me', isLocal: true, muted: false, cameraOn: false, joinedAt: 1000, seenOrder: 0 };
+const ana: VoiceParticipant = { userId: 'ana', isLocal: false, muted: true, cameraOn: false, joinedAt: 500, seenOrder: 1 };
+const bob: VoiceParticipant = { userId: 'bob', isLocal: false, muted: false, cameraOn: false, joinedAt: 700, seenOrder: 2 };
 
 const httpError = (status?: number) =>
     Object.assign(new Error('Request failed'), { isAxiosError: true, response: status ? { status } : undefined });
@@ -58,6 +59,8 @@ const createFakeAdapter = () => {
         onActiveSpeakersChanged: subscribe(speakers),
         onReconnectingChanged: subscribe(reconnecting),
         muteMicrophone: vi.fn(async () => undefined),
+        enableCamera: vi.fn(async (): Promise<CameraResult> => 'ok'),
+        disableCamera: vi.fn(async () => undefined),
         setLocallyMuted: vi.fn((_userIds: ReadonlySet<string>) => undefined),
         onMicrophoneLost: subscribe(micLost),
         canPublish: vi.fn(() => canPublish),
@@ -129,7 +132,11 @@ describe('useVoiceController', () => {
             participants: [ana, me],
             serverMuted: false,
             serverMutedUntil: null,
+            cameraPending: false,
+            cameraProblem: null,
         });
+        // Nothing asks for the camera on joining (C11).
+        expect(fake.adapter.enableCamera).not.toHaveBeenCalled();
 
         fake.emitParticipants([me]);
         expect(result.current.value.call).toMatchObject({ participants: [me] });
@@ -1352,6 +1359,227 @@ describe('useVoiceController', () => {
 
             expect(result.current.value.call).toEqual({ status: 'idle' });
             expect(refreshPermissions).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('the camera (SCRUM-59, Video en llamada)', () => {
+        const deferred = <T,>() => {
+            let resolve: (value: T) => void = () => undefined;
+            const promise = new Promise<T>((r) => (resolve = r));
+            return { promise, resolve };
+        };
+        const connectedCall = (result: ReturnType<typeof render>['result']) => {
+            const { call } = result.current.value;
+            expect(call.status).toBe('connected');
+            return call as Extract<VoiceCall, { status: 'connected' }>;
+        };
+        const meWithCamera: VoiceParticipant = { ...me, cameraOn: true };
+        // Connected, with the microphone already answered and the local participant in the snapshot.
+        const joinReady = async (result: ReturnType<typeof render>['result'], channel: VoiceChannelRef = A) => {
+            await joinAndWait(result, channel);
+            await waitFor(() => expect(connectedCall(result).micPending).toBe(false));
+            fake.emitParticipants([me, ana]);
+        };
+
+        it('turns the camera on: pending while it asks, and clean once it says ok (CA1)', async () => {
+            const { result } = render();
+            await joinReady(result);
+            const camera = deferred<CameraResult>();
+            fake.adapter.enableCamera.mockImplementationOnce(() => camera.promise);
+
+            act(() => result.current.value.toggleCamera());
+            expect(connectedCall(result)).toMatchObject({ cameraPending: true, cameraProblem: null });
+            await act(async () => camera.resolve('ok'));
+
+            expect(fake.adapter.enableCamera).toHaveBeenCalledTimes(1);
+            expect(fake.adapter.disableCamera).not.toHaveBeenCalled();
+            expect(connectedCall(result)).toMatchObject({ cameraPending: false, cameraProblem: null });
+        });
+
+        it.each(['denied', 'blocked', 'unavailable'] as const)(
+            'keeps %s as the problem until the next attempt, which clears it while it asks',
+            async (problem) => {
+                const { result } = render();
+                await joinReady(result);
+                fake.adapter.enableCamera.mockResolvedValueOnce(problem);
+
+                act(() => result.current.value.toggleCamera());
+                await waitFor(() => expect(connectedCall(result)).toMatchObject({ cameraPending: false, cameraProblem: problem }));
+                const retry = deferred<CameraResult>();
+                fake.adapter.enableCamera.mockImplementationOnce(() => retry.promise);
+                act(() => result.current.value.toggleCamera());
+
+                expect(connectedCall(result)).toMatchObject({ cameraPending: true, cameraProblem: null });
+                await act(async () => retry.resolve('ok'));
+                expect(connectedCall(result)).toMatchObject({ cameraPending: false, cameraProblem: null });
+            },
+        );
+
+        it('takes a rejected enableCamera as unavailable', async () => {
+            const { result } = render();
+            await joinReady(result);
+            fake.adapter.enableCamera.mockRejectedValueOnce(new Error('boom'));
+
+            act(() => result.current.value.toggleCamera());
+
+            await waitFor(() =>
+                expect(connectedCall(result)).toMatchObject({ cameraPending: false, cameraProblem: 'unavailable' }),
+            );
+        });
+
+        it('turns an active camera off without touching the microphone (CA2)', async () => {
+            const { result } = render();
+            await joinReady(result);
+            fake.emitParticipants([meWithCamera, ana]);
+            expect(connectedCall(result).muted).toBe(false);
+            const microphoneCalls = fake.adapter.enableMicrophone.mock.calls.length;
+
+            act(() => result.current.value.toggleCamera());
+            await waitFor(() => expect(connectedCall(result).cameraPending).toBe(false));
+
+            expect(fake.adapter.disableCamera).toHaveBeenCalledTimes(1);
+            expect(fake.adapter.enableCamera).not.toHaveBeenCalled();
+            expect(fake.adapter.muteMicrophone).not.toHaveBeenCalled();
+            expect(fake.adapter.enableMicrophone).toHaveBeenCalledTimes(microphoneCalls);
+            expect(connectedCall(result)).toMatchObject({ muted: false, micAvailable: true, cameraProblem: null });
+        });
+
+        it('does nothing without a call', () => {
+            const { result } = render();
+
+            act(() => result.current.value.toggleCamera());
+
+            expect(result.current.value.call).toEqual({ status: 'idle' });
+            expect(fake.adapter.enableCamera).not.toHaveBeenCalled();
+            expect(fake.adapter.disableCamera).not.toHaveBeenCalled();
+        });
+
+        it('does nothing while a join is in progress', async () => {
+            const { result } = render();
+            await joinReady(result);
+            const token = deferred<VoiceToken>();
+            requestToken.mockImplementationOnce(() => token.promise);
+            act(() => result.current.value.join(B));
+
+            act(() => result.current.value.toggleCamera());
+
+            expect(fake.adapter.enableCamera).not.toHaveBeenCalled();
+            expect(connectedCall(result)).toMatchObject({ channel: A, cameraPending: false });
+        });
+
+        it('does nothing while the camera is already pending', async () => {
+            const { result } = render();
+            await joinReady(result);
+            fake.adapter.enableCamera.mockImplementationOnce(() => deferred<CameraResult>().promise);
+            act(() => result.current.value.toggleCamera());
+
+            act(() => result.current.value.toggleCamera());
+
+            expect(fake.adapter.enableCamera).toHaveBeenCalledTimes(1);
+            expect(fake.adapter.disableCamera).not.toHaveBeenCalled();
+        });
+
+        it('does nothing when muted by a moderator (C1)', async () => {
+            fake.setCanPublish(false);
+            const { result } = render();
+            await joinAndWait(result, A);
+            expect(connectedCall(result).serverMuted).toBe(true);
+
+            act(() => result.current.value.toggleCamera());
+
+            expect(fake.adapter.enableCamera).not.toHaveBeenCalled();
+            expect(connectedCall(result).cameraPending).toBe(false);
+        });
+
+        it('ignores an answer that arrives after leaving', async () => {
+            const { result } = render();
+            await joinReady(result);
+            const camera = deferred<CameraResult>();
+            fake.adapter.enableCamera.mockImplementationOnce(() => camera.promise);
+            act(() => result.current.value.toggleCamera());
+
+            act(() => result.current.value.leave());
+            await act(async () => camera.resolve('denied'));
+
+            expect(result.current.value.call).toEqual({ status: 'idle' });
+        });
+
+        it('ignores an answer that arrives after switching channel', async () => {
+            const { result } = render();
+            await joinReady(result);
+            const camera = deferred<CameraResult>();
+            fake.adapter.enableCamera.mockImplementationOnce(() => camera.promise);
+            act(() => result.current.value.toggleCamera());
+
+            act(() => result.current.value.join(B));
+            await waitFor(() => expect(connectedCall(result).channel.id).toBe('channel-b'));
+            await act(async () => camera.resolve('denied'));
+
+            expect(connectedCall(result)).toMatchObject({ channel: B, cameraPending: false, cameraProblem: null });
+        });
+
+        it('ignores an answer that arrives after the room dropped', async () => {
+            const { result } = render();
+            await joinReady(result);
+            const camera = deferred<CameraResult>();
+            fake.adapter.enableCamera.mockImplementationOnce(() => camera.promise);
+            act(() => result.current.value.toggleCamera());
+
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+            await act(async () => camera.resolve('ok'));
+
+            expect(result.current.value.call).toMatchObject({ status: 'disconnected', reason: 'connection_lost' });
+        });
+
+        it('drops the pending camera when a moderator takes the right to publish away, and ignores the late answer (C1)', async () => {
+            const { result } = render();
+            await joinReady(result);
+            const camera = deferred<CameraResult>();
+            fake.adapter.enableCamera.mockImplementationOnce(() => camera.promise);
+            act(() => result.current.value.toggleCamera());
+            expect(connectedCall(result).cameraPending).toBe(true);
+
+            fake.emitPublishPermission(false);
+            expect(connectedCall(result)).toMatchObject({ serverMuted: true, cameraPending: false });
+            await act(async () => camera.resolve('blocked'));
+
+            expect(connectedCall(result)).toMatchObject({ cameraPending: false, cameraProblem: null });
+        });
+
+        it('leaves the camera off when the right to publish comes back', async () => {
+            const { result } = render();
+            await joinReady(result);
+            fake.emitPublishPermission(false);
+
+            fake.emitPublishPermission(true);
+
+            expect(connectedCall(result)).toMatchObject({ serverMuted: false, cameraPending: false, cameraProblem: null });
+            expect(fake.adapter.enableCamera).not.toHaveBeenCalled();
+        });
+
+        it('starts with the camera off after a cut and "Volver a unirse" (C11)', async () => {
+            const { result } = render();
+            await joinReady(result);
+            fake.emitParticipants([meWithCamera, ana]);
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+            expect(result.current.value.call.status).toBe('disconnected');
+
+            act(() => result.current.value.rejoin());
+            await waitFor(() => expect(result.current.value.call.status).toBe('connected'));
+
+            expect(fake.adapter.enableCamera).not.toHaveBeenCalled();
+            expect(connectedCall(result)).toMatchObject({ cameraPending: false, cameraProblem: null });
+        });
+
+        it('keeps the reference of toggleCamera between renders', async () => {
+            const { result, rerender } = render();
+            const first = result.current.value.toggleCamera;
+
+            rerender({ adapter: fake.adapter, requestToken, refreshPermissions });
+            await joinAndWait(result, A);
+            fake.emitReconnecting(true);
+
+            expect(result.current.value.toggleCamera).toBe(first);
         });
     });
 });
