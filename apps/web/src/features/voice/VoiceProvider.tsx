@@ -6,7 +6,11 @@ import { createLivekitAdapter } from './livekitAdapter';
 // The call does not depend on the tab being visible: switching tabs or minimizing keeps it going.
 export const VoiceProvider = ({ children }: { children: ReactNode }) => {
     const [adapter] = useState(createLivekitAdapter);
-    const { value, speakingIds } = useVoiceController({ adapter, requestToken: voiceService.createVoiceToken });
+    const { value, speakingIds } = useVoiceController({
+        adapter,
+        requestToken: voiceService.createVoiceToken,
+        refreshPermissions: voiceService.refreshVoicePermissions,
+    });
 
     return (
         <VoiceContext.Provider value={value}>

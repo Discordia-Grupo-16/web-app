@@ -24,6 +24,7 @@ const server: Server = {
     created_at: '2026-10-01T00:00:00Z',
     my_permissions: 7,
     my_permission_names: ['VIEW_CHANNEL', 'SEND_MESSAGES', 'CONNECT'],
+    my_muted_until: null,
     channels: [
         { id: 'c1', server_id: 'srv', name: 'general', type: 'text', topic: null, category_id: null, position: 0, created_at: '2026-10-01T00:00:00Z' },
     ],
@@ -76,6 +77,20 @@ describe('useServer', () => {
 
         await waitFor(() => expect(result.current.server?.my_permissions).toBe(1));
         expect(result.current.server?.my_permission_names).toEqual(['VIEW_CHANNEL']);
+    });
+
+    it('picks up a mute and its end on the next read (SCRUM-71)', async () => {
+        vi.mocked(serversService.getServer).mockResolvedValue(server);
+        const { result } = renderHook(() => useServer('srv', 'c1'), { wrapper });
+        await waitFor(() => expect(result.current.server).not.toBeNull());
+
+        vi.mocked(serversService.getServer).mockResolvedValue({ ...server, my_muted_until: '2099-01-01T15:30:00Z' });
+        document.dispatchEvent(new Event('visibilitychange'));
+        await waitFor(() => expect(result.current.server?.my_muted_until).toBe('2099-01-01T15:30:00Z'));
+
+        vi.mocked(serversService.getServer).mockResolvedValue(server);
+        document.dispatchEvent(new Event('visibilitychange'));
+        await waitFor(() => expect(result.current.server?.my_muted_until).toBeNull());
     });
 
     it('applies channel updates to the loaded server', async () => {

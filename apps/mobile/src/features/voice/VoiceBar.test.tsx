@@ -1,6 +1,6 @@
 import { render as rntlRender, screen, userEvent } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useVoice, VOICE_DISCONNECT_TEXTS, type VoiceChannelRef } from '@discordia/core';
+import { formatMutedUntil, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS, type VoiceChannelRef } from '@discordia/core';
 import { voiceValue } from './testing';
 import { VoiceBar } from './VoiceBar';
 
@@ -15,7 +15,14 @@ const general: VoiceChannelRef = { id: 'c1', serverId: 's1', name: 'General' };
 const juegos: VoiceChannelRef = { id: 'c2', serverId: 's1', name: 'Juegos' };
 
 const connected = (
-  extra: { reconnecting?: boolean; micAvailable?: boolean; muted?: boolean; micPending?: boolean } = {},
+  extra: {
+    reconnecting?: boolean;
+    micAvailable?: boolean;
+    muted?: boolean;
+    micPending?: boolean;
+    serverMuted?: boolean;
+    serverMutedUntil?: string | null;
+  } = {},
 ) => ({
   status: 'connected' as const,
   channel: general,
@@ -24,6 +31,8 @@ const connected = (
   muted: extra.muted ?? false,
   micPending: extra.micPending ?? false,
   reconnecting: extra.reconnecting ?? false,
+  serverMuted: extra.serverMuted ?? false,
+  serverMutedUntil: extra.serverMutedUntil ?? null,
   participants: [],
 });
 
@@ -41,7 +50,7 @@ describe('VoiceBar', () => {
   it('takes you back to the call screen', async () => {
     jest.mocked(useVoice).mockReturnValue(
       voiceValue({
-        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, participants: [] },
+        call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, serverMuted: false, serverMutedUntil: null, participants: [] },
       }),
     );
     await render(<VoiceBar />);
@@ -170,5 +179,45 @@ describe('VoiceBar', () => {
     await render(<VoiceBar />);
 
     expect(screen.queryByRole('button', { name: /micrófono/ })).toBeNull();
+  });
+});
+
+describe('VoiceBar with a moderator mute (SCRUM-71)', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  const until = '2099-01-01T15:30:00Z';
+
+  it('blocks the microphone and says why, with the hour', async () => {
+    jest.mocked(useVoice).mockReturnValue(
+      voiceValue({ call: connected({ muted: true, serverMuted: true, serverMutedUntil: until }) }),
+    );
+    await render(<VoiceBar />);
+
+    const button = screen.getByRole('button', { name: 'Activar micrófono' });
+    expect(button).toBeDisabled();
+    // The bar only says the short text: the full phrase lives in the call screen.
+    expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.serverMutedShortUntil(formatMutedUntil(until)));
+    expect(screen.queryByText(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)))).toBeNull();
+    // The microphone button keeps describing itself with the full phrase.
+    expect(button).toHaveProp('accessibilityHint', VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)));
+  });
+
+  it('says it without the hour until chat answers', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected({ muted: true, serverMuted: true }) }));
+    await render(<VoiceBar />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.serverMutedShort);
+    expect(screen.getByRole('button', { name: 'Activar micrófono' })).toHaveProp(
+      'accessibilityHint',
+      VOICE_TEXTS.serverMuted,
+    );
+  });
+
+  it('shows nothing of it, and leaves the microphone alone, without the mute', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connected() }));
+    await render(<VoiceBar />);
+
+    expect(screen.queryByText(VOICE_TEXTS.serverMuted)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Silenciar micrófono' })).toBeEnabled();
   });
 });

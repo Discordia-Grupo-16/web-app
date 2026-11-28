@@ -11,6 +11,8 @@ interface ChatScreenProps {
   channelId: string;
   channelName: string;
   canSendMessages: boolean;
+  /** Until when a moderator's mute lasts, if it is on: the composer says so (SCRUM-71). */
+  mutedUntil?: string | null;
   /** MANAGE_MESSAGES, resolved by `community`. The backend checks it too: this only shows the option. */
   canManageMessages: boolean;
   /** ADD_REACTIONS, resolved by `community`. The backend checks it too: this only shows the option. */
@@ -21,6 +23,7 @@ export const ChatScreen = ({
   channelId,
   channelName,
   canSendMessages,
+  mutedUntil = null,
   canManageMessages,
   canAddReactions,
 }: ChatScreenProps) => {
@@ -79,6 +82,7 @@ export const ChatScreen = ({
           rejected={rejected}
           onRejectedHandled={clearRejected}
           canSendMessages={canSendMessages}
+          mutedUntil={mutedUntil}
           editing={
             canEdit && editingMessage
               ? {

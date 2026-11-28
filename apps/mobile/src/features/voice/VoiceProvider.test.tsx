@@ -9,6 +9,7 @@ import { VoiceProvider } from './VoiceProvider';
 jest.mock('@/shared/api', () => ({
   voiceService: {
     createVoiceToken: jest.fn(async (id: string) => ({ token: 't', url: 'wss://x', roomName: id, expiresAt: '' })),
+    refreshVoicePermissions: jest.fn(async () => ({ canPublish: true, mutedUntil: null, remainingSeconds: 0 })),
   },
 }));
 jest.mock('./loadVoice', () => ({ loadVoice: jest.fn() }));
@@ -41,6 +42,8 @@ const makeAdapter = () =>
     muteMicrophone: jest.fn(async () => undefined),
     setLocallyMuted: jest.fn<void, [ReadonlySet<string>]>(),
     onMicrophoneLost: () => () => undefined,
+    canPublish: () => true,
+    onPublishPermissionChanged: () => () => undefined,
   }) satisfies VoiceRoomAdapter;
 
 const Status = () => {

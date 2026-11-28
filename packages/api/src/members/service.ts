@@ -1,5 +1,5 @@
 import type { AxiosInstance } from 'axios';
-import type { ServerBan, ServerMember } from './types';
+import type { ServerBan, ServerMember, ServerMute } from './types';
 
 export const createMembersService = (apiClient: AxiosInstance) => ({
     /**
@@ -37,6 +37,31 @@ export const createMembersService = (apiClient: AxiosInstance) => ({
     kickMember: (serverId: string, userId: string): Promise<void> =>
         apiClient
             .delete(`/api/v1/servers/${serverId}/members/${userId}`)
+            .then(() => undefined),
+
+    /**
+     * Mutes a member for a while (SCRUM-71): they keep seeing the channels but
+     * cannot write or speak until the time is up.
+     *
+     * A PUT with a JSON body, like the endpoint: it asserts a state, so muting
+     * someone already muted replaces the duration. The client sends a duration
+     * and not a date, so the end is decided by the server's clock and the
+     * answer carries it.
+     */
+    muteMember: (serverId: string, userId: string, durationSeconds: number): Promise<ServerMute> =>
+        apiClient
+            .put<{ data: ServerMute }>(`/api/v1/servers/${serverId}/mutes/${userId}`, {
+                duration_seconds: durationSeconds,
+            })
+            .then(r => r.data.data),
+
+    /**
+     * Lifts a mute before it ends (SCRUM-71). Idempotent like the mute itself:
+     * lifting one that is not there answers the same, 204.
+     */
+    unmuteMember: (serverId: string, userId: string): Promise<void> =>
+        apiClient
+            .delete(`/api/v1/servers/${serverId}/mutes/${userId}`)
             .then(() => undefined),
 
     /**

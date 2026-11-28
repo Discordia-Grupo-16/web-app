@@ -19,4 +19,11 @@ export interface Server {
     my_permissions: number
     /** The same permissions by name. */
     my_permission_names: string[]
+    /**
+     * Until when whoever asked is muted in this server (SCRUM-71), in UTC with
+     * `Z`. `null` if they are not, or if the mute already ended. Only
+     * `GET /servers/{id}` fills it: the server list always carries `null`.
+     * Compare it as a date, never as a string.
+     */
+    my_muted_until: string | null
 }

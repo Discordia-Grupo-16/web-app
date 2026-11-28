@@ -42,6 +42,7 @@ const EVERYONE = role('r1', 'everyone');
 const member = (userId: string, roles: Role[] = []): ServerMember => ({
   user_id: userId,
   joined_at: '2026-10-01T00:00:00Z',
+  muted_until: null,
   roles,
 });
 

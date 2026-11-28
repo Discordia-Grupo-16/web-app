@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
+import { PERMISSION_COPY, PublicProfilesProvider, formatMutedUntil, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
 import { membersService, rolesService } from '@/shared/api';
 import { ProfileViewerContext } from '@/shared/profile/ProfileViewerContext';
@@ -10,7 +10,7 @@ import { MembersSection } from './MembersSection';
 
 vi.mock('@/shared/api', () => ({
     rolesService: { assignRole: vi.fn(), removeRole: vi.fn() },
-    membersService: { banMember: vi.fn(), kickMember: vi.fn() },
+    membersService: { banMember: vi.fn(), kickMember: vi.fn(), muteMember: vi.fn(), unmuteMember: vi.fn() },
 }));
 vi.mock('@discordia/core', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@discordia/core')>()),
@@ -34,12 +34,16 @@ const ADMIN = role('r2', 'Admin', 5);
 const member = (userId: string, roles: Role[] = []): ServerMember => ({
     user_id: userId,
     joined_at: '2026-10-01T00:00:00Z',
+    muted_until: null,
     roles,
 });
+
+const LONG_NAME = 'Un nombre de usuario larguisimo que no entra en ninguna fila de la lista';
 
 const profiles: PublicProfiles = new Map([
     ['milton', { id: 'milton', name: 'Milton', avatarUrl: null, bio: null }],
     ['owner', { id: 'owner', name: 'Bruno', avatarUrl: null, bio: null }],
+    ['verbose', { id: 'verbose', name: LONG_NAME, avatarUrl: null, bio: null }],
 ]);
 
 interface Options {
@@ -48,6 +52,7 @@ interface Options {
     canManage?: boolean;
     canKick?: boolean;
     canBan?: boolean;
+    canModerate?: boolean;
     renderMemberActions?: (member: ServerMember) => ReactNode;
 }
 
@@ -57,11 +62,13 @@ const renderSection = ({
     canManage = true,
     canKick = false,
     canBan = false,
+    canModerate = false,
     renderMemberActions,
 }: Options = {}) => {
     const onRolesChange = vi.fn();
     const onMemberKicked = vi.fn();
     const onMemberBanned = vi.fn();
+    const onMuteChanged = vi.fn();
     const onStale = vi.fn();
     const openProfile = vi.fn();
     const source: PublicProfileSource = {
@@ -79,16 +86,18 @@ const renderSection = ({
                     canManage={canManage}
                     canKick={canKick}
                     canBan={canBan}
+                    canModerate={canModerate}
                     onRolesChange={onRolesChange}
                     onMemberKicked={onMemberKicked}
                     onMemberBanned={onMemberBanned}
+                    onMuteChanged={onMuteChanged}
                     renderMemberActions={renderMemberActions}
                     onStale={onStale}
                 />
             </ProfileViewerContext.Provider>
         </PublicProfilesProvider>,
     );
-    return { onRolesChange, onMemberKicked, onMemberBanned, onStale, openProfile, user: userEvent.setup() };
+    return { onRolesChange, onMemberKicked, onMemberBanned, onMuteChanged, onStale, openProfile, user: userEvent.setup() };
 };
 
 describe('MembersSection', () => {
@@ -409,5 +418,140 @@ describe('MembersSection with a deleted role', () => {
 
         await screen.findByRole('alert');
         expect(onStale).not.toHaveBeenCalled();
+    });
+
+    describe('mutes (SCRUM-71)', () => {
+        const FUTURE = '2099-01-01T15:30:00Z';
+        const PAST = '2020-01-01T15:30:00Z';
+
+        it('offers the mute button with MODERATE_MEMBERS', async () => {
+            renderSection({ canModerate: true });
+            await screen.findByText('Milton');
+
+            expect(screen.getByTitle('Silenciar a Milton')).toBeInTheDocument();
+        });
+
+        it('offers no mute to whoever lacks MODERATE_MEMBERS', async () => {
+            renderSection({ canModerate: false });
+            await screen.findByText('Milton');
+
+            expect(screen.queryByTitle('Silenciar a Milton')).not.toBeInTheDocument();
+        });
+
+        it('never offers to mute the owner or oneself, who the backend refuses', async () => {
+            renderSection({ members: [member('owner'), member('me')], canModerate: true });
+            await screen.findByText('Bruno');
+
+            expect(screen.queryByTitle(/Silenciar a/)).not.toBeInTheDocument();
+        });
+
+        it('marks only the member who is muted, with the end of the mute', async () => {
+            const muted: ServerMember = { ...member('milton'), muted_until: FUTURE };
+            renderSection({ members: [muted, member('ana')] });
+            await screen.findByText('Milton');
+
+            expect(screen.getAllByText(/Silenciado hasta/)).toHaveLength(1);
+            expect(screen.getByText(PERMISSION_COPY.mutedBadge(formatMutedUntil(FUTURE)))).toBeInTheDocument();
+        });
+
+        it('puts the mark on its own line, under a name that is too long, without cutting the role or the mark', async () => {
+            renderSection({ members: [{ ...member('verbose', [MODERADOR]), muted_until: FUTURE }] });
+            const name = await screen.findByText(LONG_NAME);
+            const badge = screen.getByTestId('muted-badge');
+            const role = screen.getByText('Moderador');
+
+            // Only the name gives way, with an ellipsis; the role and the mark are never truncated.
+            expect(name).toHaveClass('truncate');
+            expect(role).not.toHaveClass('truncate');
+            expect(role).toHaveClass('shrink-0');
+            expect(badge).not.toHaveClass('truncate');
+            expect(badge).toHaveTextContent(PERMISSION_COPY.mutedBadge(formatMutedUntil(FUTURE)));
+            // The mark is not on the name's line: it is a sibling of that line, right below it.
+            const nameLine = name.parentElement as HTMLElement;
+            expect(nameLine).toContainElement(role);
+            expect(nameLine).not.toContainElement(badge);
+            expect(nameLine.nextElementSibling).toBe(badge);
+        });
+
+        it('keeps the buttons out of the way of the name: a floating container, apart from it', async () => {
+            const { user } = renderSection({
+                members: [member('verbose', [MODERADOR])],
+                canKick: true,
+                canBan: true,
+                canModerate: true,
+            });
+            const name = await screen.findByText(LONG_NAME);
+            const actions = screen.getByTestId('member-actions-verbose');
+
+            // Not inside the profile button, so the name keeps the whole width of the row.
+            expect(actions).not.toContainElement(name);
+            expect(name.closest('button')).not.toContainElement(actions);
+            for (const title of [
+                PERMISSION_COPY.editMemberRoles(LONG_NAME),
+                PERMISSION_COPY.kickMember(LONG_NAME),
+                PERMISSION_COPY.banMember(LONG_NAME),
+                PERMISSION_COPY.muteMember(LONG_NAME),
+            ]) {
+                expect(actions).toContainElement(screen.getByTitle(title));
+            }
+            // Out of the flow, hidden and not clickable until hover or keyboard focus (jsdom cannot hover).
+            expect(actions).toHaveClass('absolute', 'opacity-0', 'pointer-events-none');
+            expect(actions).toHaveClass('group-hover/member:opacity-100', 'group-hover/member:pointer-events-auto');
+            expect(actions).toHaveClass('group-focus-within/member:opacity-100', 'group-focus-within/member:pointer-events-auto');
+            // Without hover (touch) they sit in a second line, wrapping.
+            expect(actions).toHaveClass('[@media(hover:none)]:static', '[@media(hover:none)]:flex-wrap');
+            // Still reachable: the buttons work.
+            await user.click(screen.getByTitle(PERMISSION_COPY.muteMember(LONG_NAME)));
+            expect(await screen.findByRole('button', { name: 'Silenciar' })).toBeInTheDocument();
+        });
+
+        it('does not draw the actions container when the row has no buttons', async () => {
+            renderSection({
+                members: [member('owner'), member('me')],
+                canManage: false,
+                canKick: true,
+                canBan: true,
+                canModerate: true,
+            });
+            await screen.findByText('Bruno');
+
+            // The owner and oneself are never a target.
+            expect(screen.queryByTestId('member-actions-owner')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('member-actions-me')).not.toBeInTheDocument();
+        });
+
+        it('does not mark a mute that already ended', async () => {
+            renderSection({ members: [{ ...member('milton'), muted_until: PAST }] });
+            await screen.findByText('Milton');
+
+            expect(screen.queryByText(/Silenciado hasta/)).not.toBeInTheDocument();
+        });
+
+        it('mutes from the row and asks for the list to be read again', async () => {
+            vi.mocked(membersService.muteMember).mockResolvedValue({ user_id: 'milton', muted_until: FUTURE, muted_by: 'me' });
+            const { user, onMuteChanged } = renderSection({ canModerate: true });
+            await screen.findByText('Milton');
+
+            await user.click(screen.getByTitle('Silenciar a Milton'));
+            await user.click(screen.getByRole('button', { name: 'Silenciar' }));
+
+            expect(membersService.muteMember).toHaveBeenCalledWith('srv', 'milton', 60);
+            expect(onMuteChanged).toHaveBeenCalled();
+        });
+
+        it('lifts the mute of a muted member from the same button', async () => {
+            vi.mocked(membersService.unmuteMember).mockResolvedValue(undefined);
+            const { user, onMuteChanged } = renderSection({
+                members: [{ ...member('milton'), muted_until: FUTURE }],
+                canModerate: true,
+            });
+            await screen.findByText('Milton');
+
+            await user.click(screen.getByTitle('Levantar el silencio de Milton'));
+            await user.click(screen.getByRole('button', { name: 'Levantar silencio' }));
+
+            expect(membersService.unmuteMember).toHaveBeenCalledWith('srv', 'milton');
+            expect(onMuteChanged).toHaveBeenCalled();
+        });
     });
 });

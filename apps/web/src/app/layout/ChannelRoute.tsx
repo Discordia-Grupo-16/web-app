@@ -1,6 +1,15 @@
 import { useParams } from 'react-router-dom';
 import { Hash, Volume2 } from 'lucide-react';
-import { ADD_REACTIONS, MANAGE_MESSAGES, NONE, SEND_MESSAGES, canJoinVoice, hasPermission, useMarkChannelRead } from '@discordia/core';
+import {
+    ADD_REACTIONS,
+    MANAGE_MESSAGES,
+    NONE,
+    SEND_MESSAGES,
+    canJoinVoice,
+    hasPermission,
+    useMarkChannelRead,
+    useMuteStatus,
+} from '@discordia/core';
 import { ChatPanel } from '@/features/chat';
 import { useCurrentServer } from '@/features/servers';
 import { VoiceChannelPanel } from '@/features/voice';
@@ -15,6 +24,9 @@ export const ChannelRoute = () => {
     const { server } = useCurrentServer();
 
     const channel = server?.channels.find(c => c.id === channelId) ?? null;
+
+    // A moderator's mute (SCRUM-71). Nothing arrives when it ends, so the hook turns it off by itself.
+    const mute = useMuteStatus(server?.my_muted_until ?? null);
 
     // Reading is what the user does with a text channel in front of them: a voice channel has no
     // messages, and a hidden tab does not read what arrives.
@@ -58,7 +70,8 @@ export const ChannelRoute = () => {
                     channelId={channel.id}
                     channelName={channel.name}
                     topic={channel.topic}
-                    canSendMessages={hasPermission(server?.my_permissions ?? NONE, SEND_MESSAGES)}
+                    canSendMessages={hasPermission(server?.my_permissions ?? NONE, SEND_MESSAGES) && !mute.muted}
+                    mutedUntil={mute.until}
                     canManageMessages={hasPermission(server?.my_permissions ?? NONE, MANAGE_MESSAGES)}
                     canAddReactions={hasPermission(server?.my_permissions ?? NONE, ADD_REACTIONS)}
                 />

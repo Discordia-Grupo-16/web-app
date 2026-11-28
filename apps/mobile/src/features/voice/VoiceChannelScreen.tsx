@@ -10,6 +10,7 @@ import {
 } from '@discordia/core';
 import { MicOffIcon } from './MicOffIcon';
 import { VoiceCallParticipantList } from './VoiceCallParticipantList';
+import { serverMutedText } from './serverMutedText';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
 
@@ -42,6 +43,14 @@ export const VoiceChannelScreen = ({ channel, canJoin }: { channel: VoiceChannel
     return (
       <ScrollView className="flex-1 bg-[#23272a]" contentContainerStyle={{ padding: 16, gap: 12 }}>
         <Text className="text-sm font-semibold text-[#3ba55d]">Estás en la llamada</Text>
+        {call.serverMuted && (
+          <View className="flex-row gap-3 rounded-md bg-[#3a3d43] p-3">
+            <MicOffIcon size={18} color="#faa61a" />
+            <Text accessibilityRole="alert" className="flex-1 text-sm text-[#dcddde]">
+              {serverMutedText(call.serverMutedUntil)}
+            </Text>
+          </View>
+        )}
         {!call.micAvailable && (
           <View className="flex-row gap-3 rounded-md bg-[#3a3d43] p-3">
             <MicOffIcon size={18} color="#faa61a" />

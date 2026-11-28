@@ -26,6 +26,20 @@ export interface VoiceRoomParticipants {
     syncedAt: string; // ISO-8601 in UTC; the fraction digits vary, compare it as a date
 }
 
+/**
+ * Whether the user can publish audio in a voice channel, as `chat` re-evaluated it (SCRUM-71).
+ * `remainingSeconds` is calculated by the server, so the client sets its timer without its clock.
+ */
+export interface VoicePublishState {
+    canPublish: boolean;
+    mutedUntil: string | null; // ISO-8601 in UTC with Z
+    remainingSeconds: number; // 0 when canPublish is true
+}
+
+export interface VoicePublishStateResponse {
+    data: VoicePublishState;
+}
+
 export interface ServerVoiceParticipantsResponse {
     data: VoiceRoomParticipants[];
 }

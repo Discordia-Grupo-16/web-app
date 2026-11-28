@@ -5,7 +5,10 @@ import { createLivekitAdapter } from './livekitAdapter';
 import { VoiceProvider } from './VoiceProvider';
 
 vi.mock('@/shared/api', () => ({
-    voiceService: { createVoiceToken: vi.fn(async (id: string) => ({ token: 't', url: 'wss://x', roomName: id, expiresAt: '' })) },
+    voiceService: {
+        createVoiceToken: vi.fn(async (id: string) => ({ token: 't', url: 'wss://x', roomName: id, expiresAt: '' })),
+        refreshVoicePermissions: vi.fn(async () => ({ canPublish: true, mutedUntil: null, remainingSeconds: 0 })),
+    },
 }));
 
 // The listener the controller gives the adapter, so a test can say who is speaking.
@@ -30,6 +33,8 @@ const adapter = {
     muteMicrophone: vi.fn(async () => undefined),
     setLocallyMuted: vi.fn<(userIds: ReadonlySet<string>) => void>(),
     onMicrophoneLost: () => () => undefined,
+    canPublish: () => true,
+    onPublishPermissionChanged: () => () => undefined,
 } satisfies VoiceRoomAdapter;
 
 vi.mock('./livekitAdapter', () => ({ createLivekitAdapter: vi.fn(() => adapter) }));

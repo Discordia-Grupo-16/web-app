@@ -10,6 +10,7 @@ import {
   MANAGE_CHANNELS,
   MANAGE_ROLES,
   MANAGE_SERVER,
+  MODERATE_MEMBERS,
   NONE,
   OWNERSHIP_TEXTS,
   PERMISSION_COPY,
@@ -245,6 +246,7 @@ const canManageServer = hasPermission(permissions, MANAGE_SERVER);
             canManage={canManageRoles}
             canKick={hasPermission(permissions, KICK_MEMBERS)}
             canBan={canBan}
+            canModerate={hasPermission(permissions, MODERATE_MEMBERS)}
             onRolesChange={setMemberRoles}
             onMemberKicked={removeMember}
             onMemberBanned={userId => {
@@ -252,6 +254,7 @@ const canManageServer = hasPermission(permissions, MANAGE_SERVER);
               // Without this the new ban would only show up with the next poll.
               reloadBans();
             }}
+            onMuteChanged={reloadMembers}
             renderMemberActions={renderMemberActions}
             onStale={() => {
               reloadRoles();

@@ -1,7 +1,7 @@
 import type { AxiosInstance } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { createVoiceService } from './service';
-import type { VoiceToken } from './types';
+import type { VoicePublishState, VoiceToken } from './types';
 
 const token: VoiceToken = {
     token: 'jwt',
@@ -57,5 +57,27 @@ describe('createVoiceService createVoiceToken', () => {
         const service = createVoiceService(apiClient as unknown as AxiosInstance);
 
         await expect(service.createVoiceToken('channel-1')).rejects.toMatchObject({ response: { status: 403 } });
+    });
+});
+
+describe('createVoiceService refreshVoicePermissions', () => {
+    const state: VoicePublishState = { canPublish: false, mutedUntil: '2026-11-27T12:10:00Z', remainingSeconds: 42 };
+
+    it('puts to the voice permissions of the channel without a body and unwraps data', async () => {
+        const apiClient = { put: vi.fn(async () => ({ data: { data: state } })) };
+        const service = createVoiceService(apiClient as unknown as AxiosInstance);
+
+        const result = await service.refreshVoicePermissions('channel-1');
+
+        expect(apiClient.put).toHaveBeenCalledWith('/api/v1/channels/channel-1/voice-permissions');
+        expect(result).toEqual(state);
+    });
+
+    it('propagates the Axios error with its status', async () => {
+        const error = Object.assign(new Error('Request failed'), { isAxiosError: true, response: { status: 404 } });
+        const apiClient = { put: vi.fn(async () => Promise.reject(error)) };
+        const service = createVoiceService(apiClient as unknown as AxiosInstance);
+
+        await expect(service.refreshVoicePermissions('channel-1')).rejects.toMatchObject({ response: { status: 404 } });
     });
 });

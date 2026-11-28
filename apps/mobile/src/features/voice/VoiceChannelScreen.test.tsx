@@ -24,7 +24,10 @@ jest.mock('@discordia/core', () => ({
 const general: VoiceChannelRef = { id: 'c1', serverId: 's1', name: 'General' };
 const other: VoiceChannelRef = { id: 'c2', serverId: 's1', name: 'Juegos' };
 
-const connectedTo = (channel: VoiceChannelRef, extra: { micAvailable?: boolean; micBlocked?: boolean } = {}) => ({
+const connectedTo = (
+  channel: VoiceChannelRef,
+  extra: { micAvailable?: boolean; micBlocked?: boolean; serverMuted?: boolean; serverMutedUntil?: string | null } = {},
+) => ({
   status: 'connected' as const,
   channel,
   micAvailable: extra.micAvailable ?? true,
@@ -32,6 +35,8 @@ const connectedTo = (channel: VoiceChannelRef, extra: { micAvailable?: boolean; 
   muted: !(extra.micAvailable ?? true),
   micPending: false,
   reconnecting: false,
+  serverMuted: extra.serverMuted ?? false,
+  serverMutedUntil: extra.serverMutedUntil ?? null,
   participants: [],
 });
 
@@ -39,6 +44,20 @@ describe('VoiceChannelScreen', () => {
   beforeEach(() => {
     jest.mocked(useVoice).mockReturnValue(voiceValue());
     jest.mocked(useVoiceCallParticipants).mockReturnValue(mockAnaOnly);
+  });
+
+  it('tells in the call that a moderator took the microphone away (SCRUM-71)', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general, { serverMuted: true }) }));
+    await render(<VoiceChannelScreen channel={general} canJoin />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.serverMuted);
+  });
+
+  it('says nothing of a mute that is not there', async () => {
+    jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+    await render(<VoiceChannelScreen channel={general} canJoin />);
+
+    expect(screen.queryByText(VOICE_TEXTS.serverMuted)).toBeNull();
   });
 
   it('offers to join without connecting on open', async () => {

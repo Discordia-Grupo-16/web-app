@@ -1,6 +1,6 @@
 import { Text } from 'react-native';
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
-import { PERMISSION_COPY, PublicProfilesProvider, type PublicProfileSource } from '@discordia/core';
+import { PERMISSION_COPY, PublicProfilesProvider, formatMutedUntil, type PublicProfileSource } from '@discordia/core';
 import type { PublicProfiles, Role, ServerMember } from '@discordia/api';
 import { membersService, rolesService } from '@/shared/api';
 import { MembersSection } from './MembersSection';
@@ -8,7 +8,7 @@ import { MembersSection } from './MembersSection';
 jest.useFakeTimers();
 jest.mock('@/shared/api', () => ({
   rolesService: { assignRole: jest.fn(), removeRole: jest.fn() },
-  membersService: { banMember: jest.fn(), kickMember: jest.fn() },
+  membersService: { banMember: jest.fn(), kickMember: jest.fn(), muteMember: jest.fn(), unmuteMember: jest.fn() },
 }));
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush }) }));
@@ -34,12 +34,16 @@ const ADMIN = role('r2', 'Admin', 5);
 const member = (userId: string, roles: Role[] = []): ServerMember => ({
   user_id: userId,
   joined_at: '2026-10-01T00:00:00Z',
+  muted_until: null,
   roles,
 });
+
+const LONG_NAME = 'Un nombre de usuario larguisimo que no entra en ninguna fila de la lista';
 
 const profiles: PublicProfiles = new Map([
   ['milton', { id: 'milton', name: 'Milton', avatarUrl: null, bio: null }],
   ['owner', { id: 'owner', name: 'Bruno', avatarUrl: null, bio: null }],
+  ['verbose', { id: 'verbose', name: LONG_NAME, avatarUrl: null, bio: null }],
 ]);
 
 interface Options {
@@ -48,6 +52,7 @@ interface Options {
   canManage?: boolean;
   canKick?: boolean;
   canBan?: boolean;
+  canModerate?: boolean;
   renderMemberActions?: (member: ServerMember) => React.ReactNode;
 }
 
@@ -57,11 +62,13 @@ const renderSection = async ({
   canManage = true,
   canKick = false,
   canBan = false,
+  canModerate = false,
   renderMemberActions,
 }: Options = {}) => {
   const onRolesChange = jest.fn();
   const onMemberKicked = jest.fn();
   const onMemberBanned = jest.fn();
+  const onMuteChanged = jest.fn();
   const onStale = jest.fn();
   const source: PublicProfileSource = {
     getPublicProfiles: async () => profiles,
@@ -78,15 +85,17 @@ const renderSection = async ({
         canManage={canManage}
         canKick={canKick}
         canBan={canBan}
+        canModerate={canModerate}
         onRolesChange={onRolesChange}
         onMemberKicked={onMemberKicked}
         onMemberBanned={onMemberBanned}
+        onMuteChanged={onMuteChanged}
         renderMemberActions={renderMemberActions}
         onStale={onStale}
       />
     </PublicProfilesProvider>,
   );
-  return { onRolesChange, onMemberKicked, onMemberBanned, onStale, user };
+  return { onRolesChange, onMemberKicked, onMemberBanned, onMuteChanged, onStale, user };
 };
 
 // A Switch reports through onValueChange, and act() is what flushes the re-render.
@@ -425,5 +434,107 @@ describe('MembersSection con un rol eliminado (SCRUM-64)', () => {
 
     await screen.findByText(/por encima/);
     expect(onStale).not.toHaveBeenCalled();
+  });
+});
+
+describe('MembersSection mutes (SCRUM-71)', () => {
+  const FUTURE = '2099-01-01T15:30:00Z';
+  const PAST = '2020-01-01T15:30:00Z';
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('offers the mute button with MODERATE_MEMBERS', async () => {
+    await renderSection({ canModerate: true });
+    await screen.findByText('Milton');
+
+    expect(screen.getByLabelText('Silenciar a Milton')).toBeOnTheScreen();
+  });
+
+  it('offers no mute to whoever lacks MODERATE_MEMBERS', async () => {
+    await renderSection({ canModerate: false });
+    await screen.findByText('Milton');
+
+    expect(screen.queryByLabelText('Silenciar a Milton')).toBeNull();
+  });
+
+  it('never offers to mute the owner or oneself, who the backend refuses', async () => {
+    await renderSection({ members: [member('owner'), member('me')], canModerate: true });
+    await screen.findByText('Bruno');
+
+    expect(screen.queryByLabelText(/Silenciar a/)).toBeNull();
+  });
+
+  it('splits the row in two: name, role and mark above, the buttons below', async () => {
+    await renderSection({
+      members: [{ ...member('verbose', [MODERADOR]), muted_until: FUTURE }],
+      canKick: true,
+      canModerate: true,
+    });
+    const name = await screen.findByText(LONG_NAME);
+    const badge = screen.getByText(PERMISSION_COPY.mutedBadge(formatMutedUntil(FUTURE)));
+
+    // The name is the only thing that is cut; the mark is not.
+    expect(name).toHaveProp('numberOfLines', 1);
+    expect(badge.props.numberOfLines).toBeUndefined();
+    // The role shares the name's line; the mark goes under it.
+    expect(screen.getByText('Moderador').parent).toBe(name.parent);
+    expect(badge.parent).not.toBe(name.parent);
+    // The buttons live in their own row (its flex-wrap is a NativeWind class, which Jest does not compile).
+    const actions = screen.getByTestId('member-actions-verbose');
+    expect(actions).toContainElement(screen.getByLabelText(PERMISSION_COPY.kickMember(LONG_NAME)));
+    expect(actions).toContainElement(screen.getByLabelText(PERMISSION_COPY.unmuteMember(LONG_NAME)));
+    expect(actions).not.toContainElement(name);
+    expect(actions).not.toContainElement(badge);
+  });
+
+  it('does not draw the actions row when the member has no buttons', async () => {
+    await renderSection({ members: [member('milton')], canManage: false });
+    await screen.findByText('Milton');
+
+    expect(screen.queryByTestId('member-actions-milton')).toBeNull();
+  });
+
+  it('marks only the member who is muted, with the end of the mute', async () => {
+    await renderSection({ members: [{ ...member('milton'), muted_until: FUTURE }, member('owner')] });
+    await screen.findByText('Milton');
+
+    expect(screen.getAllByText(/Silenciado hasta/)).toHaveLength(1);
+    expect(screen.getByText(PERMISSION_COPY.mutedBadge(formatMutedUntil(FUTURE)))).toBeOnTheScreen();
+  });
+
+  it('does not mark a mute that already ended', async () => {
+    await renderSection({ members: [{ ...member('milton'), muted_until: PAST }] });
+    await screen.findByText('Milton');
+
+    expect(screen.queryByText(/Silenciado hasta/)).toBeNull();
+  });
+
+  it('mutes from the row and asks for the list to be read again', async () => {
+    jest.mocked(membersService.muteMember).mockResolvedValue({ user_id: 'milton', muted_until: FUTURE, muted_by: 'me' });
+    const { user, onMuteChanged } = await renderSection({ canModerate: true });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText('Silenciar a Milton'));
+    await user.press(screen.getByText('Silenciar'));
+
+    expect(membersService.muteMember).toHaveBeenCalledWith('srv', 'milton', 60);
+    expect(onMuteChanged).toHaveBeenCalled();
+  });
+
+  it('lifts the mute of a muted member from the same button', async () => {
+    jest.mocked(membersService.unmuteMember).mockResolvedValue(undefined);
+    const { user, onMuteChanged } = await renderSection({
+      members: [{ ...member('milton'), muted_until: FUTURE }],
+      canModerate: true,
+    });
+    await screen.findByText('Milton');
+
+    await user.press(screen.getByLabelText('Levantar el silencio de Milton'));
+    await user.press(screen.getByText('Levantar silencio'));
+
+    expect(membersService.unmuteMember).toHaveBeenCalledWith('srv', 'milton');
+    expect(onMuteChanged).toHaveBeenCalled();
   });
 });

@@ -70,6 +70,7 @@ const server = (myPermissions: number, ownerId = OWNER): Server => ({
     created_at: '2026-10-01T00:00:00Z',
     my_permissions: myPermissions,
     my_permission_names: [],
+    my_muted_until: null,
     channels: [
         {
             id: 'c1',
@@ -88,11 +89,12 @@ const server = (myPermissions: number, ownerId = OWNER): Server => ({
 const MILTON: ServerMember = {
     user_id: 'milton',
     joined_at: '2026-10-01T00:00:00Z',
+    muted_until: null,
     roles: [],
 };
 
 // The owner is a member too: the member list always has their row.
-const OWNER_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [] };
+const OWNER_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [], muted_until: null };
 
 const BAN_OF_MILTON: ServerBan = {
     user_id: 'milton',
@@ -312,7 +314,7 @@ describe('ServerPanel: transferir la propiedad', () => {
         created_at: '2026-11-05T10:00:00Z',
         resolved_at: null,
     };
-    const ME_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [] };
+    const ME_AS_MEMBER: ServerMember = { user_id: ME, joined_at: '2026-10-01T00:00:00Z', roles: [], muted_until: null };
     const transferButtons = () => screen.queryAllByRole('button', { name: 'Transferir servidor' });
 
     beforeEach(() => {

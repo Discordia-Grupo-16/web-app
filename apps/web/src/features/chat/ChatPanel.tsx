@@ -8,6 +8,8 @@ interface ChatPanelProps {
     channelName: string;
     topic: string | null;
     canSendMessages: boolean;
+    /** Until when a moderator's mute lasts, if it is on: the composer says so (SCRUM-71). */
+    mutedUntil?: string | null;
     /** MANAGE_MESSAGES, resolved by `community`. The backend checks it too: this only shows the option. */
     canManageMessages: boolean;
     /** ADD_REACTIONS, resolved by `community`. The backend checks it too: this only shows the option. */
@@ -19,6 +21,7 @@ export const ChatPanel = ({
     channelName,
     topic,
     canSendMessages,
+    mutedUntil = null,
     canManageMessages,
     canAddReactions,
 }: ChatPanelProps) => {
@@ -69,6 +72,7 @@ export const ChatPanel = ({
                 rejected={rejected}
                 onRejectedHandled={clearRejected}
                 canSendMessages={canSendMessages}
+                mutedUntil={mutedUntil}
             />
         </div>
     );

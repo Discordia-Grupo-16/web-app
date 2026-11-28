@@ -1,12 +1,13 @@
 import type { AxiosInstance } from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { createMembersService } from './service';
-import type { ServerBan, ServerMember } from './types';
+import type { ServerBan, ServerMember, ServerMute } from './types';
 
 const member: ServerMember = {
     user_id: 'u1',
     joined_at: '2026-10-01T00:00:00Z',
     roles: [],
+    muted_until: null,
 };
 
 const setup = () => {
@@ -67,6 +68,42 @@ describe('createMembersService kickMember', () => {
         await service.kickMember('srv', 'u1');
 
         expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/servers/srv/members/u1');
+    });
+});
+
+describe('createMembersService muteMember', () => {
+    const mute: ServerMute = {
+        user_id: 'u1',
+        muted_until: '2026-11-27T12:10:00Z',
+        muted_by: 'u2',
+    };
+
+    it('puts the duration as JSON to the mutes path of the server and returns the mute', async () => {
+        const apiClient = { put: vi.fn(async () => ({ data: { data: mute } })) };
+        const service = createMembersService(apiClient as unknown as AxiosInstance);
+
+        const result = await service.muteMember('srv', 'u1', 600);
+
+        expect(apiClient.put).toHaveBeenCalledWith('/api/v1/servers/srv/mutes/u1', { duration_seconds: 600 });
+        expect(result).toEqual(mute);
+    });
+
+    it('propagates the Axios error with its status', async () => {
+        const error = Object.assign(new Error('Request failed'), { isAxiosError: true, response: { status: 403 } });
+        const apiClient = { put: vi.fn(async () => Promise.reject(error)) };
+        const service = createMembersService(apiClient as unknown as AxiosInstance);
+
+        await expect(service.muteMember('srv', 'u1', 600)).rejects.toMatchObject({ response: { status: 403 } });
+    });
+});
+
+describe('createMembersService unmuteMember', () => {
+    it('deletes the mute path of the server', async () => {
+        const { apiClient, service } = setup();
+
+        await service.unmuteMember('srv', 'u1');
+
+        expect(apiClient.delete).toHaveBeenCalledWith('/api/v1/servers/srv/mutes/u1');
     });
 });
 

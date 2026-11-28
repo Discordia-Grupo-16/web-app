@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { VoiceToken } from '@discordia/api';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { VoicePublishState, VoiceToken } from '@discordia/api';
+import { MAX_TIMEOUT_MS } from '../moderation/mute';
 import { NO_LOCAL_MUTES, NO_SPEAKERS } from './participants';
 import { useVoiceController } from './useVoiceController';
 import type {
@@ -41,11 +42,13 @@ const createFakeAdapter = () => {
     const reconnecting = new Set<(value: boolean) => void>();
     const micLost = new Set<(cause: MicLossCause) => void>();
     const speakers = new Set<(userIds: ReadonlySet<string>) => void>();
+    const publishPermission = new Set<(canPublish: boolean) => void>();
     const subscribe = <T>(set: Set<T>) => (listener: T) => {
         set.add(listener);
         return () => set.delete(listener);
     };
     let mic: MicResult = 'ok';
+    let canPublish = true;
     const adapter = {
         connect: vi.fn(async (_url: string, _token: string) => undefined),
         disconnect: vi.fn(async () => undefined),
@@ -57,6 +60,8 @@ const createFakeAdapter = () => {
         muteMicrophone: vi.fn(async () => undefined),
         setLocallyMuted: vi.fn((_userIds: ReadonlySet<string>) => undefined),
         onMicrophoneLost: subscribe(micLost),
+        canPublish: vi.fn(() => canPublish),
+        onPublishPermissionChanged: subscribe(publishPermission),
         onAudioPlaybackBlocked: subscribe(playback),
         startAudio: vi.fn(async () => undefined),
     } satisfies VoiceRoomAdapter;
@@ -65,27 +70,34 @@ const createFakeAdapter = () => {
         setMic: (result: MicResult) => {
             mic = result;
         },
+        // What the room says the local participant may do once it is connected.
+        setCanPublish: (value: boolean) => {
+            canPublish = value;
+        },
         emitDisconnected: (info: RoomDisconnectInfo) => act(() => disconnected.forEach((l) => l(info))),
         emitParticipants: (snapshot: VoiceParticipant[]) => act(() => participants.forEach((l) => l(snapshot))),
         emitSpeakers: (ids: string[]) => act(() => speakers.forEach((l) => l(new Set(ids)))),
         emitPlaybackBlocked: (blocked: boolean) => act(() => playback.forEach((l) => l(blocked))),
         emitReconnecting: (value: boolean) => act(() => reconnecting.forEach((l) => l(value))),
         emitMicrophoneLost: (cause: MicLossCause) => act(() => micLost.forEach((l) => l(cause))),
+        emitPublishPermission: (value: boolean) => act(() => publishPermission.forEach((l) => l(value))),
     };
 };
 
 describe('useVoiceController', () => {
     let fake: ReturnType<typeof createFakeAdapter>;
     let requestToken: ReturnType<typeof vi.fn<(channelId: string) => Promise<VoiceToken>>>;
+    let refreshPermissions: ReturnType<typeof vi.fn<(channelId: string) => Promise<VoicePublishState>>>;
 
     beforeEach(() => {
         fake = createFakeAdapter();
         requestToken = vi.fn(async (channelId: string) => tokenFor(channelId));
+        refreshPermissions = vi.fn(async () => ({ canPublish: true, mutedUntil: null, remainingSeconds: 0 }));
     });
 
     const render = (overrides: Partial<VoiceControllerOptions> = {}) =>
         renderHook((props: VoiceControllerOptions) => useVoiceController(props), {
-            initialProps: { adapter: fake.adapter, requestToken, ...overrides },
+            initialProps: { adapter: fake.adapter, requestToken, refreshPermissions, ...overrides },
         });
 
     const joinAndWait = async (result: ReturnType<typeof render>['result'], channel: VoiceChannelRef) => {
@@ -115,6 +127,8 @@ describe('useVoiceController', () => {
             micPending: false,
             reconnecting: false,
             participants: [ana, me],
+            serverMuted: false,
+            serverMutedUntil: null,
         });
 
         fake.emitParticipants([me]);
@@ -1048,6 +1062,296 @@ describe('useVoiceController', () => {
             act(() => result.current.value.toggleLocalMute('ana'));
 
             expect(result.current.speakingIds).toBe(before);
+        });
+    });
+
+    describe('muted by a moderator (SCRUM-71, Silenciar temporalmente a un miembro)', () => {
+        const UNTIL = '2026-11-27T12:10:00Z';
+        const stillMuted = (remainingSeconds: number): VoicePublishState => ({
+            canPublish: false,
+            mutedUntil: UNTIL,
+            remainingSeconds,
+        });
+        const free: VoicePublishState = { canPublish: true, mutedUntil: null, remainingSeconds: 0 };
+        const deferred = <T,>() => {
+            let resolve: (value: T) => void = () => undefined;
+            const promise = new Promise<T>((r) => (resolve = r));
+            return { promise, resolve };
+        };
+        const connectedCall = (result: ReturnType<typeof render>['result']) => {
+            const { call } = result.current.value;
+            expect(call.status).toBe('connected');
+            return call as Extract<VoiceCall, { status: 'connected' }>;
+        };
+        // waitFor does not work with fake timers: the promises are flushed by moving the clock by zero.
+        const advance = (ms: number) =>
+            act(async () => {
+                await vi.advanceTimersByTimeAsync(ms);
+            });
+        const joinWithClock = async (result: ReturnType<typeof render>['result'], channel: VoiceChannelRef) => {
+            act(() => result.current.value.join(channel));
+            await advance(0);
+            expect(connectedCall(result).channel.id).toBe(channel.id);
+        };
+        const muteByModerator = async (remainingSeconds = 30) => {
+            refreshPermissions.mockResolvedValue(stillMuted(remainingSeconds));
+            fake.emitPublishPermission(false);
+            await advance(0);
+        };
+
+        beforeEach(() => {
+            vi.useFakeTimers();
+            refreshPermissions.mockResolvedValue(stillMuted(30));
+        });
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it('enters muted without asking for the microphone, and asks chat how long it lasts', async () => {
+            fake.setCanPublish(false);
+            const { result } = render();
+
+            await joinWithClock(result, A);
+
+            expect(connectedCall(result)).toMatchObject({
+                serverMuted: true,
+                serverMutedUntil: UNTIL,
+                muted: true,
+                micAvailable: true,
+                micPending: false,
+            });
+            expect(fake.adapter.enableMicrophone).not.toHaveBeenCalled();
+            expect(refreshPermissions).toHaveBeenCalledWith('channel-a');
+        });
+
+        it('keeps the microphone as unavailable when it was already, even muted by a moderator', async () => {
+            fake.setMic('blocked');
+            const { result } = render();
+            await joinWithClock(result, A);
+            fake.setCanPublish(false);
+
+            act(() => result.current.value.join(B));
+            await advance(0);
+
+            expect(connectedCall(result)).toMatchObject({
+                channel: B,
+                serverMuted: true,
+                micAvailable: false,
+                micBlocked: true,
+            });
+        });
+
+        it('turns the call muted and asks chat when the adapter says it cannot publish, then asks again when the mute ends', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            expect(connectedCall(result)).toMatchObject({ serverMuted: false, muted: false });
+
+            await muteByModerator(30);
+
+            expect(connectedCall(result)).toMatchObject({ serverMuted: true, muted: true, serverMutedUntil: UNTIL });
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+            // Half a second more than chat said, so the mute is over when it asks.
+            await advance(30_499);
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+            await advance(1);
+            expect(refreshPermissions).toHaveBeenCalledTimes(2);
+        });
+
+        it('sets the timer again with the new time when the answer comes early (CA9)', async () => {
+            refreshPermissions.mockResolvedValueOnce(stillMuted(30)).mockResolvedValueOnce(stillMuted(5)).mockResolvedValue(free);
+            const { result } = render();
+            await joinWithClock(result, A);
+            fake.emitPublishPermission(false);
+            await advance(0);
+
+            await advance(30_500);
+            expect(refreshPermissions).toHaveBeenCalledTimes(2);
+            await advance(5_499);
+            expect(refreshPermissions).toHaveBeenCalledTimes(2);
+            await advance(1);
+            expect(refreshPermissions).toHaveBeenCalledTimes(3);
+
+            // chat said it can publish: nothing is left to wait for, the adapter is the one that frees the call.
+            await advance(120_000);
+            expect(refreshPermissions).toHaveBeenCalledTimes(3);
+            expect(connectedCall(result).serverMuted).toBe(true);
+        });
+
+        it('asks again on every notice, replacing the timer of the previous mute', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            await muteByModerator(30);
+
+            await muteByModerator(300);
+
+            expect(refreshPermissions).toHaveBeenCalledTimes(2);
+            await advance(30_500);
+            expect(refreshPermissions).toHaveBeenCalledTimes(2);
+            await advance(270_000);
+            expect(refreshPermissions).toHaveBeenCalledTimes(3);
+        });
+
+        it('frees the call when the adapter says it can publish, cancels the timer and leaves the microphone off', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            await muteByModerator();
+
+            fake.emitPublishPermission(true);
+
+            expect(connectedCall(result)).toMatchObject({ serverMuted: false, serverMutedUntil: null, muted: true });
+            await advance(120_000);
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+            expect(fake.adapter.enableMicrophone).toHaveBeenCalledTimes(1);
+
+            // The user turns it on with the usual button.
+            act(() => result.current.value.toggleMute());
+            await advance(0);
+            expect(fake.adapter.enableMicrophone).toHaveBeenCalledTimes(2);
+            expect(connectedCall(result)).toMatchObject({ muted: false, micAvailable: true });
+        });
+
+        it('ignores a notice that it can publish when the call was not muted', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            const before = result.current.value.call;
+
+            fake.emitPublishPermission(true);
+
+            expect(result.current.value.call).toBe(before);
+        });
+
+        it('does nothing on toggleMute while it is muted by a moderator', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            await muteByModerator();
+            const before = result.current.value.call;
+
+            act(() => result.current.value.toggleMute());
+            await advance(0);
+
+            expect(result.current.value.call).toBe(before);
+            expect(fake.adapter.enableMicrophone).toHaveBeenCalledTimes(1);
+            expect(fake.adapter.muteMicrophone).not.toHaveBeenCalled();
+        });
+
+        it('does not let a microphone answer that was in flight turn the call on', async () => {
+            const mic = deferred<MicResult>();
+            fake.adapter.enableMicrophone.mockImplementationOnce(() => mic.promise);
+            const { result } = render();
+            await joinWithClock(result, A);
+            expect(connectedCall(result).micPending).toBe(true);
+
+            await muteByModerator();
+            await act(async () => mic.resolve('ok'));
+
+            expect(connectedCall(result)).toMatchObject({ serverMuted: true, muted: true, micPending: false });
+        });
+
+        it('retries once, after 5 seconds, when asking chat fails', async () => {
+            refreshPermissions.mockRejectedValue(httpError(500));
+            const { result } = render();
+            await joinWithClock(result, A);
+            fake.emitPublishPermission(false);
+            await advance(0);
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+
+            await advance(4_999);
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+            await advance(1);
+            expect(refreshPermissions).toHaveBeenCalledTimes(2);
+
+            await advance(120_000);
+            expect(refreshPermissions).toHaveBeenCalledTimes(2);
+            expect(connectedCall(result).serverMuted).toBe(true);
+        });
+
+        it('waits in pieces for a mute of 28 days, since a timer cannot hold more than about 24 days', async () => {
+            const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+            const { result } = render();
+            await joinWithClock(result, A);
+
+            await muteByModerator(2_419_200);
+
+            // An overflowed delay would fire at once and ask chat again right away.
+            await advance(1000);
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+            await advance(MAX_TIMEOUT_MS);
+            expect(refreshPermissions).toHaveBeenCalledTimes(2);
+            const delays = setTimeoutSpy.mock.calls.map(([, delay]) => delay ?? 0);
+            expect(delays.every((delay) => delay <= MAX_TIMEOUT_MS)).toBe(true);
+            expect(connectedCall(result).serverMuted).toBe(true);
+        });
+
+        it('stops asking when the user leaves the call', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            await muteByModerator();
+
+            act(() => result.current.value.leave());
+            await advance(120_000);
+
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+        });
+
+        it('stops asking when the room drops', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            await muteByModerator();
+
+            fake.emitDisconnected({ cause: 'connection_lost', serverReason: null });
+            await advance(120_000);
+
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+        });
+
+        it('stops asking when the app cuts the call', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            await muteByModerator();
+
+            act(() => result.current.disconnectWithReason('app_backgrounded'));
+            await advance(120_000);
+
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+        });
+
+        it('stops asking when the controller unmounts', async () => {
+            const { result, unmount } = render();
+            await joinWithClock(result, A);
+            await muteByModerator();
+
+            unmount();
+            await advance(120_000);
+
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+        });
+
+        it('stops asking about the room it leaves when it switches to another', async () => {
+            const { result } = render();
+            await joinWithClock(result, A);
+            await muteByModerator();
+
+            act(() => result.current.value.join(B));
+            await advance(0);
+            expect(connectedCall(result)).toMatchObject({ channel: B, serverMuted: false });
+            await advance(120_000);
+
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
+        });
+
+        it('drops the answer that arrives after the call ended', async () => {
+            const answer = deferred<VoicePublishState>();
+            refreshPermissions.mockImplementationOnce(() => answer.promise);
+            const { result } = render();
+            await joinWithClock(result, A);
+            fake.emitPublishPermission(false);
+
+            act(() => result.current.value.leave());
+            await act(async () => answer.resolve(stillMuted(30)));
+            await advance(120_000);
+
+            expect(result.current.value.call).toEqual({ status: 'idle' });
+            expect(refreshPermissions).toHaveBeenCalledTimes(1);
         });
     });
 });

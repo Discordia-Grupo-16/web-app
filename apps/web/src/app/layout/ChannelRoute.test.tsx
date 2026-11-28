@@ -10,10 +10,19 @@ import { ChannelRoute } from './ChannelRoute';
 vi.mock('@/shared/api', () => ({ serversService: { getServer: vi.fn() } }));
 // El chat real abre un socket: no es lo que este test mira.
 vi.mock('@/features/chat', () => ({
-    ChatPanel: ({ channelName, canSendMessages }: { channelName: string; canSendMessages: boolean }) => (
+    ChatPanel: ({
+        channelName,
+        canSendMessages,
+        mutedUntil,
+    }: {
+        channelName: string;
+        canSendMessages: boolean;
+        mutedUntil?: string | null;
+    }) => (
         <>
             <p>chat de {channelName}</p>
             <div>{canSendMessages ? 'puede escribir' : PERMISSION_COPY.cannotSendMessage(channelName)}</div>
+            {mutedUntil && <div>silenciado hasta {mutedUntil}</div>}
         </>
     ),
 }));
@@ -37,7 +46,7 @@ const channel = (id: string, name: string, type: Channel['type']): Channel => ({
     created_at: '2026-10-01T00:00:00Z',
 });
 
-const server = (myPermissions = VIEW_CHANNEL | SEND_MESSAGES | CONNECT): Server => ({
+const server = (myPermissions = VIEW_CHANNEL | SEND_MESSAGES | CONNECT, myMutedUntil: string | null = null): Server => ({
     id: 'srv',
     name: 'Discordia',
     description: null,
@@ -46,6 +55,7 @@ const server = (myPermissions = VIEW_CHANNEL | SEND_MESSAGES | CONNECT): Server 
     created_at: '2026-10-01T00:00:00Z',
     my_permissions: myPermissions,
     my_permission_names: [],
+    my_muted_until: myMutedUntil,
     channels: [channel('c1', 'general', 'text'), channel('c2', 'lobby', 'voice')],
     categories: [],
 });
@@ -130,6 +140,59 @@ describe('ChannelRoute y SEND_MESSAGES', () => {
             expect(
                 screen.getByText(PERMISSION_COPY.cannotSendMessage('general')),
             ).toBeInTheDocument(),
+        );
+    });
+});
+
+describe('ChannelRoute y el silencio de un moderador (SCRUM-71)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('con el silencio vigente, bloquea el compositor aunque tenga SEND_MESSAGES y le pasa la hora', async () => {
+        const until = '2099-01-01T15:30:00Z';
+        vi.mocked(serversService.getServer).mockResolvedValue(server(VIEW_CHANNEL | SEND_MESSAGES, until));
+
+        renderAt('c1');
+
+        expect(await screen.findByText(PERMISSION_COPY.cannotSendMessage('general'))).toBeInTheDocument();
+        expect(screen.getByText(`silenciado hasta ${until}`)).toBeInTheDocument();
+        expect(screen.queryByText('puede escribir')).not.toBeInTheDocument();
+    });
+
+    it('con el silencio vencido, el compositor se puede usar', async () => {
+        vi.mocked(serversService.getServer).mockResolvedValue(
+            server(VIEW_CHANNEL | SEND_MESSAGES, '2020-01-01T15:30:00Z'),
+        );
+
+        renderAt('c1');
+
+        expect(await screen.findByText('puede escribir')).toBeInTheDocument();
+        expect(screen.queryByText(/silenciado hasta/)).not.toBeInTheDocument();
+    });
+
+    it('libera el compositor solo cuando vence, sin que llegue nada del servidor', async () => {
+        const until = new Date(Date.now() + 1200).toISOString();
+        vi.mocked(serversService.getServer).mockResolvedValue(server(VIEW_CHANNEL | SEND_MESSAGES, until));
+        renderAt('c1');
+        await screen.findByText(PERMISSION_COPY.cannotSendMessage('general'));
+
+        await waitFor(() => expect(screen.getByText('puede escribir')).toBeInTheDocument(), { timeout: 3000 });
+        expect(screen.queryByText(/silenciado hasta/)).not.toBeInTheDocument();
+    });
+
+    it('se silencia al llegar el aviso de permisos, sin cambiar de canal', async () => {
+        vi.mocked(serversService.getServer).mockResolvedValue(server(VIEW_CHANNEL | SEND_MESSAGES));
+        renderAt('c1');
+        await screen.findByText('puede escribir');
+
+        vi.mocked(serversService.getServer).mockResolvedValue(
+            server(VIEW_CHANNEL | SEND_MESSAGES, '2099-01-01T15:30:00Z'),
+        );
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        await waitFor(() =>
+            expect(screen.getByText(PERMISSION_COPY.cannotSendMessage('general'))).toBeInTheDocument(),
         );
     });
 });

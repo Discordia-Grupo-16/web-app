@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => {
     type Handler = (...args: unknown[]) => void;
     class FakeParticipant {
         attributes: Record<string, string> = {};
+        permissions?: { canPublish: boolean };
         isMicrophoneEnabled = true;
         identity: string;
         joinedAt?: Date;
@@ -110,6 +111,8 @@ vi.mock('livekit-client', () => ({
         LocalTrackUnpublished: 'localTrackUnpublished',
         AudioPlaybackStatusChanged: 'audioPlaybackChanged',
         ActiveSpeakersChanged: 'activeSpeakersChanged',
+        ParticipantPermissionsChanged: 'participantPermissionsChanged',
+        ParticipantAttributesChanged: 'participantAttributesChanged',
     },
 }));
 
@@ -635,5 +638,78 @@ describe('createLivekitAdapter', () => {
 
             expect(causes).toEqual([]);
         });
+    });
+});
+
+describe('createLivekitAdapter and the right to publish (SCRUM-71)', () => {
+    beforeEach(() => {
+        mocks.FakeRoom.instances = [];
+        mocks.FakeRoom.connectError = null;
+    });
+
+    it('can publish without a room and when the token says nothing about it', async () => {
+        const adapter = createLivekitAdapter();
+        expect(adapter.canPublish()).toBe(true);
+
+        await adapter.connect('wss://voice.example.com', 'jwt');
+
+        expect(adapter.canPublish()).toBe(true);
+    });
+
+    it('reads the permission of the local participant', async () => {
+        const { adapter, room } = await connected();
+        room.localParticipant.permissions = { canPublish: false };
+
+        expect(adapter.canPublish()).toBe(false);
+    });
+
+    it('says so when the permission of the local participant changes', async () => {
+        const { adapter, room } = await connected();
+        const heard: boolean[] = [];
+        adapter.onPublishPermissionChanged((canPublish) => heard.push(canPublish));
+
+        room.localParticipant.permissions = { canPublish: false };
+        room.emit('participantPermissionsChanged', { canPublish: true }, room.localParticipant);
+        room.localParticipant.permissions = { canPublish: true };
+        room.emit('participantPermissionsChanged', { canPublish: false }, room.localParticipant);
+
+        expect(heard).toEqual([false, true]);
+    });
+
+    it('says so when only the mutedUntil attribute changes: a mute that replaces another', async () => {
+        const { adapter, room } = await connected();
+        const heard: boolean[] = [];
+        adapter.onPublishPermissionChanged((canPublish) => heard.push(canPublish));
+        room.localParticipant.permissions = { canPublish: false };
+
+        room.emit('participantAttributesChanged', { mutedUntil: '2026-11-27T15:00:00Z' }, room.localParticipant);
+
+        expect(heard).toEqual([false]);
+    });
+
+    it('ignores other attributes and other participants', async () => {
+        const { adapter, room } = await connected();
+        const heard: boolean[] = [];
+        adapter.onPublishPermissionChanged((canPublish) => heard.push(canPublish));
+        const ana = new mocks.FakeParticipant('ana');
+
+        room.emit('participantAttributesChanged', { disconnectReason: 'x' }, room.localParticipant);
+        room.emit('participantAttributesChanged', { mutedUntil: '2026-11-27T15:00:00Z' }, ana);
+        room.emit('participantPermissionsChanged', { canPublish: true }, ana);
+
+        expect(heard).toEqual([]);
+    });
+
+    it('ignores a room that was already left and stops listening when asked', async () => {
+        const { adapter, room } = await connected();
+        const heard: boolean[] = [];
+        const stop = adapter.onPublishPermissionChanged((canPublish) => heard.push(canPublish));
+        await adapter.disconnect();
+
+        room.emit('participantPermissionsChanged', { canPublish: true }, room.localParticipant);
+        stop();
+
+        expect(heard).toEqual([]);
+        expect(adapter.canPublish()).toBe(true);
     });
 });

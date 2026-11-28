@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { Mic, MicOff, PhoneOff, Signal, X } from 'lucide-react';
 import { canRejoin, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS } from '@discordia/core';
+import { serverMutedShortText, serverMutedText } from './serverMutedText';
 
 const channelPath = (serverId: string, channelId: string) => `/servers/${serverId}/channels/${channelId}`;
 
@@ -11,6 +12,7 @@ const barStyle = { background: '#292b2f', borderTop: '1px solid #202225' };
 export const VoiceBar = () => {
     const { call, attempt, rejoin, leave, toggleMute, dismiss } = useVoice();
     const noMicId = useId();
+    const serverMutedId = useId();
     if (call.status === 'idle') return null;
 
     if (call.status === 'disconnected') {
@@ -63,20 +65,30 @@ export const VoiceBar = () => {
                 >
                     {call.channel.name}
                 </Link>
+                {call.serverMuted && (
+                    <p role="status" className="text-xs mt-0.5 break-words" style={{ color: '#faa61a' }}>
+                        {serverMutedShortText(call.serverMutedUntil)}
+                    </p>
+                )}
             </div>
             <button
                 onClick={toggleMute}
-                disabled={call.micPending || joining}
+                disabled={call.micPending || joining || call.serverMuted}
                 aria-label={call.muted ? VOICE_TEXTS.unmute : VOICE_TEXTS.mute}
                 aria-pressed={call.muted}
                 aria-busy={call.micPending || undefined}
-                aria-describedby={noMic ? noMicId : undefined}
+                aria-describedby={call.serverMuted ? serverMutedId : noMic ? noMicId : undefined}
                 title={noMic ? VOICE_TEXTS.noMic : call.muted ? VOICE_TEXTS.unmute : VOICE_TEXTS.mute}
                 className="p-1.5 rounded shrink-0 transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
                 style={{ color: micColor }}
             >
                 {call.muted ? <MicOff size={18} /> : <Mic size={18} />}
             </button>
+            {call.serverMuted && (
+                <span id={serverMutedId} hidden>
+                    {serverMutedText(call.serverMutedUntil)}
+                </span>
+            )}
             {noMic && (
                 <span id={noMicId} hidden>
                     {VOICE_TEXTS.noMic}
