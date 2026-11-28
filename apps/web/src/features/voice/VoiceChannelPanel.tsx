@@ -1,4 +1,4 @@
-import { MicOff, Volume2, VolumeX } from 'lucide-react';
+import { MicOff, VideoOff, Volume2, VolumeX } from 'lucide-react';
 import {
     isRetryableJoinError,
     useVoice,
@@ -8,7 +8,7 @@ import {
     type VoiceChannelRef,
     type VoiceParticipant,
 } from '@discordia/core';
-import { VoiceCallParticipantList } from './VoiceCallParticipantList';
+import { VoiceCallGrid } from './VoiceCallGrid';
 import { serverMutedText } from './serverMutedText';
 
 const NO_PARTICIPANTS: VoiceParticipant[] = [];
@@ -27,7 +27,7 @@ export const VoiceChannelPanel = ({ channel, canJoin }: { channel: VoiceChannelR
     if (inCall) {
         return (
             <section aria-label="Llamada" className="flex-1 overflow-y-auto px-6 py-6">
-                <div className="max-w-md mx-auto flex flex-col gap-4">
+                <div className="max-w-4xl mx-auto flex flex-col gap-4">
                     <p className="text-sm font-semibold" style={{ color: '#3ba55d' }}>
                         Estás en la llamada
                     </p>
@@ -46,6 +46,18 @@ export const VoiceChannelPanel = ({ channel, canJoin }: { channel: VoiceChannelR
                             </div>
                         </div>
                     )}
+                    {call.cameraProblem && (
+                        <div role="status" className="flex gap-3 p-3 rounded-md text-sm" style={{ background: '#3a3d43', color: '#dcddde' }}>
+                            <VideoOff size={18} className="shrink-0 mt-0.5" style={{ color: '#faa61a' }} />
+                            <p>
+                                {call.cameraProblem === 'denied'
+                                    ? VOICE_TEXTS.cameraDenied
+                                    : call.cameraProblem === 'blocked'
+                                      ? VOICE_TEXTS.cameraBlockedWeb
+                                      : VOICE_TEXTS.cameraUnavailable}
+                            </p>
+                        </div>
+                    )}
                     {audioBlocked && (
                         <div className="flex items-center gap-3 p-3 rounded-md text-sm" style={{ background: '#3a3d43', color: '#dcddde' }}>
                             <VolumeX size={18} className="shrink-0" style={{ color: '#faa61a' }} />
@@ -55,7 +67,7 @@ export const VoiceChannelPanel = ({ channel, canJoin }: { channel: VoiceChannelR
                             </button>
                         </div>
                     )}
-                    <VoiceCallParticipantList participants={participants} variant="roomy" />
+                    <VoiceCallGrid participants={participants} />
                 </div>
             </section>
         );

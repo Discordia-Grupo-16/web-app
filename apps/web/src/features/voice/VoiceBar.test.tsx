@@ -22,6 +22,8 @@ const connected = (
         micPending?: boolean;
         serverMuted?: boolean;
         serverMutedUntil?: string | null;
+        cameraOn?: boolean;
+        cameraPending?: boolean;
     } = {},
 ) => ({
     status: 'connected' as const,
@@ -33,7 +35,12 @@ const connected = (
     reconnecting: extra.reconnecting ?? false,
     serverMuted: extra.serverMuted ?? false,
     serverMutedUntil: extra.serverMutedUntil ?? null,
-    participants: [],
+    cameraPending: extra.cameraPending ?? false,
+    cameraProblem: null,
+    // The state of the own camera is the one of the local participant.
+    participants: extra.cameraOn
+        ? [{ userId: 'me', isLocal: true, muted: false, cameraOn: true, joinedAt: 1000, seenOrder: 0 }]
+        : [],
 });
 
 const renderBar = () =>
@@ -53,7 +60,7 @@ describe('VoiceBar', () => {
 
     it('links to the channel of the call', () => {
         vi.mocked(useVoice).mockReturnValue(
-            voiceValue({ call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, serverMuted: false, serverMutedUntil: null, participants: [] } }),
+            voiceValue({ call: { status: 'connected', channel: general, micAvailable: true, micBlocked: false, muted: false, micPending: false, reconnecting: false, serverMuted: false, serverMutedUntil: null, cameraPending: false, cameraProblem: null, participants: [] } }),
         );
         renderBar();
 
@@ -200,6 +207,71 @@ describe('VoiceBar', () => {
 
             expect(screen.queryByText(VOICE_TEXTS.serverMuted)).not.toBeInTheDocument();
             expect(screen.getByRole('button', { name: 'Silenciar micrófono' })).toBeEnabled();
+        });
+    });
+
+    describe('the camera (SCRUM-59)', () => {
+        const until = '2099-01-01T15:30:00Z';
+
+        it.each([
+            ['off', {}, 'Activar cámara', 'false', 'lucide-video-off'],
+            ['on', { cameraOn: true }, 'Apagar cámara', 'true', 'lucide-video'],
+        ] as const)('shows the camera %s', (_label, state, name, pressed, icon) => {
+            vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connected(state) }));
+            renderBar();
+
+            const button = screen.getByRole('button', { name });
+            expect(button).toHaveAttribute('aria-pressed', pressed);
+            expect(button).toHaveAttribute('title', name);
+            expect(button).toBeEnabled();
+            expect(button.querySelector(`svg.${icon}`)).not.toBeNull();
+        });
+
+        it('turns the camera on and off from the bar', async () => {
+            const value = voiceValue({ call: connected() });
+            vi.mocked(useVoice).mockReturnValue(value);
+            renderBar();
+
+            await userEvent.click(screen.getByRole('button', { name: 'Activar cámara' }));
+
+            expect(value.toggleCamera).toHaveBeenCalledTimes(1);
+            expect(value.toggleMute).not.toHaveBeenCalled();
+        });
+
+        it('waits while the camera is being turned on or off', () => {
+            vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connected({ cameraPending: true }) }));
+            renderBar();
+
+            const button = screen.getByRole('button', { name: 'Activar cámara' });
+            expect(button).toBeDisabled();
+            expect(button).toHaveAttribute('aria-busy', 'true');
+        });
+
+        it('waits for a join in progress', () => {
+            vi.mocked(useVoice).mockReturnValue(
+                voiceValue({ call: connected(), attempt: { status: 'connecting', channel: juegos } }),
+            );
+            renderBar();
+
+            expect(screen.getByRole('button', { name: 'Activar cámara' })).toBeDisabled();
+        });
+
+        it('is blocked, with the reason, while muted by a moderator (C1)', () => {
+            vi.mocked(useVoice).mockReturnValue(
+                voiceValue({ call: connected({ muted: true, serverMuted: true, serverMutedUntil: until }) }),
+            );
+            renderBar();
+
+            const button = screen.getByRole('button', { name: 'Activar cámara' });
+            expect(button).toBeDisabled();
+            expect(button).toHaveAccessibleDescription(VOICE_TEXTS.serverMutedUntil(formatMutedUntil(until)));
+        });
+
+        it('has no camera button without a call', () => {
+            vi.mocked(useVoice).mockReturnValue(voiceValue());
+            renderBar();
+
+            expect(screen.queryByRole('button', { name: /cámara/ })).not.toBeInTheDocument();
         });
     });
 });

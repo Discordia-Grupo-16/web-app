@@ -12,6 +12,7 @@ import {
     type RemoteParticipant,
     type RemoteTrack,
     type RemoteTrackPublication,
+    type TrackPublication,
 } from 'livekit-client';
 import {
     buildParticipantSnapshot,
@@ -19,6 +20,7 @@ import {
     readServerReason,
     sameIds,
     speakerIds,
+    type CameraResult,
     type EnableMicrophoneOptions,
     type MicLossCause,
     type MicResult,
@@ -29,7 +31,8 @@ import {
     type VoiceRoomAdapter,
 } from '@discordia/core';
 
-// Events after which the list of the call can change: who is in the room and who has an active microphone.
+// Events after which the list of the call can change: who is in the room, who has an active microphone
+// and whose camera can be shown (C3).
 const SNAPSHOT_EVENTS = [
     RoomEvent.Connected,
     RoomEvent.Reconnected,
@@ -41,6 +44,8 @@ const SNAPSHOT_EVENTS = [
     RoomEvent.TrackUnmuted,
     RoomEvent.LocalTrackPublished,
     RoomEvent.LocalTrackUnpublished,
+    RoomEvent.TrackSubscribed,
+    RoomEvent.TrackUnsubscribed,
 ] as const;
 
 // The attribute chat writes on the participant with the end of a moderator's mute (SCRUM-71).
@@ -81,9 +86,28 @@ const microphonePermissionDenied = async (): Promise<boolean> => {
     }
 };
 
+const cameraPermissionDenied = async (): Promise<boolean> => {
+    try {
+        const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        return status.state === 'denied';
+    } catch {
+        return false;
+    }
+};
+
+export interface CameraTrackRef {
+    participant: Participant;
+    publication: TrackPublication;
+}
+
+// The core adapter plus what only this app draws with: the camera of a participant (C5).
+export type LivekitVoiceAdapter = VoiceRoomAdapter & {
+    cameraTrackRef(userId: string): CameraTrackRef | undefined;
+};
+
 // VoiceRoomAdapter over a livekit-client Room. A new Room per connection, so nothing from the
 // previous call (participants, tracks, listeners) leaks into the next one.
-export const createLivekitAdapter = (): VoiceRoomAdapter => {
+export const createLivekitAdapter = (): LivekitVoiceAdapter => {
     const disconnectedListeners = new Set<(info: RoomDisconnectInfo) => void>();
     const participantListeners = new Set<(snapshot: VoiceParticipant[]) => void>();
     const playbackListeners = new Set<(blocked: boolean) => void>();
@@ -162,7 +186,9 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
 
     const createRoom = (): Room => {
         // disconnectOnPageLeave stays on its default (true): closing the tab sends the leave.
-        const next = new Room();
+        // adaptiveStream: each one downloads the quality of the size at which it shows the video, and nothing
+        // if it does not show it. dynacast: whoever publishes stops encoding what nobody asks for (C14).
+        const next = new Room({ adaptiveStream: true, dynacast: true });
         const seen = new Map<string, number>();
         const emitSnapshot = () => {
             const snapshot = buildParticipantSnapshot(next, seen);
@@ -277,6 +303,41 @@ export const createLivekitAdapter = (): VoiceRoomAdapter => {
                 if (name === 'NotAllowedError') return (await microphonePermissionDenied()) ? 'blocked' : 'denied';
                 return 'no-device';
             }
+        },
+
+        async enableCamera(): Promise<CameraResult> {
+            const current = room;
+            if (!current) return 'unavailable';
+            try {
+                const publication = await current.localParticipant.setCameraEnabled(true);
+                // The call was left while the browser was asking: the camera must not stay on.
+                if (room !== current) {
+                    publication?.track?.stop();
+                    return 'unavailable';
+                }
+                return 'ok';
+            } catch (error) {
+                if (room !== current) return 'unavailable';
+                const name = (error as { name?: string } | null)?.name;
+                if (name === 'NotAllowedError') return (await cameraPermissionDenied()) ? 'blocked' : 'denied';
+                return 'unavailable';
+            }
+        },
+
+        async disableCamera() {
+            await room?.localParticipant.setCameraEnabled(false);
+        },
+
+        cameraTrackRef(userId) {
+            const current = room;
+            if (!current) return undefined;
+            const participant =
+                current.localParticipant.identity === userId
+                    ? current.localParticipant
+                    : current.remoteParticipants.get(userId);
+            const publication = participant?.getTrackPublication(Track.Source.Camera);
+            if (!participant || !publication?.track || publication.isMuted) return undefined;
+            return { participant, publication };
         },
 
         onDisconnected: subscribe(disconnectedListeners),

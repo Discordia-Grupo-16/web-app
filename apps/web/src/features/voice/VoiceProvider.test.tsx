@@ -1,8 +1,10 @@
+import { useContext } from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { useVoice, useVoiceSpeakers, type VoiceParticipant, type VoiceRoomAdapter } from '@discordia/core';
-import { createLivekitAdapter } from './livekitAdapter';
+import { useVoice, useVoiceSpeakers, type CameraResult, type VoiceParticipant } from '@discordia/core';
+import { createLivekitAdapter, type LivekitVoiceAdapter } from './livekitAdapter';
 import { VoiceProvider } from './VoiceProvider';
+import { VoiceVideoContext } from './videoContext';
 
 vi.mock('@/shared/api', () => ({
     voiceService: {
@@ -31,11 +33,14 @@ const adapter = {
     }),
     onReconnectingChanged: () => () => undefined,
     muteMicrophone: vi.fn(async () => undefined),
+    enableCamera: vi.fn(async (): Promise<CameraResult> => 'ok'),
+    disableCamera: vi.fn(async () => undefined),
+    cameraTrackRef: vi.fn(() => undefined),
     setLocallyMuted: vi.fn<(userIds: ReadonlySet<string>) => void>(),
     onMicrophoneLost: () => () => undefined,
     canPublish: () => true,
     onPublishPermissionChanged: () => () => undefined,
-} satisfies VoiceRoomAdapter;
+} satisfies LivekitVoiceAdapter;
 
 vi.mock('./livekitAdapter', () => ({ createLivekitAdapter: vi.fn(() => adapter) }));
 
@@ -87,6 +92,21 @@ describe('VoiceProvider', () => {
         expect(screen.getByTestId('speakers')).toHaveTextContent('me');
     });
 
+    it('gives the video context the cameraTrackRef of the adapter (SCRUM-59, C5)', () => {
+        const Reader = () => {
+            const lookup = useContext(VoiceVideoContext);
+            return <span data-testid="lookup">{lookup === adapter.cameraTrackRef ? 'the adapter' : 'another one'}</span>;
+        };
+
+        render(
+            <VoiceProvider>
+                <Reader />
+            </VoiceProvider>,
+        );
+
+        expect(screen.getByTestId('lookup')).toHaveTextContent('the adapter');
+    });
+
     it('sends the adapter who the user muted locally (SCRUM-57)', async () => {
         const ANA_ID = 'ana';
         const LocalMute = () => {
@@ -106,7 +126,7 @@ describe('VoiceProvider', () => {
         );
         await act(async () => screen.getByRole('button', { name: 'Unirse' }).click());
         expect(await screen.findByText('connected')).toBeInTheDocument();
-        act(() => emitParticipants([{ userId: ANA_ID, isLocal: false, muted: false, joinedAt: 1, seenOrder: 0 }]));
+        act(() => emitParticipants([{ userId: ANA_ID, isLocal: false, muted: false, cameraOn: false, joinedAt: 1, seenOrder: 0 }]));
 
         act(() => screen.getByRole('button', { name: 'Silenciar' }).click());
 

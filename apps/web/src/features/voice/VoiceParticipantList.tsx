@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { MicOff, Volume2, VolumeX } from 'lucide-react';
 import { VOICE_TEXTS, type ChannelParticipantView } from '@discordia/core';
+import { participantInitial } from './participantInitial';
 
 export interface VoiceParticipantListProps {
     participants: ChannelParticipantView[];
@@ -14,7 +15,6 @@ export interface VoiceParticipantListProps {
     onToggleLocalMute?: (userId: string) => void;
 }
 
-const initial = (name: string) => name.trim().charAt(0).toUpperCase() || '?';
 
 interface ParticipantRowProps {
     participant: ChannelParticipantView;
@@ -46,7 +46,7 @@ const ParticipantRow = memo(({ participant: p, roomy, speaking, locallyMuted, on
                 {p.loading ? '' : p.userAvatar ? (
                     <img src={p.userAvatar} alt="" className="absolute inset-0 block w-full h-full object-cover" />
                 ) : (
-                    initial(p.name)
+                    participantInitial(p.name)
                 )}
             </span>
             <span

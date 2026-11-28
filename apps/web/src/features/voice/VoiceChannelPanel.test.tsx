@@ -7,6 +7,7 @@ import {
     VOICE_JOIN_ERROR_TEXTS,
     VOICE_TEXTS,
     VoiceSpeakersContext,
+    type CameraProblem,
     type VoiceChannelRef,
     type VoiceJoinError,
 } from '@discordia/core';
@@ -29,7 +30,13 @@ const other: VoiceChannelRef = { id: 'c2', serverId: 's1', name: 'Juegos' };
 
 const connectedTo = (
     channel: VoiceChannelRef,
-    extra: { micAvailable?: boolean; micBlocked?: boolean; serverMuted?: boolean; serverMutedUntil?: string | null } = {},
+    extra: {
+        micAvailable?: boolean;
+        micBlocked?: boolean;
+        serverMuted?: boolean;
+        serverMutedUntil?: string | null;
+        cameraProblem?: CameraProblem | null;
+    } = {},
 ) => ({
     status: 'connected' as const,
     channel,
@@ -40,6 +47,8 @@ const connectedTo = (
     reconnecting: false,
     serverMuted: extra.serverMuted ?? false,
     serverMutedUntil: extra.serverMutedUntil ?? null,
+    cameraPending: false,
+    cameraProblem: extra.cameraProblem ?? null,
     participants: [],
 });
 
@@ -87,12 +96,38 @@ describe('VoiceChannelPanel', () => {
         }
     });
 
-    it('shows the call and its list, never "Unirse", in the connected channel', () => {
+    it('shows the call and its tiles, never "Unirse", in the connected channel', () => {
         vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
         render(<VoiceChannelPanel channel={general} canJoin />);
 
         expect(screen.getByText('Ana')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Unirse' })).not.toBeInTheDocument();
+    });
+
+    it('draws the call as a grid of tiles, not as the list of rows (SCRUM-59, C8)', () => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+        render(<VoiceChannelPanel channel={general} canJoin />);
+
+        expect(screen.getByRole('list', { name: 'Participantes de la llamada' })).toBeInTheDocument();
+        expect(screen.queryByRole('list', { name: 'Participantes del canal' })).not.toBeInTheDocument();
+    });
+
+    it.each([
+        ['denied', VOICE_TEXTS.cameraDenied],
+        ['blocked', VOICE_TEXTS.cameraBlockedWeb],
+        ['unavailable', VOICE_TEXTS.cameraUnavailable],
+    ] as const)('tells in the call why the camera did not turn on: %s (SCRUM-59)', (cameraProblem, text) => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general, { cameraProblem }) }));
+        render(<VoiceChannelPanel channel={general} canJoin />);
+
+        expect(screen.getByRole('status')).toHaveTextContent(text);
+    });
+
+    it('says nothing of a camera problem that is not there', () => {
+        vi.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+        render(<VoiceChannelPanel channel={general} canJoin />);
+
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
     it('tells in the call that a moderator took the microphone away (SCRUM-71)', () => {

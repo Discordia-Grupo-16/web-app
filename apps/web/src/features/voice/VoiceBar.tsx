@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { Link } from 'react-router-dom';
-import { Mic, MicOff, PhoneOff, Signal, X } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Signal, Video, VideoOff, X } from 'lucide-react';
 import { canRejoin, useVoice, VOICE_DISCONNECT_TEXTS, VOICE_TEXTS } from '@discordia/core';
 import { serverMutedText } from './serverMutedText';
 
@@ -10,7 +10,7 @@ const barStyle = { background: '#292b2f', borderTop: '1px solid #202225' };
 
 // The way back to the call, and out of it, from any screen, including another server.
 export const VoiceBar = () => {
-    const { call, attempt, rejoin, leave, toggleMute, dismiss } = useVoice();
+    const { call, attempt, rejoin, leave, toggleMute, toggleCamera, dismiss } = useVoice();
     const noMicId = useId();
     const serverMutedId = useId();
     if (call.status === 'idle') return null;
@@ -46,6 +46,9 @@ export const VoiceBar = () => {
     const joining = attempt?.status === 'connecting';
     const noMic = !call.micAvailable;
     const micColor = noMic ? '#faa61a' : call.muted ? '#ed4245' : '#b9bbbe';
+    // The state of the own camera is the one of the local participant (C4).
+    const cameraOn = call.participants.find((p) => p.isLocal)?.cameraOn ?? false;
+    const cameraLabel = cameraOn ? VOICE_TEXTS.disableCamera : VOICE_TEXTS.enableCamera;
 
     return (
         <div className="flex items-center gap-2 px-3 py-2" style={barStyle}>
@@ -89,6 +92,19 @@ export const VoiceBar = () => {
                     {VOICE_TEXTS.noMic}
                 </span>
             )}
+            <button
+                onClick={toggleCamera}
+                disabled={call.cameraPending || joining || call.serverMuted}
+                aria-label={cameraLabel}
+                aria-pressed={cameraOn}
+                aria-busy={call.cameraPending || undefined}
+                aria-describedby={call.serverMuted ? serverMutedId : undefined}
+                title={cameraLabel}
+                className="p-1.5 rounded shrink-0 transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent"
+                style={{ color: cameraOn ? '#3ba55d' : '#b9bbbe' }}
+            >
+                {cameraOn ? <Video size={18} /> : <VideoOff size={18} />}
+            </button>
             <button
                 onClick={leave}
                 disabled={joining}
