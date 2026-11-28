@@ -8,6 +8,7 @@ import {
   type VoiceChannelRef,
   type VoiceParticipant,
 } from '@discordia/core';
+import { CameraOffIcon } from './CameraOffIcon';
 import { MicOffIcon } from './MicOffIcon';
 import { VoiceCallGrid } from './VoiceCallGrid';
 import { serverMutedText } from './serverMutedText';
@@ -61,6 +62,28 @@ export const VoiceChannelScreen = ({ channel, canJoin }: { channel: VoiceChannel
               {call.micBlocked && (
                 <>
                   <Text className="text-sm text-[#b9bbbe]">{VOICE_TEXTS.micBlockedMobile}</Text>
+                  <Text className="text-xs text-[#b9bbbe]">{VOICE_TEXTS.micBlockedMobileInCall}</Text>
+                  <View className="items-start">
+                    <Button label={VOICE_TEXTS.openSettings} color="#4f545c" onPress={() => void Linking.openSettings()} />
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        )}
+        {call.cameraProblem && (
+          <View className="flex-row gap-3 rounded-md bg-[#3a3d43] p-3">
+            <CameraOffIcon size={18} color="#faa61a" />
+            <View className="flex-1 gap-2">
+              <Text accessibilityRole="alert" className="text-sm text-[#dcddde]">
+                {call.cameraProblem === 'denied'
+                  ? VOICE_TEXTS.cameraDenied
+                  : call.cameraProblem === 'blocked'
+                    ? VOICE_TEXTS.cameraBlockedMobile
+                    : VOICE_TEXTS.cameraUnavailable}
+              </Text>
+              {call.cameraProblem === 'blocked' && (
+                <>
                   <Text className="text-xs text-[#b9bbbe]">{VOICE_TEXTS.micBlockedMobileInCall}</Text>
                   <View className="items-start">
                     <Button label={VOICE_TEXTS.openSettings} color="#4f545c" onPress={() => void Linking.openSettings()} />

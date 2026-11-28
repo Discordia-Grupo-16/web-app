@@ -6,6 +6,7 @@ import {
   VOICE_JOIN_ERROR_TEXTS,
   VOICE_TEXTS,
   VoiceSpeakersContext,
+  type CameraProblem,
   type VoiceChannelRef,
   type VoiceJoinError,
 } from '@discordia/core';
@@ -26,7 +27,13 @@ const other: VoiceChannelRef = { id: 'c2', serverId: 's1', name: 'Juegos' };
 
 const connectedTo = (
   channel: VoiceChannelRef,
-  extra: { micAvailable?: boolean; micBlocked?: boolean; serverMuted?: boolean; serverMutedUntil?: string | null } = {},
+  extra: {
+    micAvailable?: boolean;
+    micBlocked?: boolean;
+    serverMuted?: boolean;
+    serverMutedUntil?: string | null;
+    cameraProblem?: CameraProblem | null;
+  } = {},
 ) => ({
   status: 'connected' as const,
   channel,
@@ -35,7 +42,7 @@ const connectedTo = (
   muted: !(extra.micAvailable ?? true),
   micPending: false,
   cameraPending: false,
-  cameraProblem: null,
+  cameraProblem: extra.cameraProblem ?? null,
   reconnecting: false,
   serverMuted: extra.serverMuted ?? false,
   serverMutedUntil: extra.serverMutedUntil ?? null,
@@ -177,6 +184,50 @@ describe('VoiceChannelScreen', () => {
     expect(screen.getByText(VOICE_TEXTS.micBlockedMobileInCall)).toBeTruthy();
     await userEvent.setup().press(screen.getByRole('button', { name: VOICE_TEXTS.openSettings }));
     expect(openSettings).toHaveBeenCalled();
+  });
+
+  describe('the camera notice (SCRUM-59)', () => {
+    it('says nothing without a camera problem', async () => {
+      jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general) }));
+      await render(<VoiceChannelScreen channel={general} canJoin />);
+
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByText(VOICE_TEXTS.cameraDenied)).toBeNull();
+    });
+
+    it.each([
+      ['denied', VOICE_TEXTS.cameraDenied],
+      ['unavailable', VOICE_TEXTS.cameraUnavailable],
+    ] as const)('tells the %s problem, with no way to settings', async (cameraProblem, text) => {
+      jest.mocked(useVoice).mockReturnValue(voiceValue({ call: connectedTo(general, { cameraProblem }) }));
+      await render(<VoiceChannelScreen channel={general} canJoin />);
+
+      expect(screen.getByRole('alert')).toHaveTextContent(text);
+      expect(screen.queryByRole('button', { name: VOICE_TEXTS.openSettings })).toBeNull();
+    });
+
+    it('tells the blocked problem and opens the app settings, warning that it cuts the call', async () => {
+      // The spy outlives the test that created it: start counting from zero.
+      const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined).mockClear();
+      jest
+        .mocked(useVoice)
+        .mockReturnValue(voiceValue({ call: connectedTo(general, { cameraProblem: 'blocked' }) }));
+      await render(<VoiceChannelScreen channel={general} canJoin />);
+
+      expect(screen.getByRole('alert')).toHaveTextContent(VOICE_TEXTS.cameraBlockedMobile);
+      expect(screen.getByText(VOICE_TEXTS.micBlockedMobileInCall)).toBeTruthy();
+      await userEvent.setup().press(screen.getByRole('button', { name: VOICE_TEXTS.openSettings }));
+      expect(openSettings).toHaveBeenCalledTimes(1);
+    });
+
+    it('can show next to the microphone notice', async () => {
+      jest
+        .mocked(useVoice)
+        .mockReturnValue(voiceValue({ call: connectedTo(general, { micAvailable: false, cameraProblem: 'denied' }) }));
+      await render(<VoiceChannelScreen channel={general} canJoin />);
+
+      expect(screen.getAllByRole('alert')).toHaveLength(2);
+    });
   });
 
   it('explains that voice needs the development build in Expo Go', async () => {

@@ -901,6 +901,31 @@ describe('createLivekitAdapter and the camera (SCRUM-59, Video en llamada)', () 
     });
   });
 
+  describe('the camera and the call (CA2)', () => {
+    it('turning it off does not touch the microphone, the room or the audio session', async () => {
+      const { adapter, room } = await connected();
+      jest.clearAllMocks();
+
+      await adapter.disableCamera();
+      jest.advanceTimersByTime(AUDIO_STOP_DELAY_MS);
+
+      expect(room.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+      expect(room.disconnect).not.toHaveBeenCalled();
+      expect(mockAudioSession.stopAudioSession).not.toHaveBeenCalled();
+    });
+
+    it('turning it on does not configure or start the audio session again', async () => {
+      const { adapter } = await connected();
+      jest.clearAllMocks();
+      requestPermission.mockResolvedValue(PermissionsAndroid.RESULTS.GRANTED);
+
+      await adapter.enableCamera();
+
+      expect(mockAudioSession.configureAudio).not.toHaveBeenCalled();
+      expect(mockAudioSession.startAudioSession).not.toHaveBeenCalled();
+    });
+  });
+
   describe('disableCamera', () => {
     it('mutes the camera and leaves the microphone alone', async () => {
       const { adapter, room } = await connected();
